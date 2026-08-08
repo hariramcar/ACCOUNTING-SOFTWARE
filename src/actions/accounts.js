@@ -1,0 +1,236 @@
+'use server';
+
+import prisma from '@/lib/prisma';
+import { revalidatePath } from 'next/cache';
+
+export async function getAccountsList() {
+  try {
+    const accounts = await prisma.account.findMany({
+      orderBy: { createdAt: 'asc' },
+    });
+    
+    const processedAccounts = accounts.map(acc => ({
+      ...acc,
+      openingBalance: Number(acc.openingBalance)
+    }));
+
+    return { success: true, accounts: processedAccounts };
+  } catch (error) {
+    console.error('Failed to load accounts:', error);
+    return { success: false, error: 'Failed to load accounts.' };
+  }
+}
+
+export async function getAccountBalances() {
+  try {
+    const accounts = await prisma.account.findMany({
+      orderBy: { createdAt: 'asc' },
+      include: {
+        transactions: true,
+        partnerships: {
+          where: { 
+            vehicle: {
+              status: 'IN_STOCK'
+            }
+          },
+          include: {
+            vehicle: true
+          }
+        }
+      }
+    });
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const processedAccounts = accounts.map(acc => {
+      let openingBalance = 0;
+      let currentBalance = 0;
+      let totalPaid = 0; // Current month's incoming money
+      let totalExpenses = 0; // Current month's outgoing money
+      
+      acc.transactions.forEach(t => {
+        const amt = Number(t.amount);
+        const isOpeningInjection = (t.description === 'Opening Balance' || t.description === 'Capital Introduced / Opening Balance');
+
+        // 1. Calculate Monthly Opening Balance 
+        // (Includes all past transactions, PLUS any explicit "Opening Balance" injections made this month)
+        if (t.date < startOfMonth || isOpeningInjection) {
+          if (t.type === 'CREDIT') openingBalance += amt;
+          else openingBalance -= amt;
+        }
+
+        // 2. Calculate Current Month's Operating Flow
+        // (Only includes normal transactions that happened on or after the 1st of this month)
+        if (t.date >= startOfMonth && !isOpeningInjection) {
+          if (t.type === 'CREDIT') totalPaid += amt;
+          else if (t.type === 'DEBIT') totalExpenses += amt;
+        }
+
+        // 3. Current Balance is always the total net sum of everything
+        if (t.type === 'CREDIT') currentBalance += amt;
+        else if (t.type === 'DEBIT') currentBalance -= amt;
+      });
+
+      const pendingInvestments = acc.partnerships?.reduce((sum, p) => sum + Number(p.investmentAmount), 0) || 0;
+      
+      const partnerVehicles = acc.partnerships?.map(p => ({
+        id: p.id,
+        make: p.vehicle.make,
+        model: p.vehicle.model,
+        registration: p.vehicle.registration,
+        purchasePrice: Number(p.vehicle.purchasePrice),
+        investmentAmount: Number(p.investmentAmount),
+        profitSharePercentage: Number(p.profitSharePercentage || 0)
+      })) || [];
+
+      return {
+        id: acc.id,
+        name: acc.name,
+        type: acc.type,
+        openingBalance,
+        createdAt: acc.createdAt,
+        updatedAt: acc.updatedAt,
+        totalPaid,
+        totalExpenses,
+        currentBalance,
+        pendingInvestments,
+        partnerVehicles
+      };
+    });
+
+    return { success: true, accounts: processedAccounts };
+  } catch (error) {
+    console.error('Failed to load account balances:', error);
+    return { success: false, error: 'Failed to load account balances.' };
+  }
+}
+
+export async function createAccount(formData) {
+  try {
+    const name = formData.get('name');
+    const type = formData.get('type');
+    const openingBalance = parseFloat(formData.get('openingBalance') || '0');
+
+    const account = await prisma.account.create({
+      data: {
+        name,
+        type,
+        openingBalance
+      }
+    });
+
+    if (openingBalance > 0) {
+      await prisma.transaction.create({
+        data: {
+          date: new Date(),
+          transactionMode: 'CASH',
+          type: 'CREDIT',
+          amount: openingBalance,
+          accountId: account.id,
+          category: 'GENERAL',
+          description: 'Opening Balance'
+        }
+      });
+    }
+
+    revalidatePath('/accounts');
+    revalidatePath('/rojmel');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to create account:', error);
+    return { success: false, error: 'Failed to create account.' };
+  }
+}
+
+export async function injectCapital(formData) {
+  try {
+    const accountId = formData.get('accountId');
+    const amount = parseFloat(formData.get('amount') || '0');
+    const date = new Date(formData.get('date') || Date.now());
+
+    if (amount <= 0) throw new Error('Amount must be positive');
+
+    await prisma.transaction.create({
+      data: {
+        date,
+        transactionMode: 'CASH', // Defaulting to CASH mode for capital injection text style, but it affects the specific account
+        type: 'CREDIT',
+        amount,
+        accountId,
+        category: 'GENERAL',
+        description: 'Capital Introduced / Opening Balance'
+      }
+    });
+
+    revalidatePath('/accounts');
+    revalidatePath('/rojmel');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to inject capital:', error);
+    return { success: false, error: 'Failed to inject capital.' };
+  }
+}
+
+export async function deleteAccount(formData) {
+  try {
+    const id = formData.get('id');
+    
+    // Check if account has transactions
+    const count = await prisma.transaction.count({
+      where: { accountId: id }
+    });
+    
+    if (count > 0) {
+      return { success: false, error: 'Cannot delete account because it has recorded transactions (Rojmel entries).' };
+    }
+
+    // Check if it's used in any partnerships
+    const partnerCount = await prisma.partnership.count({
+      where: { partnerAccountId: id }
+    });
+
+    if (partnerCount > 0) {
+      return { success: false, error: 'Cannot delete account because it is linked to active partnerships on vehicles.' };
+    }
+
+    // Check if used in vehicles (payableAccountId)
+    const vehicleCount = await prisma.vehicle.count({
+      where: { payableAccountId: id }
+    });
+
+    if (vehicleCount > 0) {
+      return { success: false, error: 'Cannot delete account because it is linked to pending vehicle purchases.' };
+    }
+
+    await prisma.account.delete({
+      where: { id }
+    });
+
+    revalidatePath('/accounts');
+    revalidatePath('/rojmel');
+    revalidatePath('/inventory');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete account:', error);
+    return { success: false, error: 'Failed to delete account.' };
+  }
+}
+
+export async function getAccountTransactions(accountId) {
+  try {
+    const transactions = await prisma.transaction.findMany({
+      where: { accountId },
+      orderBy: { date: 'desc' }
+    });
+
+    const processed = transactions.map(t => ({
+      ...t,
+      amount: Number(t.amount)
+    }));
+
+    return { success: true, transactions: processed };
+  } catch (error) {
+    console.error('Failed to load transactions:', error);
+    return { success: false, error: 'Failed to load transactions.' };
+  }
+}

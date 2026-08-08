@@ -1,0 +1,284 @@
+import { getAccountBalances } from '@/actions/accounts';
+import { Landmark, WalletCards, BriefcaseBusiness, Handshake, Users2, LineChart } from 'lucide-react';
+import DeleteAccountButton from './DeleteAccountButton';
+import AddAccountModal from './AddAccountModal';
+import AccountHistoryModal from './AccountHistoryModal';
+import UpadModals from './UpadModals';
+
+import { getSession } from '@/lib/session';
+import { redirect } from 'next/navigation';
+
+export default async function AccountsPage() {
+  const session = await getSession();
+  if (!session || session.role !== 'ADMIN') {
+    redirect('/expenses');
+  }
+
+  const { accounts } = await getAccountBalances();
+
+  const cashAccounts = accounts?.filter(a => a.type === 'CASH') || [];
+  const bankAccounts = accounts?.filter(a => a.type === 'BANK') || [];
+  const agentAccounts = accounts?.filter(a => a.type === 'DSA_AGENT' || a.type === 'FINANCIER') || [];
+  const ughraniAccounts = accounts?.filter(a => a.type === 'UGHRANI') || [];
+  const staffAccounts = accounts?.filter(a => a.type === 'STAFF') || [];
+  const partnerAccounts = accounts?.filter(a => a.type === 'PARTNER') || [];
+
+  return (
+    <div className="w-full max-w-7xl mx-auto p-8 flex flex-col gap-8 text-slate-900">
+      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-5 mb-8">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100 shadow-sm">
+              <Landmark size={20} />
+            </div>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 m-0">Master Capital Dashboard</h1>
+          </div>
+          <p className="text-slate-500 m-0 font-medium ml-13">Manage Banks, Cash Drawers, Loan Agents, and Market Place.</p>
+        </div>
+        <div className="flex gap-3">
+          <UpadModals upadAccounts={[...staffAccounts, ...ughraniAccounts]} ledgerAccounts={[...cashAccounts, ...bankAccounts]} />
+          <AddAccountModal />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-8">
+          
+        {/* CASH DRAWERS */}
+        <div className="flex flex-col w-full mb-2">
+          <div className="flex items-center gap-2 mb-3">
+            <WalletCards size={20} className="text-emerald-500" />
+            <h3 className="text-lg font-bold text-slate-800 m-0 tracking-tight">Cash Drawers</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+            {cashAccounts.map(acc => (
+              <CompactAccountCard 
+                key={acc.id} account={acc} colorClass="bg-emerald-50/20 border-emerald-200 text-emerald-900" 
+                balanceLogic={(b) => ({ color: b >= 0 ? 'text-emerald-700' : 'text-red-700' })}
+              />
+            ))}
+            {cashAccounts.length === 0 && <p className="text-slate-400 text-sm font-medium italic col-span-full">No cash accounts.</p>}
+          </div>
+        </div>
+
+        {/* BANK ACCOUNTS */}
+        <div className="flex flex-col w-full mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Landmark size={20} className="text-blue-500" />
+            <h3 className="text-lg font-bold text-slate-800 m-0 tracking-tight">Bank Accounts</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+            {bankAccounts.map(acc => (
+              <CompactAccountCard 
+                key={acc.id} account={acc} colorClass="bg-blue-50/20 border-blue-200 text-blue-900" 
+                balanceLogic={(b) => ({ color: b >= 0 ? 'text-blue-700' : 'text-red-700' })}
+              />
+            ))}
+            {bankAccounts.length === 0 && <p className="text-slate-400 text-sm font-medium italic col-span-full">No bank accounts.</p>}
+          </div>
+        </div>
+
+        {/* LOAN AGENTS */}
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
+            <BriefcaseBusiness size={18} className="text-purple-500" />
+            <h3 className="text-base font-bold text-slate-800 m-0">Loan Agents</h3>
+          </div>
+          <p className="text-xs font-medium text-slate-500 mb-5 mt-1">Track pending loan payouts and commissions from DSA agents.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+            {agentAccounts.map(acc => (
+              <AccountCard 
+                key={acc.id} account={acc} colorClass="bg-purple-50/30 border-purple-200 text-purple-800" 
+                creditLabel="Amount Received" debitLabel="Pending Payouts Logged"
+                balanceLogic={(b) => {
+                  if (b === 0) return { color: 'text-slate-700', text: 'Settled' };
+                  if (b < 0) return { color: 'text-emerald-700', text: 'Receivable (They Owe Us)' };
+                  return { color: 'text-red-700', text: 'Payable (We Owe Them)' };
+                }}
+              />
+            ))}
+            {agentAccounts.length === 0 && <p className="text-slate-400 text-sm font-medium italic col-span-full">No loan agents added.</p>}
+          </div>
+        </div>
+
+        {/* MARKET PLACE */}
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
+            <LineChart size={18} className="text-amber-500" />
+            <h3 className="text-base font-bold text-slate-800 m-0">Market Place</h3>
+          </div>
+          <p className="text-xs font-medium text-slate-500 mb-5 mt-1">Car repair vendors and parts. Track monthly advances (Upad) and work billed.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+            {ughraniAccounts.map(acc => (
+              <AccountCard 
+                key={acc.id} account={acc} colorClass="bg-amber-50/30 border-amber-200 text-amber-800" 
+                creditLabel="Work Billed (Credit)" debitLabel="Upad Paid (Debit)"
+                balanceLogic={(b) => {
+                  if (b === 0) return { color: 'text-slate-700', text: 'Settled' };
+                  if (b < 0) return { color: 'text-blue-700', text: 'Advance Given (Upad)' };
+                  return { color: 'text-red-700', text: 'Payable (We Owe Vendor)' };
+                }}
+              />
+            ))}
+            {ughraniAccounts.length === 0 && <p className="text-slate-400 text-sm font-medium italic col-span-full">No market place accounts added.</p>}
+          </div>
+        </div>
+
+        {/* STAFF & EMPLOYEES */}
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
+            <Users2 size={18} className="text-pink-500" />
+            <h3 className="text-base font-bold text-slate-800 m-0">Staff & Employees</h3>
+          </div>
+          <p className="text-xs font-medium text-slate-500 mb-5 mt-1">Track staff Upad (Advances given) vs Salary and Bills settled.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+            {staffAccounts.map(acc => (
+              <AccountCard 
+                key={acc.id} account={acc} colorClass="bg-pink-50/30 border-pink-200 text-pink-800" 
+                creditLabel="Salary / Bills Settled" debitLabel="Upad Given"
+                balanceLogic={(b) => {
+                  if (b === 0) return { color: 'text-slate-700', text: 'Settled' };
+                  if (b < 0) return { color: 'text-emerald-700', text: 'Advance Given (They Owe Us)' };
+                  return { color: 'text-pink-700', text: 'Salary Payable (We Owe Them)' };
+                }}
+              />
+            ))}
+            {staffAccounts.length === 0 && <p className="text-slate-400 text-sm font-medium italic col-span-full">No staff accounts added.</p>}
+          </div>
+        </div>
+
+        {/* BUSINESS PARTNERS */}
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
+            <Handshake size={18} className="text-teal-500" />
+            <h3 className="text-base font-bold text-slate-800 m-0">Business Partners</h3>
+          </div>
+          <p className="text-xs font-medium text-slate-500 mb-5 mt-1">Partners who co-invest in vehicles. Track their capital, profit shares, and payouts.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+            {partnerAccounts.map(acc => (
+              <PartnerAccountCard 
+                key={acc.id} account={acc} colorClass="bg-teal-50/30 border-teal-200 text-teal-800" 
+              />
+            ))}
+            {partnerAccounts.length === 0 && <p className="text-slate-400 text-sm font-medium italic col-span-full">No business partners added.</p>}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+function AccountCard({ account, colorClass, creditLabel, debitLabel, balanceLogic, hideTotals = false }) {
+  const { color, text } = balanceLogic(account.currentBalance);
+
+  return (
+    <AccountHistoryModal account={account}>
+      <div className={`border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col h-full ${colorClass}`}>
+        <div className="flex justify-between items-center mb-3 border-b border-black/5 pb-2">
+          <strong className="text-[15px] tracking-tight flex-1">{account.name}</strong>
+          <DeleteAccountButton accountId={account.id} accountName={account.name} />
+        </div>
+        <div className="flex flex-col gap-2 flex-1">
+          {!hideTotals && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1">
+              <div className="flex flex-col gap-1 p-2 bg-emerald-50/50 rounded border border-emerald-100">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600/80">{creditLabel}</span>
+                <span className="text-sm font-semibold text-emerald-700">₹{account.totalPaid?.toLocaleString('en-IN') || '0'}</span>
+              </div>
+              <div className="flex flex-col gap-1 p-2 bg-red-50/50 rounded border border-red-100">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-red-600/80">{debitLabel}</span>
+                <span className="text-sm font-semibold text-red-700">₹{account.totalExpenses?.toLocaleString('en-IN') || '0'}</span>
+              </div>
+            </div>
+          )}
+
+          {hideTotals && account.openingBalance > 0 && (
+            <div className="flex justify-between items-center bg-black/5 p-2 rounded-md mb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Opening Balance</span>
+              <span className="text-sm font-semibold">₹{account.openingBalance.toLocaleString('en-IN')}</span>
+            </div>
+          )}
+          
+          {account.pendingInvestments > 0 && (
+            <div className="flex justify-between items-center bg-red-50 p-2 rounded-md border border-red-100 mb-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">Pending Capital (They Owe)</span>
+              <span className="text-sm font-black text-red-700">₹{account.pendingInvestments.toLocaleString('en-IN')}</span>
+            </div>
+          )}
+
+          <div className="mt-auto pt-1">
+            <div className="flex justify-between items-center bg-black/10 p-2.5 rounded-md">
+              <span className="text-[11px] font-bold uppercase tracking-wider opacity-90">{text}</span>
+              <span className={`text-xl font-black ${color}`}>
+                {account.currentBalance < 0 ? '-' : ''}₹{Math.abs(account.currentBalance).toLocaleString('en-IN')}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </AccountHistoryModal>
+  );
+}
+
+function CompactAccountCard({ account, colorClass, balanceLogic }) {
+  const { color } = balanceLogic(account.currentBalance);
+  
+  return (
+    <AccountHistoryModal account={account}>
+      <div className={`border rounded-xl px-4 py-3.5 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex items-center justify-between ${colorClass}`}>
+        <div className="flex flex-col gap-0.5">
+          <strong className="text-[14px] tracking-tight m-0 leading-none">{account.name}</strong>
+          {account.openingBalance > 0 && (
+             <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider leading-none mt-1">Opening: ₹{account.openingBalance.toLocaleString('en-IN')}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className={`text-lg font-black tracking-tight ${color}`}>
+            {account.currentBalance < 0 ? '-' : ''}₹{Math.abs(account.currentBalance).toLocaleString('en-IN')}
+          </span>
+          <DeleteAccountButton accountId={account.id} accountName={account.name} />
+        </div>
+      </div>
+    </AccountHistoryModal>
+  );
+}
+
+function PartnerAccountCard({ account, colorClass }) {
+  const cars = account.partnerVehicles || [];
+
+  return (
+    <AccountHistoryModal account={account}>
+      <div className={`border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col h-full ${colorClass}`}>
+        <div className="flex justify-between items-center mb-3 border-b border-black/5 pb-2">
+          <strong className="text-[15px] tracking-tight flex-1">{account.name}</strong>
+          <DeleteAccountButton accountId={account.id} accountName={account.name} />
+        </div>
+        
+        <div className="flex flex-col gap-2 flex-1">
+          {cars.length === 0 ? (
+            <div className="text-xs text-teal-600/70 italic p-3 text-center border border-dashed border-teal-200 rounded-lg bg-teal-50/30">No active vehicles.</div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-teal-600/80 mb-1">Active Investments</span>
+              {cars.map((car, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-teal-100 shadow-sm">
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-bold text-slate-800 leading-tight">{car.make} {car.model}</span>
+                    <span className="text-[10px] text-slate-500 font-medium mt-0.5">
+                      {car.registration || 'Unregistered'} 
+                      <span className="text-teal-600 font-bold ml-1">({car.profitSharePercentage}%)</span>
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-teal-600/70 uppercase font-bold">Car Price</span>
+                    <span className="text-[13px] font-black text-teal-700 leading-tight">₹{car.purchasePrice.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </AccountHistoryModal>
+  );
+}

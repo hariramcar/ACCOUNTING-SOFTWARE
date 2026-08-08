@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Account {
+  id              String        @id @default(uuid())
+  name            String
+  type            AccountType
+  openingBalance  Decimal       @default(0.0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  partnerships    Partnership[]
+  transactions    Transaction[]
+  payableVehicles Vehicle[]     @relation("VehiclePayableAccount")
+  user            User?
+}
+
+model Vehicle {
+  id                     String        @id @default(uuid())
+  make                   String
+  model                  String
+  registration           String?       @unique
+  status                 VehicleStatus @default(IN_STOCK)
+  isLegacy               Boolean       @default(false)
+  legacyExpenses         Decimal       @default(0)
+  purchasePrice          Decimal
+  purchaseDate           DateTime
+  purchasePendingBalance Decimal       @default(0)
+  payableAccountId       String?
+  salePrice              Decimal?
+  saleDate               DateTime?
+  profit                 Decimal?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  expenses               Expense[]
+  partnerships           Partnership[]
+  payableAccount         Account?      @relation("VehiclePayableAccount", fields: [payableAccountId], references: [id])
+}
+
+model Expense {
+  id                 String        @id @default(uuid())
+  amount             Decimal
+  date               DateTime
+  description        String
+  expenseType        ExpenseType
+  vehicleId          String?
+  status             ExpenseStatus @default(PENDING)
+  requestedAccountId String?
+  requestedMode      String?
+  submittedById      String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  submittedBy        User?         @relation(fields: [submittedById], references: [id])
+  vehicle            Vehicle?      @relation(fields: [vehicleId], references: [id])
+}
+
+model Partnership {
+  id                    String   @id @default(uuid())
+  vehicleId             String
+  partnerAccountId      String
+  investmentAmount      Decimal
+  profitSharePercentage Decimal
+  investmentMode        String?
+  isInvestmentPaid      Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  partnerAccount        Account  @relation(fields: [partnerAccountId], references: [id])
+  vehicle               Vehicle  @relation(fields: [vehicleId], references: [id])
+}
+
+model Transaction {
+  id              String              @id @default(uuid())
+  date            DateTime
+  transactionMode TransactionMode
+  type            TransactionType
+  amount          Decimal
+  accountId       String
+  category        TransactionCategory
+  referenceId     String?
+  description     String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  account         Account             @relation(fields: [accountId], references: [id])
+}
+
+model User {
+  id                String    @id @default(uuid())
+  username          String    @unique
+  password          String
+  role              Role      @default(STAFF)
+  name              String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  expensesSubmitted Expense[]
+  accountId         String?   @unique
+  account           Account?  @relation(fields: [accountId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum AccountType {
+  CASH
+  BANK
+  STAFF
+  PARTNER
+  FINANCIER
+  DSA_AGENT
+  UGHRANI
+}
+
+enum VehicleStatus {
+  IN_STOCK
+  SOLD
+}
+
+enum ExpenseType {
+  CAR_EXPENSE
+  OFFICE_EXPENSE
+  INCOME
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TransactionMode {
+  CASH
+  BANK
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum TransactionCategory {
+  VEHICLE_PURCHASE
+  VEHICLE_SALE
+  EXPENSE
+  UPAD_WITHDRAWAL
+  UPAD_REPAYMENT
+  CAPITAL_INJECTION
+  GENERAL
+  INTERNAL_TRANSFER
+}

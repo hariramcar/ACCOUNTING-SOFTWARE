@@ -39,3 +39,28 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# Custom IDE and debug scripts
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
+*.log
+*.md
+!README.md
+!AGENTS.md
+!SKILL.md
+check_db.js
+delete-pg.js
+link-users.js
+link-rahul.js
+read-tx.js
+read-user.js
+test_add.js
+debug_add.js
+delete-rahul-cjs.js
+delete-rahul-upad.js
+fix-partner-tx.js
+proxy.js
