@@ -26,19 +26,30 @@ export async function getAllExpenses(year, month) {
     });
 
     const allAccounts = await prisma.account.findMany({
-      select: { id: true, name: true }
+      select: { id: true, name: true, type: true }
     });
 
     const expenses = expensesRaw.map(exp => {
       let finalAmount = Number(exp.amount);
 
       const paymentAccount = allAccounts.find(a => a.id === exp.requestedAccountId);
-      const paymentSource = exp.requestedMode === 'UGHRANI' && paymentAccount ? paymentAccount.name : (exp.requestedMode || 'PENDING');
+      let paymentSource = exp.requestedMode || 'PENDING';
+      let isStaffAdvance = false;
+
+      if (paymentAccount) {
+        if (exp.requestedMode === 'UGHRANI') {
+          paymentSource = paymentAccount.name;
+        } else if (paymentAccount.type === 'STAFF') {
+          paymentSource = `${paymentAccount.name}'s Advance`;
+          isStaffAdvance = true;
+        }
+      }
 
       const processed = {
         ...exp,
         amount: finalAmount,
-        paymentSource
+        paymentSource,
+        isStaffAdvance
       };
       if (exp.vehicle) {
         processed.vehicle = {
@@ -47,6 +58,7 @@ export async function getAllExpenses(year, month) {
           purchasePrice: Number(exp.vehicle.purchasePrice),
           purchasePendingBalance: Number(exp.vehicle.purchasePendingBalance),
           salePrice: exp.vehicle.salePrice ? Number(exp.vehicle.salePrice) : null,
+          salePendingBalance: Number(exp.vehicle.salePendingBalance || 0),
           profit: exp.vehicle.profit ? Number(exp.vehicle.profit) : null,
         };
       }
@@ -55,7 +67,7 @@ export async function getAllExpenses(year, month) {
 
     const rawTx = await prisma.transaction.findMany({
       where: {
-        category: { in: ['VEHICLE_PURCHASE', 'INTERNAL_TRANSFER', 'UPAD_WITHDRAWAL'] },
+        category: { in: ['VEHICLE_PURCHASE', 'INTERNAL_TRANSFER', 'UPAD_WITHDRAWAL', 'UPAD_REPAYMENT'] },
         type: 'DEBIT',
         date: {
           gte: startDate,
@@ -68,8 +80,16 @@ export async function getAllExpenses(year, month) {
       }
     });
 
-    const additionalExpenses = rawTx
+    const filteredRawTx = rawTx.filter(tx => {
+      if (tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') {
+        if (tx.account && (tx.account.type === 'CASH' || tx.account.type === 'BANK')) {
+          return false;
+        }
+      }
+      return true;
+    });
 
+    const additionalExpenses = filteredRawTx
       .map(tx => {
         let finalAmount = Number(tx.amount);
 
@@ -78,19 +98,20 @@ export async function getAllExpenses(year, month) {
           amount: finalAmount,
           date: tx.date,
           description: tx.description,
-          expenseType: tx.category === 'VEHICLE_PURCHASE' ? 'CAR_EXPENSE' : (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL') ? 'ADVANCE' : 'OFFICE_EXPENSE',
+          expenseType: tx.category === 'VEHICLE_PURCHASE' ? 'CAR_EXPENSE' : (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') ? 'ADVANCE' : 'OFFICE_EXPENSE',
           status: 'APPROVED',
           vehicle: null,
           submittedBy: null,
-          transferDetails: (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL') ? tx.referenceId : null,
-          paymentSource: tx.account ? tx.account.name : tx.transactionMode,
+          transferDetails: (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') ? tx.referenceId : null,
+          paymentSource: tx.transactionMode || 'UNKNOWN',
+          recipient: tx.account ? tx.account.name : null,
           isRawTx: true,
           isTransfer: tx.category === 'INTERNAL_TRANSFER'
         };
       });
 
     const filteredAdditional = additionalExpenses.filter(tx => {
-      if (tx.description === 'Advance Given to Staff/Mechanic') {
+      if (tx.description.startsWith('Auto-Entry: Pending Receivable') || tx.description.startsWith('Auto-Entry: Advance Received')) {
         return false;
       }
       return true;
@@ -124,7 +145,12 @@ export async function getAllIncome(year, month) {
         NOT: [
           { description: { in: ['Opening Balance', 'Capital Introduced / Opening Balance'] } },
           { description: { startsWith: 'Auto-Entry: Partnership Investment' } },
-          { category: 'EXPENSE' }
+          { description: { startsWith: 'Auto-Entry: Profit Share' } },
+          { description: { startsWith: 'Auto-Entry: Pending Receivable' } },
+          { description: { startsWith: 'Auto-Entry: Advance Received' } },
+          { description: { startsWith: 'Auto-Entry: Agent Car Payment Settled' } },
+          { category: 'EXPENSE' },
+          { category: 'UPAD_REPAYMENT' } // Exclude vendor payments from income
         ]
       },
       orderBy: { date: 'desc' },
@@ -133,14 +159,20 @@ export async function getAllIncome(year, month) {
       }
     });
 
-
-
     const income = transactionsRaw.map(t => {
       let finalAmount = Number(t.amount);
+
+      // For transactions logged directly on Firm Cash/Bank, the recipient is the description's subject
+      // For INTERNAL_TRANSFER, the recipient is the account it went into
+      const recipient = t.category === 'INTERNAL_TRANSFER' 
+        ? (t.account ? t.account.name : null) 
+        : null;
 
       return {
         ...t,
         amount: finalAmount,
+        paymentSource: t.account && (t.account.type === 'CASH' || t.account.type === 'BANK') ? t.account.name : (t.transactionMode || 'UNKNOWN'),
+        recipient,
         isRawTx: true,
         isTransfer: t.category === 'INTERNAL_TRANSFER',
         transferDetails: t.category === 'INTERNAL_TRANSFER' ? t.referenceId : null,

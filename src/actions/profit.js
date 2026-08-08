@@ -90,6 +90,7 @@ export async function getMonthlyProfitData(year, monthIndex) {
         purchasePrice: Number(v.purchasePrice),
         salePrice: Number(v.salePrice),
         purchasePendingBalance: Number(v.purchasePendingBalance),
+        salePendingBalance: Number(v.salePendingBalance || 0),
         legacyExpenses: Number(v.legacyExpenses || 0),
         profit: carProfit,
         partnerShare: carPartnerShare,
@@ -101,7 +102,11 @@ export async function getMonthlyProfitData(year, monthIndex) {
         partnerships: v.partnerships?.map(p => ({
           ...p,
           investmentAmount: Number(p.investmentAmount),
-          profitSharePercentage: Number(p.profitSharePercentage)
+          profitSharePercentage: Number(p.profitSharePercentage),
+          partnerAccount: p.partnerAccount ? {
+            ...p.partnerAccount,
+            openingBalance: Number(p.partnerAccount.openingBalance)
+          } : undefined
         })) || []
       };
     });

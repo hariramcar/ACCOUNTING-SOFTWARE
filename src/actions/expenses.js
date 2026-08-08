@@ -17,6 +17,7 @@ function processExpense(exp) {
       purchasePrice: Number(exp.vehicle.purchasePrice),
       purchasePendingBalance: Number(exp.vehicle.purchasePendingBalance),
       salePrice: exp.vehicle.salePrice ? Number(exp.vehicle.salePrice) : null,
+      salePendingBalance: Number(exp.vehicle.salePendingBalance || 0),
       profit: exp.vehicle.profit ? Number(exp.vehicle.profit) : null,
     };
   }
@@ -31,7 +32,10 @@ export async function getRecentExpenses(dateString = null) {
 
     let dateFilter = {};
     if (dateString) {
-      dateFilter = { lte: new Date(dateString + 'T23:59:59') };
+      dateFilter = { 
+        gte: new Date(dateString + 'T00:00:00'),
+        lte: new Date(dateString + 'T23:59:59') 
+      };
     }
 
     const expenses = await prisma.expense.findMany({
@@ -51,27 +55,54 @@ export async function getRecentExpenses(dateString = null) {
     if (isAdmin) {
       rawTx = await prisma.transaction.findMany({
         where: {
-          category: { in: ['VEHICLE_PURCHASE', 'INTERNAL_TRANSFER', 'UPAD_WITHDRAWAL'] },
-          type: 'DEBIT',
+          NOT: [
+            { description: { in: ['Opening Balance', 'Capital Introduced / Opening Balance'] } },
+            { description: { startsWith: 'Auto-Entry: Partnership Investment' } },
+            { description: { startsWith: 'Auto-Entry: Profit Share' } },
+            { description: { startsWith: 'Auto-Entry: Agent Car Payment Settled' } },
+            { category: 'EXPENSE' } // Expenses are pulled from the Expense table below
+          ],
           ...(dateString ? { date: dateFilter } : {})
         },
         take: 100,
-        orderBy: { date: 'desc' }
+        orderBy: { date: 'desc' },
+        include: { account: true }
       });
     }
 
-    const additionalExpenses = rawTx.map(tx => {
+    const allAccounts = await prisma.account.findMany({
+      select: { id: true, name: true, type: true }
+    });
+
+    const filteredRawTx = rawTx.filter(tx => {
+      if (tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') {
+        if (tx.account && (tx.account.type === 'CASH' || tx.account.type === 'BANK')) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const additionalExpenses = filteredRawTx.map(tx => {
       let finalAmount = Number(tx.amount);
+      let paymentSource = tx.transactionMode || 'UNKNOWN';
+      
+      let expType = 'OFFICE_EXPENSE';
+      if (tx.type === 'CREDIT') expType = 'INCOME';
+      else if (tx.category === 'VEHICLE_PURCHASE') expType = 'CAR_EXPENSE';
+      else if (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') expType = 'ADVANCE';
 
       return {
         id: tx.id,
         amount: finalAmount,
         date: tx.date,
         description: tx.description,
-        expenseType: tx.category === 'VEHICLE_PURCHASE' ? 'CAR_EXPENSE' : (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL') ? 'ADVANCE' : 'OFFICE_EXPENSE',
+        expenseType: expType,
         status: 'APPROVED',
         vehicle: null,
-        transferDetails: (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL') ? tx.referenceId : null,
+        transferDetails: (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') ? tx.referenceId : null,
+        paymentSource,
+        recipient: tx.account ? tx.account.name : null,
         isRawTx: true,
         isTransfer: tx.category === 'INTERNAL_TRANSFER'
       };
@@ -80,6 +111,17 @@ export async function getRecentExpenses(dateString = null) {
     const formattedExpenses = expenses.map(exp => {
       let finalAmount = Number(exp.amount);
 
+      const paymentAccount = allAccounts.find(a => a.id === exp.requestedAccountId);
+      let paymentSource = exp.requestedMode || 'PENDING';
+      
+      if (paymentAccount) {
+        if (exp.requestedMode === 'UGHRANI') {
+          paymentSource = paymentAccount.name;
+        } else if (paymentAccount.type === 'STAFF') {
+          paymentSource = `${paymentAccount.name}'s Advance`;
+        }
+      }
+
       return {
         id: exp.id,
         amount: finalAmount,
@@ -87,6 +129,7 @@ export async function getRecentExpenses(dateString = null) {
         description: exp.description,
         expenseType: exp.expenseType,
         status: exp.status,
+        paymentSource,
         vehicle: exp.vehicle ? {
           make: exp.vehicle.make,
           model: exp.vehicle.model,
@@ -95,20 +138,45 @@ export async function getRecentExpenses(dateString = null) {
       };
     });
 
-    // For UPAD_WITHDRAWAL, we have two DEBIT legs. We keep the one attached to the Staff Account (so the name shows up as Payment Source)
-    // and filter out the one attached to the Bank/Cash account which has the hardcoded description.
+    // Note: We already filtered out FIRM_CASH double entries for UPAD transactions above.
     const filteredAdditional = additionalExpenses.filter(tx => {
-      if (tx.description === 'Advance Given to Staff/Mechanic') {
-        return false;
-      }
       return true;
     });
 
-    const combined = [...formattedExpenses, ...filteredAdditional]
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 100);
+    let combined = [...formattedExpenses, ...filteredAdditional];
 
-    return { success: true, expenses: combined };
+    // Merge Pending Receivable/Advance into Sold entries and remove them as standalone rows
+    const pendingEntries = combined.filter(c => c.description?.includes('Pending Receivable from sale of') || c.description?.includes('Advance Received from sale of'));
+    const finalCombined = [];
+
+    const usedPendingIds = new Set();
+
+    for (const item of combined) {
+      if (item.description?.startsWith('Auto-Entry: Sold ') && item.description?.includes('- Payment 1')) {
+        // Extract vehicle name (everything between "Sold " and " - Payment")
+        const vehicleMatch = item.description.match(/Sold (.*?) - Payment/);
+        if (vehicleMatch) {
+          const vehicleName = vehicleMatch[1];
+          // Find matching pending entry on the same date
+          const pending = pendingEntries.find(p => p.description.includes(vehicleName) && new Date(p.date).getTime() === new Date(item.date).getTime());
+          if (pending) {
+            item.transferDetails = `${pending.paymentSource}: ₹${pending.amount.toLocaleString('en-IN')}`;
+            usedPendingIds.add(pending.id);
+          }
+        }
+      }
+      
+      if (!item.description?.includes('Pending Receivable from sale of') && !item.description?.includes('Advance Received from sale of')) {
+        finalCombined.push(item);
+      } else if (!usedPendingIds.has(item.id)) {
+        // If it wasn't merged for some reason, we still exclude it so it doesn't clutter the UI
+        // since the user explicitly said "this entry not require separetly"
+      }
+    }
+
+    finalCombined.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    return { success: true, expenses: finalCombined };
   } catch (error) {
     console.error('Failed to load expenses:', error);
     return { success: false, error: 'Failed to load expenses.' };
@@ -262,7 +330,7 @@ export async function addExpense(formData) {
                     accountId: p.partnerAccountId,
                     category: 'GENERAL',
                     referenceId: expense.id,
-                    description: `Auto-Entry: Partner expense share for ${description}`
+                    description: `Auto-Entry: Partner expense share for ${description} (${vehicle.make} ${vehicle.model})`
                   }
                 });
               }
@@ -426,7 +494,7 @@ export async function addTransfer(formData) {
       await tx.transaction.create({
         data: {
           date,
-          transactionMode: 'CASH', 
+          transactionMode: fromAcc.type === 'BANK' ? 'BANK' : 'CASH', 
           type: 'DEBIT',
           amount,
           accountId: fromAccountId,
@@ -440,7 +508,7 @@ export async function addTransfer(formData) {
       await tx.transaction.create({
         data: {
           date,
-          transactionMode: 'CASH',
+          transactionMode: toAcc.type === 'BANK' ? 'BANK' : 'CASH',
           type: 'CREDIT',
           amount,
           accountId: toAccountId,

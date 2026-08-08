@@ -130,8 +130,8 @@ export default function SellVehicleModal({ inStock, accounts }) {
                      <label className="text-[10px] uppercase font-bold text-amber-700 mb-1 block tracking-wider">Select Agent Account (For Pending Baki/Advance)</label>
                      <select name="receivableAccountId" required className="w-full p-2 rounded-md border border-amber-300 bg-white text-sm font-medium outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500">
                       <option value="">Select Account</option>
-                      {accounts?.filter(a => !['CASH', 'BANK'].includes(a.type)).map(acc => (
-                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.type})</option>
+                      {accounts?.filter(a => a.type === 'DSA_AGENT').map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name}</option>
                       ))}
                     </select>
                   </div>

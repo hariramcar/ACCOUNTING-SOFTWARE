@@ -91,7 +91,11 @@ export default function PendingApprovalsModal({ pendingExpenses }) {
                         </div>
                         <div>
                           <span className="text-slate-400 uppercase tracking-wider text-[9px] font-bold block mb-0.5">Requested Payout</span>
-                          {exp.requestedMode ? `${exp.requestedMode}` : 'No auto-entry requested'}
+                          {exp.requestedMode === 'CASH' && exp.submittedBy 
+                            ? `${exp.submittedBy.name}'s Advance (Cash)` 
+                            : exp.requestedMode 
+                              ? `${exp.requestedMode}` 
+                              : 'No auto-entry requested'}
                         </div>
                       </div>
                       {exp.vehicle && (

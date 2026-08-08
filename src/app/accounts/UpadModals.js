@@ -59,7 +59,7 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
 
   return (
     <>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button 
           onClick={() => setActiveModal('advance')}
           className="flex items-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 py-2 px-3 rounded-lg font-bold shadow-sm transition-colors text-sm border border-blue-200"
@@ -214,10 +214,11 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Date (Optional)</label>
+                <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Date</label>
                 <input 
                   type="date" 
                   name="date" 
+                  required
                   defaultValue={new Date().toISOString().split('T')[0]}
                   className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 font-medium" 
                 />

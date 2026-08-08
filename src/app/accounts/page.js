@@ -4,7 +4,8 @@ import DeleteAccountButton from './DeleteAccountButton';
 import AddAccountModal from './AddAccountModal';
 import AccountHistoryModal from './AccountHistoryModal';
 import UpadModals from './UpadModals';
-
+import AgentPaymentModal from './AgentPaymentModal';
+import { cookies } from 'next/headers';
 import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 
@@ -14,7 +15,26 @@ export default async function AccountsPage() {
     redirect('/expenses');
   }
 
-  const { accounts } = await getAccountBalances();
+  const cookieStore = await cookies();
+  const globalMonth = cookieStore.get('global_month')?.value;
+  
+  let year, month;
+  if (globalMonth) {
+    const parts = globalMonth.split('-');
+    year = Number(parts[0]);
+    month = Number(parts[1]);
+  }
+
+  const { accounts } = await getAccountBalances(year, month);
+
+  const rawVehicles = await prisma.vehicle.findMany({
+    where: { status: 'SOLD', salePendingBalance: { gt: 0 } },
+    select: { id: true, make: true, model: true, registration: true, salePendingBalance: true, receivableAccountId: true }
+  });
+  const vehicles = rawVehicles.map(v => ({
+    ...v,
+    salePendingBalance: Number(v.salePendingBalance)
+  }));
 
   const cashAccounts = accounts?.filter(a => a.type === 'CASH') || [];
   const bankAccounts = accounts?.filter(a => a.type === 'BANK') || [];
@@ -36,7 +56,10 @@ export default async function AccountsPage() {
           <p className="text-slate-500 m-0 font-medium ml-13">Manage Banks, Cash Drawers, Loan Agents, and Market Place.</p>
         </div>
         <div className="flex gap-3">
-          <UpadModals upadAccounts={[...staffAccounts, ...ughraniAccounts]} ledgerAccounts={[...cashAccounts, ...bankAccounts]} />
+          <UpadModals 
+            upadAccounts={[...staffAccounts, ...ughraniAccounts]} 
+            ledgerAccounts={[...cashAccounts, ...bankAccounts]} 
+          />
           <AddAccountModal />
         </div>
       </div>
@@ -81,7 +104,12 @@ export default async function AccountsPage() {
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
             <BriefcaseBusiness size={18} className="text-purple-500" />
-            <h3 className="text-base font-bold text-slate-800 m-0">Loan Agents</h3>
+            <h3 className="text-base font-bold text-slate-800 m-0 flex-1">Loan Agents</h3>
+            <AgentPaymentModal 
+              agentAccounts={agentAccounts} 
+              ledgerAccounts={[...cashAccounts, ...bankAccounts]} 
+              vehicles={vehicles} 
+            />
           </div>
           <p className="text-xs font-medium text-slate-500 mb-5 mt-1">Track pending loan payouts and commissions from DSA agents.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
@@ -247,38 +275,51 @@ function PartnerAccountCard({ account, colorClass }) {
   const cars = account.partnerVehicles || [];
 
   return (
-    <AccountHistoryModal account={account}>
-      <div className={`border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col h-full ${colorClass}`}>
-        <div className="flex justify-between items-center mb-3 border-b border-black/5 pb-2">
+    <div className={`border rounded-xl shadow-sm flex flex-col h-full bg-white relative ${colorClass}`}>
+      <AccountHistoryModal account={account}>
+        <div className="flex justify-between items-center mb-3 border-b border-black/5 pb-2 p-4 cursor-pointer hover:bg-black/5 rounded-t-xl transition-colors">
           <strong className="text-[15px] tracking-tight flex-1">{account.name}</strong>
-          <DeleteAccountButton accountId={account.id} accountName={account.name} />
+          <div>
+            <DeleteAccountButton accountId={account.id} accountName={account.name} />
+          </div>
         </div>
-        
-        <div className="flex flex-col gap-2 flex-1">
-          {cars.length === 0 ? (
-            <div className="text-xs text-teal-600/70 italic p-3 text-center border border-dashed border-teal-200 rounded-lg bg-teal-50/30">No active vehicles.</div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-teal-600/80 mb-1">Active Investments</span>
-              {cars.map((car, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-teal-100 shadow-sm">
-                  <div className="flex flex-col">
-                    <span className="text-[13px] font-bold text-slate-800 leading-tight">{car.make} {car.model}</span>
+      </AccountHistoryModal>
+      
+      <div className="flex flex-col gap-2 flex-1 px-4 pb-4">
+        {cars.length === 0 ? (
+          <div className="text-xs text-teal-600/70 italic p-3 text-center border border-dashed border-teal-200 rounded-lg bg-teal-50/30">No active vehicles.</div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-teal-600/80 mb-1">Partner Vehicles</span>
+            {cars.map((car, idx) => (
+              <AccountHistoryModal key={idx} account={account} filterVehicle={car}>
+                <div className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-teal-100 shadow-sm relative overflow-hidden cursor-pointer hover:border-teal-300 hover:shadow-md transition-all group">
+                  <div className="flex flex-col z-10">
+                    <span className="text-[13px] font-bold text-slate-800 leading-tight group-hover:text-teal-700 transition-colors">{car.make} {car.model}</span>
                     <span className="text-[10px] text-slate-500 font-medium mt-0.5">
                       {car.registration || 'Unregistered'} 
                       <span className="text-teal-600 font-bold ml-1">({car.profitSharePercentage}%)</span>
                     </span>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <span className="text-[10px] text-teal-600/70 uppercase font-bold">Car Price</span>
-                    <span className="text-[13px] font-black text-teal-700 leading-tight">₹{car.purchasePrice.toLocaleString('en-IN')}</span>
+                  <div className="flex flex-col items-end z-10">
+                    {car.status === 'SOLD' ? (
+                      <>
+                        <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-widest mb-1">Sold This Month</span>
+                        <span className="text-[13px] font-black text-purple-700 leading-tight">Profit: ₹{Math.round(Number(car.profit || 0) * (car.profitSharePercentage / 100)).toLocaleString('en-IN')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[10px] text-teal-600/70 uppercase font-bold">Car Price</span>
+                        <span className="text-[13px] font-black text-teal-700 leading-tight">₹{car.purchasePrice.toLocaleString('en-IN')}</span>
+                      </>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </AccountHistoryModal>
+            ))}
+          </div>
+        )}
       </div>
-    </AccountHistoryModal>
+    </div>
   );
 }

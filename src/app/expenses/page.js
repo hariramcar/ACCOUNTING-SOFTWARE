@@ -38,7 +38,7 @@ export default async function ExpensesPage({ searchParams }) {
         // Calculate total spent by staff (approved + pending expenses submitted by them)
         const totalSpent = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
         staffWallet = {
-          balance: Number(acc.currentBalance || 0),
+          balance: Number(acc.currentBalance || 0) * -1,
           spent: totalSpent
         };
       }
@@ -46,6 +46,7 @@ export default async function ExpensesPage({ searchParams }) {
   }
   
   const vehiclesRaw = await prisma.vehicle.findMany({
+    where: { status: 'IN_STOCK' },
     orderBy: { createdAt: 'desc' },
     select: { 
       id: true, 
@@ -145,11 +146,7 @@ export default async function ExpensesPage({ searchParams }) {
 
             return Object.entries(grouped).map(([dateStr, exps]) => (
               <div key={dateStr} className="mb-4">
-                <div className="flex items-center gap-2 mb-3 ml-2">
-                  <div className="h-px bg-slate-200 flex-1"></div>
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">{dateStr}</span>
-                  <div className="h-px bg-slate-200 flex-1"></div>
-                </div>
+
                 <div className="flex flex-col gap-3">
                   {exps.map(exp => (
                     <div key={exp.id} className="bg-white rounded-xl p-5 flex justify-between items-center shadow-sm border border-slate-200 hover:shadow-md transition-shadow group">
@@ -173,14 +170,29 @@ export default async function ExpensesPage({ searchParams }) {
                             </div>
                           )}
                           {exp.status && (
-                            <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-slate-500">
-                              Status: <span className={
-                                exp.status === 'APPROVED' ? 'text-emerald-600' : 
-                                exp.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'
-                              }>{exp.status}</span>
-                              {exp.transferDetails && (
-                                <span className="text-blue-600 ml-1">({exp.transferDetails})</span>
+                            <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-slate-500 flex items-center gap-2">
+                              <div>
+                                Status: <span className={
+                                  exp.status === 'APPROVED' ? 'text-emerald-600' : 
+                                  exp.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'
+                                }>{exp.status}</span>
+                                {exp.transferDetails && (
+                                  <span className="text-blue-600 ml-1">({exp.transferDetails})</span>
+                                )}
+                              </div>
+                              <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                              {exp.recipient && (
+                                <>
+                                  <div className="flex items-center gap-1 text-slate-700 font-bold capitalize">
+                                    {exp.recipient}
+                                  </div>
+                                  <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                                </>
                               )}
+                              <div className="flex items-center gap-1 text-slate-500">
+                                <Wallet size={12} />
+                                {exp.paymentSource}
+                              </div>
                             </div>
                           )}
                         </div>

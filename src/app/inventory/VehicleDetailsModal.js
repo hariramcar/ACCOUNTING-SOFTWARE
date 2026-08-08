@@ -39,6 +39,9 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
   const legacyRepairs = Number(car.legacyExpenses || 0);
   const totalRepairs = (car.expenses || []).reduce((sum, exp) => sum + Number(exp.amount), 0);
   const calculatedTotalCost = Number(car.purchasePrice) + totalRepairs + legacyRepairs;
+  
+  const partnerTotalProfit = (car.partnerships || []).reduce((sum, p) => sum + (Math.round((Number(car.profit || 0) * (Number(p.profitSharePercentage) / 100)) * 100) / 100), 0);
+  const netOurProfit = Number(car.profit || 0) - partnerTotalProfit;
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-end z-50 transition-all">
@@ -82,16 +85,54 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                 </div>
               </div>
               
-              <div className="bg-indigo-950 p-4 grid grid-cols-2 gap-4">
+              <div className="bg-indigo-950 p-4 border-b border-indigo-800/50 grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider mb-1">Received from Client</div>
+                  <div className="font-bold text-sm text-emerald-400">₹{(Number(car.salePrice) - Number(car.salePendingBalance)).toLocaleString('en-IN')}</div>
+                </div>
+                {Number(car.salePendingBalance) > 0 && (
+                  <div>
+                    <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider mb-1">Pending Balance</div>
+                    <div className="font-bold text-sm text-amber-400">₹{Number(car.salePendingBalance).toLocaleString('en-IN')}</div>
+                    {car.receivableAccount && (
+                      <div className="text-[9px] font-medium text-amber-200 mt-0.5">Owed by: {car.receivableAccount.name}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              <div className="bg-indigo-950/70 p-4 grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider mb-1">Net Profit</div>
                   <div className="font-black text-lg text-emerald-400">₹{Number(car.profit).toLocaleString('en-IN')}</div>
                 </div>
-                {car.partnerShare > 0 && (
+                {partnerTotalProfit > 0 && (
                   <div>
                     <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider mb-1">Partner Profit Share</div>
-                    <div className="font-bold text-sm text-purple-400">- ₹{Number(car.partnerShare).toLocaleString('en-IN')}</div>
-                    <div className="text-xs font-bold text-emerald-300 mt-1">Our Share: ₹{Number(car.netOurProfit).toLocaleString('en-IN')}</div>
+                    <div className="font-bold text-sm text-purple-400">- ₹{partnerTotalProfit.toLocaleString('en-IN')}</div>
+                    <div className="text-xs font-bold text-emerald-300 mt-1">Our Share: ₹{netOurProfit.toLocaleString('en-IN')}</div>
+                  </div>
+                )}
+                {car.partnerships && car.partnerships.length > 0 && (
+                  <div className="col-span-2 mt-2 pt-3 border-t border-indigo-800/50">
+                    <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider mb-2">Partner Distribution Tracker</div>
+                    <div className="flex flex-col gap-2">
+                      {car.partnerships.map((p, i) => {
+                        const partnerProfit = Math.round((Number(car.profit || 0) * (Number(p.profitSharePercentage) / 100)) * 100) / 100;
+                        return (
+                          <div key={i} className="flex justify-between items-center text-xs bg-indigo-900/50 p-2 rounded-lg border border-indigo-800/30">
+                            <div>
+                              <span className="font-bold text-indigo-200">{p.partnerAccount?.name}</span>
+                              <span className="text-indigo-400 ml-1">({p.profitSharePercentage}%)</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="font-bold text-purple-300">₹{partnerProfit.toLocaleString('en-IN')}</span>
+                              <div className="text-[9px] font-bold text-emerald-400/80 mt-0.5 uppercase tracking-widest">Credited to Ledger</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>

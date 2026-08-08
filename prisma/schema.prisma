@@ -17,6 +17,7 @@ model Account {
   partnerships    Partnership[]
   transactions    Transaction[]
   payableVehicles Vehicle[]     @relation("VehiclePayableAccount")
+  vehiclesReceivable Vehicle[]  @relation("VehicleReceivableAccount")
   user            User?
 }
 
@@ -34,12 +35,15 @@ model Vehicle {
   payableAccountId       String?
   salePrice              Decimal?
   saleDate               DateTime?
+  salePendingBalance     Decimal       @default(0)
+  receivableAccountId    String?
   profit                 Decimal?
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt
   expenses               Expense[]
   partnerships           Partnership[]
   payableAccount         Account?      @relation("VehiclePayableAccount", fields: [payableAccountId], references: [id])
+  receivableAccount      Account?      @relation("VehicleReceivableAccount", fields: [receivableAccountId], references: [id])
 }
 
 model Expense {

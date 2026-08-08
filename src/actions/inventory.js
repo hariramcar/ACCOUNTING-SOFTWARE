@@ -32,7 +32,9 @@ export async function getInventory(year, month) {
           include: {
             partnerAccount: true
           }
-        }
+        },
+        receivableAccount: true,
+        payableAccount: true
       }
     });
 
@@ -59,7 +61,16 @@ export async function getInventory(year, month) {
             ...p.partnerAccount,
             openingBalance: Number(p.partnerAccount.openingBalance)
           } : null
-        }))
+        })),
+        salePendingBalance: Number(v.salePendingBalance || 0),
+        receivableAccount: v.receivableAccount ? {
+          ...v.receivableAccount,
+          openingBalance: Number(v.receivableAccount.openingBalance)
+        } : null,
+        payableAccount: v.payableAccount ? {
+          ...v.payableAccount,
+          openingBalance: Number(v.payableAccount.openingBalance)
+        } : null
       };
     });
 
@@ -183,33 +194,29 @@ export async function addVehicle(formData) {
 
       // Handle Partnership
       if (partnerAccountId && partnerInvestment > 0) {
-        const partnerPaymentMode = formData.get('partnerPaymentMode'); // 'CASH', 'BANK', 'PENDING'
-
         await tx.partnership.create({
           data: {
             vehicleId: vehicle.id,
             partnerAccountId: partnerAccountId,
             investmentAmount: partnerInvestment,
             profitSharePercentage: profitSharePercentage,
-            investmentMode: partnerPaymentMode || 'PENDING',
-            isInvestmentPaid: partnerPaymentMode === 'CASH' || partnerPaymentMode === 'BANK'
+            investmentMode: 'PENDING',
+            isInvestmentPaid: false
           }
         });
 
-        // If partner actually paid us right now, add a CREDIT transaction to our account
-        if (partnerPaymentMode === 'CASH' || partnerPaymentMode === 'BANK') {
-          await tx.transaction.create({
-            data: {
-              date: purchaseDate,
-              transactionMode: partnerPaymentMode,
-              type: 'CREDIT', // We receive money (our balance goes UP)
-              amount: partnerInvestment,
-              accountId: partnerAccountId,
-              category: 'GENERAL',
-              description: `Auto-Entry: Partnership Investment for ${make} ${model} (Car Value: ₹${Number(purchasePrice).toLocaleString('en-IN')}, Partner Share: ${profitSharePercentage}%)`
-            }
-          });
-        }
+        // Always add the investment to their ledger so it tracks their capital contribution
+        await tx.transaction.create({
+          data: {
+            date: purchaseDate,
+            transactionMode: 'CASH', // Standardized for partner ledger display
+            type: 'CREDIT', // We owe them their capital
+            amount: partnerInvestment,
+            accountId: partnerAccountId,
+            category: 'GENERAL',
+            description: `Auto-Entry: Partnership Investment for ${make} ${model} (Car Value: ₹${Number(purchasePrice).toLocaleString('en-IN')}, Partner Share: ${profitSharePercentage}%)`
+          }
+        });
       }
     });
 
@@ -340,7 +347,9 @@ export async function sellVehicle(formData) {
           status: 'SOLD',
           salePrice,
           saleDate,
-          profit
+          profit,
+          salePendingBalance: pendingReceivable,
+          receivableAccountId: (receivableAccountId && pendingReceivable !== 0) ? receivableAccountId : null
         }
       });
 

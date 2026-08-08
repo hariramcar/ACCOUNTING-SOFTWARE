@@ -17,7 +17,6 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
 
   const [partnerInvestment, setPartnerInvestment] = useState('');
   const [profitSharePercentage, setProfitSharePercentage] = useState('');
-  const [partnerPaymentMode, setPartnerPaymentMode] = useState('CASH');
   
   const formatIndianNumber = (val) => {
     let numericString = val.replace(/[^0-9.]/g, '');
@@ -46,12 +45,15 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
   };
 
   const handlePercentageChange = (e) => {
-    const val = e.target.value;
+    let val = e.target.value.replace(/[^0-9.]/g, '');
+    const parts = val.split('.');
+    if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
+    
     setProfitSharePercentage(val);
     const cost = Number((purchasePrice || '').replace(/,/g, ''));
     if (cost > 0 && val !== '') {
       const investment = (Number(val) / 100) * cost;
-      setPartnerInvestment(investment.toFixed(2).replace(/\.00$/, ''));
+      setPartnerInvestment(formatIndianNumber(investment.toFixed(2).replace(/\.00$/, '')));
     } else if (val === '') {
       setPartnerInvestment('');
     }
@@ -62,7 +64,6 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
       (Number((purchasePrice || '').replace(/,/g, '')) || 0) 
       - (Number((payment1Amount || '').replace(/,/g, '')) || 0) 
       - (Number((payment2Amount || '').replace(/,/g, '')) || 0)
-      - ((partnerPaymentMode === 'CASH' || partnerPaymentMode === 'BANK') ? (Number((partnerInvestment || '').replace(/,/g, '')) || 0) : 0)
     ) * 100) / 100
   );
 
@@ -252,26 +253,15 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                       className="text-[11px] font-semibold flex-1 p-2 rounded-md border border-purple-200 bg-white text-slate-900 outline-none focus:border-purple-500 placeholder:font-normal" 
                     />
                     <input 
-                      type="number" 
+                      type="text" 
+                      inputMode="decimal"
                       name="profitSharePercentage" 
                       placeholder="Share (%)" 
-                      step="0.01" 
                       value={profitSharePercentage}
                       onChange={handlePercentageChange}
                       className="text-[11px] font-semibold flex-1 p-2 rounded-md border border-purple-200 bg-white text-slate-900 outline-none focus:border-purple-500 placeholder:font-normal" 
                     />
                   </div>
-                  {partnerInvestment > 0 && (
-                    <select 
-                      name="partnerPaymentMode" 
-                      value={partnerPaymentMode}
-                      onChange={(e) => setPartnerPaymentMode(e.target.value)}
-                      className="text-[11px] font-medium p-2 rounded-md border border-purple-200 bg-white text-slate-700 outline-none focus:border-purple-500 mt-1"
-                    >
-                      <option value="CASH">Paid in Cash</option>
-                      <option value="BANK">Paid in Bank</option>
-                    </select>
-                  )}
                 </div>
               </div>
 

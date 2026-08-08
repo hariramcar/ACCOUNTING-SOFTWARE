@@ -4,6 +4,7 @@ import { CarFront, History, CheckCircle2 } from 'lucide-react';
 import AddVehicleModal from './AddVehicleModal';
 import SellVehicleModal from './SellVehicleModal';
 import InventoryClientList from './InventoryClientList';
+import SoldHistoryClientList from './SoldHistoryClientList';
 
 import { cookies } from 'next/headers';
 import { getSession } from '@/lib/session';
@@ -75,29 +76,7 @@ export default async function InventoryPage() {
               <h2 className="m-0 text-slate-900 text-lg font-bold">Recent Sales</h2>
             </div>
             
-            <div className="flex flex-col p-6 gap-3">
-              {sold?.map(car => (
-                <div key={car.id} className="bg-slate-50 border border-slate-100 rounded-lg p-4 flex justify-between items-center hover:border-slate-200 hover:shadow-sm transition-all">
-                  <div>
-                    <h4 className="m-0 mb-1 font-bold text-slate-900 flex items-center gap-2">
-                      {car.make} {car.model} 
-                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider px-2 py-0.5 bg-white border border-slate-200 rounded-sm">{car.registration}</span>
-                    </h4>
-                    <div className="text-[11px] font-medium text-slate-500">
-                      Cost: ₹{car.totalCost.toLocaleString('en-IN')} (Bought: ₹{car.purchasePrice.toLocaleString('en-IN')} + Repairs: ₹{car.totalExpenses.toLocaleString('en-IN')})
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-1">Sold for ₹{car.salePrice.toLocaleString('en-IN')}</div>
-                    <div className={`font-black text-xl flex items-center justify-end gap-1 ${car.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {car.profit >= 0 && <CheckCircle2 size={16} />} 
-                      {car.profit >= 0 ? '+' : '-'} ₹{Math.abs(car.profit).toLocaleString('en-IN')}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {sold?.length === 0 && <p className="text-slate-500 text-center py-4 text-sm font-medium">No cars sold yet.</p>}
-            </div>
+            <SoldHistoryClientList sold={sold} accounts={accounts || []} />
           </div>
 
         </div>

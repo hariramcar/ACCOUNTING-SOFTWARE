@@ -28,9 +28,10 @@ export default async function HistoryPage() {
   const { expenses } = await getAllExpenses(year, month);
   const { income } = await getAllIncome(year, month);
 
-  // Calculate totals (exclude internal transfers and UGHRANI/Market Place from totals as no cash has left yet)
+  // Calculate totals (exclude internal transfers, Market Place, and Staff Advances from totals)
   const totalExpenses = expenses?.reduce((sum, exp) => {
     if (exp.requestedMode === 'UGHRANI') return sum;
+    if (exp.isStaffAdvance) return sum;
     return sum + (!exp.isTransfer && exp.status !== 'REJECTED' ? Number(exp.amount) : 0);
   }, 0) || 0;
   const totalIncome = income?.reduce((sum, inc) => sum + (!inc.isTransfer ? Number(inc.amount) : 0), 0) || 0;

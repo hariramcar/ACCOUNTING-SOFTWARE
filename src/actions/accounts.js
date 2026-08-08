@@ -21,17 +21,27 @@ export async function getAccountsList() {
   }
 }
 
-export async function getAccountBalances() {
+export async function getAccountBalances(year, month) {
   try {
+    const now = new Date();
+    const startOfMonth = (year !== undefined && month !== undefined) 
+      ? new Date(year, month, 1) 
+      : new Date(now.getFullYear(), now.getMonth(), 1);
+      
+    const endOfMonth = (year !== undefined && month !== undefined)
+      ? new Date(year, month + 1, 0, 23, 59, 59, 999)
+      : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
     const accounts = await prisma.account.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
         transactions: true,
         partnerships: {
           where: { 
-            vehicle: {
-              status: 'IN_STOCK'
-            }
+            OR: [
+              { vehicle: { status: 'IN_STOCK' } },
+              { vehicle: { status: 'SOLD', saleDate: { gte: startOfMonth, lte: endOfMonth } } }
+            ]
           },
           include: {
             vehicle: true
@@ -39,8 +49,6 @@ export async function getAccountBalances() {
         }
       }
     });
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const processedAccounts = accounts.map(acc => {
       let openingBalance = 0;
@@ -59,16 +67,17 @@ export async function getAccountBalances() {
           else openingBalance -= amt;
         }
 
-        // 2. Calculate Current Month's Operating Flow
-        // (Only includes normal transactions that happened on or after the 1st of this month)
-        if (t.date >= startOfMonth && !isOpeningInjection) {
+        // 2. Calculate Monthly In/Out (Operating flow THIS month)
+        if (t.date >= startOfMonth && t.date <= endOfMonth && !isOpeningInjection) {
           if (t.type === 'CREDIT') totalPaid += amt;
           else if (t.type === 'DEBIT') totalExpenses += amt;
         }
 
-        // 3. Current Balance is always the total net sum of everything
-        if (t.type === 'CREDIT') currentBalance += amt;
-        else if (t.type === 'DEBIT') currentBalance -= amt;
+        // 3. Current Balance up to the end of the selected month
+        if (t.date <= endOfMonth) {
+          if (t.type === 'CREDIT') currentBalance += amt;
+          else if (t.type === 'DEBIT') currentBalance -= amt;
+        }
       });
 
       const pendingInvestments = acc.partnerships?.reduce((sum, p) => sum + Number(p.investmentAmount), 0) || 0;
@@ -78,6 +87,8 @@ export async function getAccountBalances() {
         make: p.vehicle.make,
         model: p.vehicle.model,
         registration: p.vehicle.registration,
+        status: p.vehicle.status,
+        profit: p.vehicle.profit ? Number(p.vehicle.profit) : 0,
         purchasePrice: Number(p.vehicle.purchasePrice),
         investmentAmount: Number(p.investmentAmount),
         profitSharePercentage: Number(p.profitSharePercentage || 0)

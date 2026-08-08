@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { getSession } from '@/lib/session';
 
 export async function giveAdvance(formData) {
   try {
@@ -109,5 +110,79 @@ export async function settleBill(formData) {
   } catch (error) {
     console.error('Failed to settle bill:', error);
     return { success: false, error: 'Failed to settle bill.' };
+  }
+}
+export async function receiveAgentCarPayment(formData) {
+  try {
+    const session = await getSession();
+    if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+
+    const vehicleId = formData.get('vehicleId');
+    const agentAccountId = formData.get('agentAccountId');
+    const ledgerAccountId = formData.get('ledgerAccountId');
+    const rawAmount = formData.get('amount')?.toString().replace(/,/g, '') || '0';
+    const amount = Math.round(parseFloat(rawAmount) * 100) / 100 || 0;
+    const dateStr = formData.get('date');
+    const description = formData.get('description');
+    
+    if (amount <= 0 || !vehicleId || !agentAccountId || !ledgerAccountId) {
+      return { success: false, error: 'Invalid input parameters.' };
+    }
+
+    const date = new Date(dateStr || Date.now());
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Update Vehicle Pending Balance
+      const vehicle = await tx.vehicle.findUnique({ where: { id: vehicleId } });
+      if (vehicle) {
+        await tx.vehicle.update({
+          where: { id: vehicleId },
+          data: {
+            salePendingBalance: Math.max(0, Number(vehicle.salePendingBalance) - amount)
+          }
+        });
+      }
+
+      // 2. Credit Cash/Bank Account (Money In)
+      const ledgerAcc = await tx.account.findUnique({ where: { id: ledgerAccountId } });
+      const agentAcc = await tx.account.findUnique({ where: { id: agentAccountId } });
+      
+      if (ledgerAcc) {
+        await tx.transaction.create({
+          data: {
+            date,
+            transactionMode: ledgerAcc.type === 'BANK' ? 'BANK' : 'CASH',
+            type: 'CREDIT',
+            amount,
+            accountId: ledgerAccountId,
+            category: 'GENERAL',
+            description: `Agent Car Payment: ${agentAcc?.name || 'Agent'} (${vehicle?.make || ''} ${vehicle?.model || ''})`
+          }
+        });
+      }
+
+      // 3. Credit Agent Account (Reduce what they owe us)
+      await tx.transaction.create({
+        data: {
+          date,
+          transactionMode: 'CASH',
+          type: 'CREDIT',
+          amount,
+          accountId: agentAccountId,
+          category: 'INTERNAL_TRANSFER',
+          description: `Auto-Entry: Agent Car Payment Settled (${vehicle?.registration || ''})`
+        }
+      });
+    });
+
+    revalidatePath('/accounts');
+    revalidatePath('/expenses');
+    revalidatePath('/inventory');
+    revalidatePath('/rojmel');
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to receive agent payment:', error);
+    return { success: false, error: 'Failed to record agent payment.' };
   }
 }

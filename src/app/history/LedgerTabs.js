@@ -1,12 +1,47 @@
 'use client';
 
-import { useState } from 'react';
-import { Building2, Car, ArrowDownRight, ArrowUpRight, TrendingUp, Receipt, Wallet, BookOpen } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Building2, Car, ArrowDownRight, ArrowUpRight, TrendingUp, Receipt, Wallet, BookOpen, Search, X } from 'lucide-react';
 import TransactionActions from '../expenses/TransactionActions';
 import { updateExpense } from '@/actions/expenses';
 
 export default function LedgerTabs({ income, expenses, totalIncome, totalExpenses }) {
   const [activeTab, setActiveTab] = useState('INCOME');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('ALL'); // 'ALL', 'CASH', 'BANK', 'TRANSFERS'
+
+  const applyFilters = (data) => {
+    if (!data) return [];
+    
+    let filtered = data;
+
+    // Apply Chip Filter
+    if (filterType === 'CASH') {
+      filtered = filtered.filter(item => item.paymentSource === 'CASH');
+    } else if (filterType === 'BANK') {
+      filtered = filtered.filter(item => item.paymentSource !== 'CASH' && item.paymentSource !== 'UNKNOWN' && !item.isTransfer);
+    } else if (filterType === 'TRANSFERS') {
+      filtered = filtered.filter(item => item.isTransfer);
+    }
+
+    // Apply Text Search
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(item => {
+        const descMatch = item.description?.toLowerCase().includes(q);
+        const recipientMatch = item.recipient?.toLowerCase().includes(q);
+        const amountMatch = item.amount?.toString().includes(q);
+        const carMatch = item.vehicle ? `${item.vehicle.make} ${item.vehicle.model} ${item.vehicle.registration}`.toLowerCase().includes(q) : false;
+        
+        return descMatch || recipientMatch || amountMatch || carMatch;
+      });
+    }
+
+    return filtered;
+  };
+
+  const filteredIncome = useMemo(() => applyFilters(income), [income, filterType, searchQuery]);
+  const filteredExpenses = useMemo(() => applyFilters(expenses), [expenses, filterType, searchQuery]);
 
   return (
     <div className="flex flex-col gap-8 mt-2">
@@ -55,27 +90,102 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
         </div>
       </div>
 
+      {/* Smart Search & Filter Bar */}
+      <div className="bg-white/80 backdrop-blur-xl border border-slate-200 rounded-2xl p-4 shadow-sm relative z-20">
+        <div className="flex flex-col gap-4">
+          {/* Search Input */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+              <Search size={18} />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search transactions, names, amounts, or cars..."
+              className="w-full pl-11 pr-10 py-3.5 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 placeholder:text-slate-400 font-medium transition-all"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
+          
+          {/* Filter Chips */}
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { id: 'ALL', label: 'All Transactions' },
+              { id: 'CASH', label: 'Cash Only' },
+              { id: 'BANK', label: 'Bank Transfers' },
+              { id: 'TRANSFERS', label: 'Internal Transfers' }
+            ].map(chip => (
+              <button
+                key={chip.id}
+                onClick={() => setFilterType(chip.id)}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
+                  filterType === chip.id 
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 scale-105' 
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+                }`}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Content Area - Full Width */}
       <div className="w-full">
         {activeTab === 'INCOME' && (
           <div className="flex flex-col gap-3">
             {/* Desktop Header */}
-            {income?.length > 0 && (
+            {filteredIncome?.length > 0 && (
               <div className="hidden md:flex items-center px-4 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <div className="w-24 text-left px-2">Date</div>
                 <div className="flex-1 min-w-[200px]">Description</div>
-                <div className="w-32 text-right pr-4">Date</div>
+                <div className="w-36 text-right pr-4">Payment Source</div>
                 <div className="w-32 text-right">Amount</div>
                 <div className="w-16"></div> {/* Actions Spacer */}
               </div>
             )}
 
-            {income?.map(inc => (
-              <div key={inc.id} className="bg-white rounded-xl p-4 md:px-4 md:py-3 flex flex-col md:flex-row md:items-center gap-3 md:gap-4 shadow-sm border border-emerald-100 hover:border-emerald-300 transition-colors relative">
+            {(() => {
+              if (!filteredIncome || filteredIncome.length === 0) return null;
+              
+              const grouped = filteredIncome.reduce((acc, inc) => {
+                const dateStr = new Date(inc.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                if (!acc[dateStr]) acc[dateStr] = [];
+                acc[dateStr].push(inc);
+                return acc;
+              }, {});
+
+              return Object.entries(grouped).map(([dateStr, items]) => (
+                <div key={dateStr} className="mb-4">
+                  <div className="flex items-center gap-2 mb-3 ml-2">
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{dateStr}</span>
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    {items.map(inc => (
+                      <div key={inc.id} className="bg-white rounded-xl p-4 md:px-4 md:py-3 flex flex-col md:flex-row md:items-center gap-3 md:gap-4 shadow-sm border border-emerald-100 hover:border-emerald-300 transition-colors relative">
                 
-                {/* Mobile Top Row / Desktop Col 1 (Description) */}
+                {/* Desktop Col 1 (Date) */}
+                <div className="hidden md:block w-24 px-2">
+                  <span className="text-[12px] font-bold text-slate-600">{new Date(inc.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
+                </div>
+
+                {/* Mobile Top Row / Desktop Col 2 (Description) */}
                 <div className="flex items-center gap-4 flex-1 min-w-[200px] pr-10 md:pr-0 overflow-hidden">
-                  <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-500 border border-emerald-100 shrink-0 hidden md:flex">
-                    <ArrowDownRight size={18} />
+                  <div className={`p-2.5 rounded-lg border shrink-0 hidden md:flex ${
+                    inc.isTransfer ? 'bg-blue-50 text-blue-500 border-blue-100' : 'bg-emerald-50 text-emerald-500 border-emerald-100'
+                  }`}>
+                    {inc.isTransfer ? <Wallet size={18} /> : <ArrowDownRight size={18} />}
                   </div>
                   <div className="flex flex-col truncate w-full">
                     <span className="text-[15px] md:text-sm font-medium text-slate-900" title={inc.description}>
@@ -85,15 +195,27 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                       )}
                     </span>
                     {/* Mobile Only Details */}
-                    <span className="md:hidden text-xs font-medium text-slate-400 mt-1">
-                      {new Date(inc.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    <span className="md:hidden text-xs font-medium text-slate-400 mt-1 flex items-center gap-2">
+                      {inc.paymentSource && (
+                        <span className="bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[9px] shadow-sm">
+                          {inc.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : inc.paymentSource}
+                        </span>
+                      )}
                     </span>
                   </div>
                 </div>
 
-                {/* Desktop Col 2 (Date) */}
-                <div className="hidden md:block w-32 text-right pr-4 text-sm font-medium text-slate-500">
-                  {new Date(inc.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+
+
+                {/* Desktop Col 3 (Payment Source) */}
+                <div className="hidden md:block w-36 text-right pr-4">
+                  {inc.paymentSource ? (
+                    <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wider text-[10px] shadow-sm inline-block">
+                      {inc.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : inc.paymentSource}
+                    </span>
+                  ) : (
+                    <span className="text-slate-300 font-bold">-</span>
+                  )}
                 </div>
 
                 {/* Mobile Bottom Row / Desktop Col 3 (Amount) */}
@@ -115,10 +237,18 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                 </div>
               </div>
             ))}
+                  </div>
+                </div>
+              ));
+            })()}
 
-            {(!income || income.length === 0) && (
+            {(!filteredIncome || filteredIncome.length === 0) && (
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-12 flex flex-col items-center justify-center text-center">
-                <p className="text-slate-500 text-base font-medium m-0">No income records found for this month.</p>
+                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-400">
+                  <Search size={24} />
+                </div>
+                <p className="text-slate-600 text-lg font-bold m-0 mb-1">No income records found</p>
+                <p className="text-slate-500 text-sm font-medium m-0">Try adjusting your search or filters.</p>
               </div>
             )}
           </div>
@@ -127,20 +257,44 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
         {activeTab === 'EXPENSE' && (
           <div className="flex flex-col gap-3">
             {/* Desktop Header */}
-            {expenses?.length > 0 && (
+            {filteredExpenses?.length > 0 && (
               <div className="hidden md:flex items-center px-4 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                <div className="flex-1 min-w-[200px]">Description</div>
-                <div className="w-28 text-right">Date</div>
+                <div className="w-24 text-left px-2">Date</div>
+                <div className="flex-1 min-w-[150px]">Description</div>
+                <div className="w-32 text-left px-2">Paid To</div>
                 <div className="w-36 text-right pr-4">Payment Source</div>
                 <div className="w-32 text-right">Amount</div>
                 <div className="w-16"></div> {/* Actions Spacer */}
               </div>
             )}
 
-            {expenses?.map(exp => (
-              <div key={exp.id} className={`bg-white rounded-xl p-4 md:px-4 md:py-3 flex flex-col md:flex-row md:items-center gap-3 md:gap-4 shadow-sm border transition-colors relative ${exp.status === 'REJECTED' ? 'border-red-200 bg-red-50/30' : 'border-slate-200 hover:border-slate-300'}`}>
+            {(() => {
+              if (!filteredExpenses || filteredExpenses.length === 0) return null;
+              
+              const grouped = filteredExpenses.reduce((acc, exp) => {
+                const dateStr = new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                if (!acc[dateStr]) acc[dateStr] = [];
+                acc[dateStr].push(exp);
+                return acc;
+              }, {});
+
+              return Object.entries(grouped).map(([dateStr, items]) => (
+                <div key={dateStr} className="mb-4">
+                  <div className="flex items-center gap-2 mb-3 ml-2">
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{dateStr}</span>
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    {items.map(exp => (
+                      <div key={exp.id} className={`bg-white rounded-xl p-4 md:px-4 md:py-3 flex flex-col md:flex-row md:items-center gap-3 md:gap-4 shadow-sm border transition-colors relative ${exp.status === 'REJECTED' ? 'border-red-200 bg-red-50/30' : 'border-slate-200 hover:border-slate-300'}`}>
                 
-                {/* Mobile Top Row / Desktop Col 1 (Description) */}
+                {/* Desktop Col 1 (Date) */}
+                <div className="hidden md:block w-24 px-2">
+                  <span className="text-[12px] font-bold text-slate-600">{new Date(exp.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
+                </div>
+
+                {/* Mobile Top Row / Desktop Col 2 (Description) */}
                 <div className="flex items-center gap-4 flex-1 min-w-[200px] pr-10 md:pr-0 overflow-hidden">
                   <div className={`p-2.5 rounded-lg border shrink-0 hidden md:flex ${
                     exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-500 border-blue-100' :
@@ -156,13 +310,21 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                         <span className="text-blue-600 ml-2 text-xs font-bold uppercase tracking-wider">({exp.transferDetails})</span>
                       )}
                     </span>
-                    
+                    {exp.vehicle && (
+                      <div className="text-[11px] font-medium text-slate-500 mt-0.5">
+                        Linked to: <span className="font-bold text-slate-700">{exp.vehicle.make} {exp.vehicle.model}</span> <span className="uppercase tracking-wider">({exp.vehicle.registration || 'UNREGISTERED'})</span>
+                      </div>
+                    )}
                     {/* Mobile Only Details */}
                     <span className="md:hidden text-xs font-medium text-slate-400 mt-1 flex items-center gap-2">
-                      <span>{new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      {exp.recipient && (
+                        <>
+                          <span className="text-slate-700 font-bold capitalize">{exp.recipient}</span>
+                          <span className="text-slate-300">•</span>
+                        </>
+                      )}
                       {exp.paymentSource && (
                         <>
-                          <span className="text-slate-300">•</span>
                           <span className="bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[9px] shadow-sm">
                             {exp.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : exp.paymentSource}
                           </span>
@@ -172,9 +334,13 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                   </div>
                 </div>
 
-                {/* Desktop Col 2 (Date) */}
-                <div className="hidden md:block w-28 text-right text-sm font-medium text-slate-500">
-                  {new Date(exp.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                {/* Desktop Col 2 (Paid To) */}
+                <div className="hidden md:block w-32 px-2">
+                  {exp.recipient ? (
+                    <span className="text-[13px] font-bold text-slate-700 capitalize">{exp.recipient}</span>
+                  ) : (
+                    <span className="text-slate-300 font-bold">-</span>
+                  )}
                 </div>
 
                 {/* Desktop Col 3 (Payment Source) */}
@@ -209,10 +375,18 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                 </div>
               </div>
             ))}
+                  </div>
+                </div>
+              ));
+            })()}
 
-            {(!expenses || expenses.length === 0) && (
+            {(!filteredExpenses || filteredExpenses.length === 0) && (
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-12 flex flex-col items-center justify-center text-center">
-                <p className="text-slate-500 text-base font-medium m-0">No expense records found for this month.</p>
+                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-400">
+                  <Search size={24} />
+                </div>
+                <p className="text-slate-600 text-lg font-bold m-0 mb-1">No expense records found</p>
+                <p className="text-slate-500 text-sm font-medium m-0">Try adjusting your search or filters.</p>
               </div>
             )}
           </div>
