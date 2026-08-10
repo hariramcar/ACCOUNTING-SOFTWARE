@@ -21,6 +21,7 @@
 /* Base resets & Premium Typography */
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent; /* Remove blue tap highlight on mobile */
 }
 
 body {
@@ -30,6 +31,7 @@ body {
   padding: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none; /* Prevent pull-to-refresh rubber-banding */
 }
 
 /* Reusable global classes */
@@ -41,9 +43,76 @@ body {
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 24px -2px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  box-shadow: 0 8px 32px -4px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transform: translateY(-2px);
+}
+
+.interactive-card {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.interactive-card:active {
+  transform: scale(0.98);
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  /* Prevent iOS Zoom and ensure fat-finger touch targets */
+  input[type="text"], input[type="number"], input[type="date"], select, textarea {
+    font-size: 16px !important;
+    min-height: 48px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    border-radius: 12px;
+  }
+  
+  button, a {
+    touch-action: manipulation; /* Disable double-tap to zoom on buttons */
+  }
+
+  button {
+    min-height: 44px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Hide scrollbars for cleaner mobile look */
+  ::-webkit-scrollbar {
+    width: 0px;
+    background: transparent;
+  }
+}
+
+/* Desktop Scrollbar Styling */
+@media (min-width: 769px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+}
+
+/* Safe area inset utilities for PWA */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 20px) !important;
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 20px) !important;
 }

@@ -31,38 +31,44 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
 
   return (
     <>
-      <div className="flex flex-col md:flex-row gap-2 transition-opacity">
+      <div className="flex items-center gap-1.5 opacity-100 md:opacity-50 md:group-hover:opacity-100 transition-all duration-300">
         <button 
           onClick={() => setIsEditing(true)}
           disabled={isDeleting}
-          className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
+          className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-200 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-sm transition-all focus:ring-2 focus:ring-indigo-100 outline-none"
           title="Edit Transaction"
         >
-          <Pencil size={16} />
+          <Pencil size={13} className="shrink-0" />
         </button>
         {!hideDelete && (
           <button 
             onClick={handleDelete}
             disabled={isDeleting}
-            className="p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 hover:text-red-700 transition-colors"
+            className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-200 text-slate-500 hover:bg-red-500 hover:text-white hover:border-red-600 hover:shadow-md transition-all focus:ring-2 focus:ring-red-100 outline-none"
             title="Delete Transaction"
           >
-            <Trash2 size={16} />
+            <Trash2 size={13} className="shrink-0" />
           </button>
         )}
       </div>
 
       {isEditing && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="fixed inset-0 bg-slate-900/50 flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4 z-50 backdrop-blur-sm">
+          <div className="absolute inset-0" onClick={() => setIsEditing(false)}></div>
+          <div className="bg-white rounded-t-3xl md:rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative z-10 animate-in slide-in-from-bottom-full md:slide-in-from-bottom-4 duration-300">
+            {/* Mobile Drag Handle */}
+            <div className="md:hidden flex justify-center pt-4 pb-2 bg-slate-50">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
+            </div>
+            
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 sticky top-0 z-10">
               <h3 className="font-bold text-slate-800 m-0">Edit Transaction</h3>
               <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600 bg-white rounded-full p-1 border shadow-sm">
                 <X size={18} />
               </button>
             </div>
             
-            <form onSubmit={handleEdit} className="p-6 flex flex-col gap-4">
+            <form onSubmit={handleEdit} className="p-6 pt-4 flex flex-col gap-4 overflow-y-auto max-h-[80vh]">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Description</label>
                 <input 

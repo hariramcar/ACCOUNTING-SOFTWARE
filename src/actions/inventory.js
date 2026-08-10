@@ -261,7 +261,7 @@ export async function payVehiclePendingBalance(formData) {
       await tx.transaction.create({
         data: {
           date: new Date(),
-          transactionMode: 'CASH',
+          transactionMode: sourceAcc.type === 'BANK' ? 'BANK' : 'CASH',
           type: 'DEBIT',
           amount,
           accountId: sourceAccountId,

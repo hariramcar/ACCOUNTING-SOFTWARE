@@ -5,6 +5,7 @@ import { sellVehicle } from '@/actions/inventory';
 import prisma from '@/lib/prisma';
 import ExpenseForm from './ExpenseForm';
 import PendingApprovalsModal from './PendingApprovalsModal';
+import MobileExpenseModal from './MobileExpenseModal';
 import DateSelector from './DateSelector';
 import TransactionActions from './TransactionActions';
 import { Receipt, Building2, Car, Wallet } from 'lucide-react';
@@ -75,29 +76,47 @@ export default async function ExpensesPage({ searchParams }) {
   });
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-8 flex flex-col gap-8 text-slate-900">
-      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-5">
+    <div className="w-full max-w-7xl mx-auto p-4 md:p-8 flex flex-col gap-6 md:gap-8 text-slate-900 pb-24 md:pb-8">
+      <div className="flex flex-col lg:flex-row lg:justify-between items-start lg:items-end gap-4 border-b border-slate-200 pb-5 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-4 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100">
-              <Receipt size={20} />
+            <div className="w-8 h-8 md:w-10 md:h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100">
+              <Receipt size={18} className="md:w-5 md:h-5" />
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Daily Transaction</h1>
+            <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-slate-900 m-0">Daily Transaction</h1>
           </div>
-          <p className="text-slate-500 m-0 font-medium ml-13">Rapid data entry for month-end vendor bills and office costs.</p>
+          <p className="text-xs md:text-sm text-slate-500 m-0 font-medium ml-0 md:ml-13 mt-1.5 md:mt-0">Rapid data entry for month-end vendor bills and office costs.</p>
         </div>
         
-        <div className="flex items-center gap-4">
-          <DateSelector defaultDate={targetDate} />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+          <div className="flex items-center gap-3 w-full sm:w-auto flex-shrink-0">
+            <div className="flex-1 sm:flex-none">
+              <DateSelector defaultDate={targetDate} />
+            </div>
+            
+            {/* Mobile + New Button */}
+            <MobileExpenseModal 
+              vehicles={vehicles} 
+              accounts={accounts || []} 
+              addExpenseAction={addExpense} 
+              addTransferAction={addTransfer} 
+              sellVehicleAction={sellVehicle} 
+              isAdmin={isAdmin} 
+            />
+
+            {isAdmin && (
+              <PendingApprovalsModal pendingExpenses={pendingExpenses} />
+            )}
+          </div>
           
           {isAdmin && (
-            <div className="flex bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm">
-              <div className="pr-4 border-r border-slate-200">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Opening Cash</div>
+            <div className="flex bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm w-full sm:w-auto overflow-hidden">
+              <div className="pr-4 border-r border-slate-200 flex-1 sm:flex-none">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5 truncate">Opening Cash</div>
                 <div className="text-lg font-black text-slate-700">₹{openingCash.toLocaleString('en-IN')}</div>
               </div>
-              <div className="pl-4">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Closing Cash</div>
+              <div className="pl-4 flex-1 sm:flex-none">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5 truncate">Closing Cash</div>
                 <div className="text-lg font-black text-emerald-600">₹{closingCash.toLocaleString('en-IN')}</div>
               </div>
             </div>
@@ -116,17 +135,12 @@ export default async function ExpensesPage({ searchParams }) {
             </div>
           )}
           
-          {isAdmin && (
-            <div>
-              <PendingApprovalsModal pendingExpenses={pendingExpenses} />
-            </div>
-          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* ADD EXPENSE FORM (CLIENT COMPONENT) */}
-        <div className="lg:col-span-1">
+        {/* ADD EXPENSE FORM (CLIENT COMPONENT - HIDDEN ON MOBILE) */}
+        <div className="hidden lg:block lg:col-span-1">
           <ExpenseForm vehicles={vehicles} accounts={accounts || []} addExpenseAction={addExpense} addTransferAction={addTransfer} sellVehicleAction={sellVehicle} isAdmin={isAdmin} />
         </div>
 
@@ -145,79 +159,153 @@ export default async function ExpensesPage({ searchParams }) {
             }, {});
 
             return Object.entries(grouped).map(([dateStr, exps]) => (
-              <div key={dateStr} className="mb-4">
+              <div key={dateStr} className="mb-6">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-2 md:px-0">{dateStr}</h3>
 
-                <div className="flex flex-col gap-3">
+                {/* Mobile Cards */}
+                <div className="flex flex-col gap-3 md:hidden">
                   {exps.map(exp => (
-                    <div key={exp.id} className="bg-white rounded-xl p-5 flex justify-between items-center shadow-sm border border-slate-200 hover:shadow-md transition-shadow group">
-                      <div className="flex items-start gap-4">
-                        <div className={`mt-0.5 p-2 rounded-lg border ${
-                          exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' :
-                          exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-500 border-blue-100' :
-                          exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
-                        }`}>
-                          {exp.expenseType === 'INCOME' ? <Wallet size={18} /> : 
-                           exp.expenseType === 'ADVANCE' ? <Wallet size={18} /> : 
-                           exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={18} /> : <Car size={18} />}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[15px] font-medium text-slate-900">{exp.description}</span>
+                    <div key={exp.id} className="bg-white rounded-xl p-4 flex flex-col shadow-sm border border-slate-200 interactive-card gap-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-0.5 p-2 rounded-lg border flex-shrink-0 ${
+                            exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' :
+                            exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-500 border-blue-100' :
+                            exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
+                          }`}>
+                            {exp.expenseType === 'INCOME' ? <Wallet size={16} /> : 
+                             exp.expenseType === 'ADVANCE' ? <Wallet size={16} /> : 
+                             exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={16} /> : <Car size={16} />}
                           </div>
-                          {exp.vehicle && (
-                            <div className="text-xs font-medium text-slate-500 mb-1">
-                              Linked to: <span className="font-bold text-slate-700">{exp.vehicle.make} {exp.vehicle.model}</span> <span className="uppercase tracking-wider">({exp.vehicle.registration || 'UNREGISTERED'})</span>
-                            </div>
-                          )}
-                          {exp.status && (
-                            <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-slate-500 flex items-center gap-2">
-                              <div>
-                                Status: <span className={
-                                  exp.status === 'APPROVED' ? 'text-emerald-600' : 
-                                  exp.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'
-                                }>{exp.status}</span>
-                                {exp.transferDetails && (
-                                  <span className="text-blue-600 ml-1">({exp.transferDetails})</span>
-                                )}
-                              </div>
-                              <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                              {exp.recipient && (
-                                <>
-                                  <div className="flex items-center gap-1 text-slate-700 font-bold capitalize">
-                                    {exp.recipient}
-                                  </div>
-                                  <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                                </>
-                              )}
-                              <div className="flex items-center gap-1 text-slate-500">
-                                <Wallet size={12} />
-                                {exp.paymentSource}
-                              </div>
-                            </div>
-                          )}
+                          <div className="flex flex-col">
+                            <span className="text-[14px] font-bold text-slate-900 leading-tight">{exp.description}</span>
+                            {exp.vehicle && (
+                              <span className="text-[11px] font-medium text-slate-500 mt-0.5">
+                                Linked to: <span className="font-bold text-slate-700">{exp.vehicle.make} {exp.vehicle.model}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-6">
-                        <div className={`font-bold text-xl tracking-tight ${
+                        <div className={`font-black text-base whitespace-nowrap ${
                           exp.expenseType === 'INCOME' ? 'text-emerald-600' :
                           exp.expenseType === 'OFFICE_EXPENSE' ? 'text-red-600' : 'text-indigo-600'
                         }`}>
                           {exp.expenseType === 'INCOME' ? '+' : '-'}₹{Number(exp.amount).toLocaleString('en-IN')}
                         </div>
-                        
-                        {/* Show Edit/Delete for all transactions */}
+                      </div>
+                      
+                      <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
+                        {exp.status && (
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <div>
+                              Status: <span className={
+                                exp.status === 'APPROVED' ? 'text-emerald-600' : 
+                                exp.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'
+                              }>{exp.status}</span>
+                            </div>
+                            <div className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></div>
+                            {exp.recipient && (
+                              <div className="flex items-center gap-1 text-slate-700 font-bold capitalize">
+                                {exp.recipient}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1 text-slate-500">
+                              <Wallet size={12} />
+                              {exp.paymentSource}
+                            </div>
+                          </div>
+                        )}
                         {isAdmin && (
-                          <TransactionActions 
-                            expense={exp} 
-                            deleteExpenseAction={deleteExpense} 
-                            updateExpenseAction={updateExpense} 
-                            isRawTx={exp.isRawTx}
-                          />
+                          <div className="flex justify-end mt-1">
+                            <TransactionActions 
+                              expense={exp} 
+                              deleteExpenseAction={deleteExpense} 
+                              updateExpenseAction={updateExpense} 
+                              isRawTx={exp.isRawTx}
+                            />
+                          </div>
                         )}
                       </div>
                     </div>
                   ))}
+                </div>
+
+                {/* Desktop Table */}
+                <div className="hidden md:block w-full overflow-hidden bg-white border border-slate-200 rounded-xl shadow-sm">
+                  <table className="w-full text-left border-collapse">
+                    <tbody className="divide-y divide-slate-100">
+                      {exps.map(exp => (
+                        <tr key={exp.id} className="hover:bg-slate-50/80 transition-colors group">
+                          <td className="py-4 px-5">
+                            <div className="flex items-center gap-4">
+                              <div className={`p-2 rounded-lg border ${
+                                exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' :
+                                exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-500 border-blue-100' :
+                                exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
+                              }`}>
+                                {exp.expenseType === 'INCOME' ? <Wallet size={18} /> : 
+                                 exp.expenseType === 'ADVANCE' ? <Wallet size={18} /> : 
+                                 exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={18} /> : <Car size={18} />}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[15px] font-bold text-slate-900">{exp.description}</span>
+                                {exp.vehicle && (
+                                  <span className="text-[12px] font-medium text-slate-500">
+                                    Linked to: <span className="font-bold text-slate-700">{exp.vehicle.make} {exp.vehicle.model}</span> <span className="uppercase tracking-wider">({exp.vehicle.registration || 'UNREGISTERED'})</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4 px-5 hidden lg:table-cell">
+                            {exp.status && (
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex flex-col gap-1">
+                                <div>
+                                  Status: <span className={
+                                    exp.status === 'APPROVED' ? 'text-emerald-600' : 
+                                    exp.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'
+                                  }>{exp.status}</span>
+                                </div>
+                                {exp.recipient && (
+                                  <div className="text-slate-700">
+                                    To/From: {exp.recipient}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-4 px-5 hidden sm:table-cell">
+                            {exp.paymentSource && (
+                              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                <Wallet size={14} className="text-slate-400" />
+                                {exp.paymentSource}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-4 px-5 text-right w-40">
+                            <div className={`font-black text-lg whitespace-nowrap ${
+                              exp.expenseType === 'INCOME' ? 'text-emerald-600' :
+                              exp.expenseType === 'OFFICE_EXPENSE' ? 'text-red-600' : 'text-indigo-600'
+                            }`}>
+                              {exp.expenseType === 'INCOME' ? '+' : '-'}₹{Number(exp.amount).toLocaleString('en-IN')}
+                            </div>
+                          </td>
+                          <td className="py-4 px-5 text-right w-24">
+                            {isAdmin && (
+                              <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                <TransactionActions 
+                                  expense={exp} 
+                                  deleteExpenseAction={deleteExpense} 
+                                  updateExpenseAction={updateExpense} 
+                                  isRawTx={exp.isRawTx}
+                                />
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             ));

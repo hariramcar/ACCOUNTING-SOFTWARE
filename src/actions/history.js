@@ -49,7 +49,8 @@ export async function getAllExpenses(year, month) {
         ...exp,
         amount: finalAmount,
         paymentSource,
-        isStaffAdvance
+        isStaffAdvance,
+        accountType: paymentAccount ? paymentAccount.type : null
       };
       if (exp.vehicle) {
         processed.vehicle = {
@@ -92,6 +93,22 @@ export async function getAllExpenses(year, month) {
     const additionalExpenses = filteredRawTx
       .map(tx => {
         let finalAmount = Number(tx.amount);
+        
+        let paymentSource = tx.transactionMode || 'UNKNOWN';
+        let recipient = null;
+
+        if (tx.category === 'VEHICLE_PURCHASE') {
+          paymentSource = tx.account ? tx.account.name : paymentSource;
+          // Recipient is usually null or extracted from description if needed, null is fine
+        } else if (tx.category === 'INTERNAL_TRANSFER') {
+          paymentSource = tx.account ? tx.account.name : paymentSource;
+          recipient = tx.referenceId || null;
+        } else if (tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') {
+          // tx.account is the upad account here
+          recipient = tx.account ? tx.account.name : null;
+        } else {
+          recipient = tx.account ? tx.account.name : null;
+        }
 
         return {
           id: tx.id,
@@ -103,10 +120,11 @@ export async function getAllExpenses(year, month) {
           vehicle: null,
           submittedBy: null,
           transferDetails: (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') ? tx.referenceId : null,
-          paymentSource: tx.transactionMode || 'UNKNOWN',
-          recipient: tx.account ? tx.account.name : null,
+          paymentSource,
+          recipient,
           isRawTx: true,
-          isTransfer: tx.category === 'INTERNAL_TRANSFER'
+          isTransfer: tx.category === 'INTERNAL_TRANSFER',
+          accountType: tx.account ? tx.account.type : null
         };
       });
 
@@ -176,6 +194,7 @@ export async function getAllIncome(year, month) {
         isRawTx: true,
         isTransfer: t.category === 'INTERNAL_TRANSFER',
         transferDetails: t.category === 'INTERNAL_TRANSFER' ? t.referenceId : null,
+        accountType: t.account ? t.account.type : null,
         account: t.account ? {
           ...t.account,
           openingBalance: Number(t.account.openingBalance)

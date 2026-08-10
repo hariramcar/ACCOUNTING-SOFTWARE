@@ -44,16 +44,16 @@ export default async function AccountsPage() {
   const partnerAccounts = accounts?.filter(a => a.type === 'PARTNER') || [];
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-8 flex flex-col gap-8 text-slate-900">
-      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-5 mb-8">
+    <div className="w-full max-w-7xl mx-auto p-4 md:p-8 flex flex-col gap-6 md:gap-8 text-slate-900 pb-24 md:pb-8">
+      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-5 mb-2 md:mb-8 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-4 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100 shadow-sm">
-              <Landmark size={20} />
+            <div className="w-8 h-8 md:w-10 md:h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100 shadow-sm">
+              <Landmark size={18} className="md:w-5 md:h-5" />
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 m-0">Master Capital Dashboard</h1>
+            <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-slate-900 m-0">Master Capital Dashboard</h1>
           </div>
-          <p className="text-slate-500 m-0 font-medium ml-13">Manage Banks, Cash Drawers, Loan Agents, and Market Place.</p>
+          <p className="text-xs md:text-sm text-slate-500 m-0 font-medium ml-0 md:ml-13 mt-1.5 md:mt-0">Manage Banks, Cash Drawers, Loan Agents, and Market Place.</p>
         </div>
         <div className="flex gap-3">
           <UpadModals 
@@ -201,7 +201,7 @@ function AccountCard({ account, colorClass, creditLabel, debitLabel, balanceLogi
 
   return (
     <AccountHistoryModal account={account}>
-      <div className={`border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col h-full ${colorClass}`}>
+      <div className={`border rounded-lg p-4 shadow-sm interactive-card cursor-pointer flex flex-col h-full ${colorClass}`}>
         <div className="flex justify-between items-center mb-3 border-b border-black/5 pb-2">
           <strong className="text-[15px] tracking-tight flex-1">{account.name}</strong>
           <DeleteAccountButton accountId={account.id} accountName={account.name} />
@@ -253,7 +253,7 @@ function CompactAccountCard({ account, colorClass, balanceLogic }) {
   
   return (
     <AccountHistoryModal account={account}>
-      <div className={`border rounded-xl px-4 py-3.5 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex items-center justify-between ${colorClass}`}>
+      <div className={`border rounded-xl px-4 py-3.5 shadow-sm interactive-card cursor-pointer flex items-center justify-between ${colorClass}`}>
         <div className="flex flex-col gap-0.5">
           <strong className="text-[14px] tracking-tight m-0 leading-none">{account.name}</strong>
           {account.openingBalance > 0 && (
@@ -277,7 +277,7 @@ function PartnerAccountCard({ account, colorClass }) {
   return (
     <div className={`border rounded-xl shadow-sm flex flex-col h-full bg-white relative ${colorClass}`}>
       <AccountHistoryModal account={account}>
-        <div className="flex justify-between items-center mb-3 border-b border-black/5 pb-2 p-4 cursor-pointer hover:bg-black/5 rounded-t-xl transition-colors">
+        <div className="flex justify-between items-center mb-3 border-b border-black/5 pb-2 p-4 cursor-pointer hover:bg-black/5 rounded-t-xl transition-colors interactive-card">
           <strong className="text-[15px] tracking-tight flex-1">{account.name}</strong>
           <div>
             <DeleteAccountButton accountId={account.id} accountName={account.name} />
@@ -293,7 +293,7 @@ function PartnerAccountCard({ account, colorClass }) {
             <span className="text-[10px] font-bold uppercase tracking-wider text-teal-600/80 mb-1">Partner Vehicles</span>
             {cars.map((car, idx) => (
               <AccountHistoryModal key={idx} account={account} filterVehicle={car}>
-                <div className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-teal-100 shadow-sm relative overflow-hidden cursor-pointer hover:border-teal-300 hover:shadow-md transition-all group">
+                <div className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-teal-100 shadow-sm relative overflow-hidden cursor-pointer interactive-card group">
                   <div className="flex flex-col z-10">
                     <span className="text-[13px] font-bold text-slate-800 leading-tight group-hover:text-teal-700 transition-colors">{car.make} {car.model}</span>
                     <span className="text-[10px] text-slate-500 font-medium mt-0.5">

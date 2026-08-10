@@ -28,7 +28,7 @@ function TransferSubmitButton() {
   );
 }
 
-export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addTransferAction, sellVehicleAction, isAdmin }) {
+export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addTransferAction, sellVehicleAction, isAdmin, onSuccess }) {
   const [txType, setTxType] = useState('EXPENSE'); // INCOME, EXPENSE, or TRANSFER
   const [expenseSubType, setExpenseSubType] = useState('OFFICE_EXPENSE'); // OFFICE_EXPENSE or CAR_EXPENSE
 
@@ -78,19 +78,19 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
         setMode('');
         setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
         document.getElementById('expense-form').reset();
-        alert('Vehicle Sold Successfully! (via Daily Transaction)');
+        if (onSuccess) onSuccess();
       }
-      return;
-    }
-
-    const result = await addExpenseAction(formData);
-    if (result && !result.success) {
-      alert(`Error: ${result.error}`);
     } else {
-      setAmount('');
-      setMode('');
-      setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
-      document.getElementById('expense-form').reset();
+      const result = await addExpenseAction(formData);
+      if (result && !result.success) {
+        alert(`Error: ${result.error}`);
+      } else {
+        setAmount('');
+        setMode('');
+        setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
+        document.getElementById('expense-form').reset();
+        if (onSuccess) onSuccess();
+      }
     }
   };
 
@@ -100,11 +100,12 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
       alert(`Error: ${result.error}`);
     } else {
       document.getElementById('transfer-form').reset();
+      if (onSuccess) onSuccess();
     }
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+    <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6 shadow-sm">
       {isAdmin && (
         <div className="flex gap-3 mb-4 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
           <button
@@ -208,7 +209,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                     name="amount"
                     required
                     placeholder="0"
-                    value={amount || ''}
+                    value={amount ?? ''}
                     onChange={(e) => setAmount(e.target.value.replace(/,/g, ''))}
                     className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-bold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm"
                   />
@@ -260,7 +261,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                       <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block tracking-wider">Mode</label>
                       <select
                         name="paymentModes"
-                        value={p.mode || ''}
+                        value={p.mode ?? ''}
                         onChange={(e) => updatePayment(p.id, 'mode', e.target.value)}
                         required
                         className="w-full p-2 rounded-md border border-slate-300 bg-white text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
@@ -274,7 +275,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                       <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block tracking-wider">Account</label>
                       <select
                         name="paymentAccountIds"
-                        value={p.accountId || ''}
+                        value={p.accountId ?? ''}
                         onChange={(e) => updatePayment(p.id, 'accountId', e.target.value)}
                         required
                         className="w-full p-2 rounded-md border border-slate-300 bg-white text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
@@ -291,7 +292,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                         name="paymentAmounts"
                         placeholder="Amt"
                         required
-                        value={p.amount || ''}
+                        value={p.amount ?? ''}
                         onChange={(e) => updatePayment(p.id, 'amount', e.target.value.replace(/,/g, ''))}
                         className="w-full p-2 rounded-md border border-slate-300 bg-white text-xs font-bold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                       />
@@ -326,7 +327,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                     name="amount"
                     required
                     placeholder="0"
-                    value={amount || ''}
+                    value={amount ?? ''}
                     onChange={(e) => setAmount(e.target.value.replace(/,/g, ''))}
                     className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-semibold"
                   />
@@ -345,7 +346,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                     <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Payment Mode</label>
                     <select
                       name="mode"
-                      value={mode || ''}
+                      value={mode ?? ''}
                       onChange={(e) => setMode(e.target.value)}
                       className="p-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium outline-none focus:border-indigo-500"
                     >

@@ -38,9 +38,15 @@ export default function PendingApprovalsModal({ pendingExpenses }) {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/20 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="fixed inset-0 z-50 flex flex-col justify-end md:flex-row md:justify-end bg-slate-900/20 backdrop-blur-sm">
+          <div className="absolute inset-0" onClick={() => setIsOpen(false)}></div>
+          <div className="w-full h-[85dvh] md:h-full md:max-w-md bg-white shadow-2xl flex flex-col relative z-10 animate-in slide-in-from-bottom-full md:slide-in-from-right duration-300 rounded-t-3xl md:rounded-none">
+            {/* Mobile Drag Handle */}
+            <div className="md:hidden flex justify-center pt-4 pb-2 bg-slate-50 rounded-t-3xl border-b border-slate-100">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
+            </div>
+            
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 sticky top-0 z-10">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
                   <Bell size={18} />

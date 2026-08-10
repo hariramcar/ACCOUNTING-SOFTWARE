@@ -26,10 +26,15 @@ export default function AccountHistoryModal({ account, filterVehicle, children }
       </div>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="absolute inset-0" onClick={() => setIsOpen(false)}></div>
+          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] md:max-h-[85vh] relative z-10 animate-in slide-in-from-bottom-full md:slide-in-from-bottom-4 duration-300">
+            {/* Mobile Drag Handle */}
+            <div className="md:hidden flex justify-center pt-4 pb-2 bg-slate-50">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
+            </div>
             {/* Header */}
-            <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <div className="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 m-0">
                   {account.name} {filterVehicle ? `(${filterVehicle.make} ${filterVehicle.model})` : 'Ledger'}
@@ -52,7 +57,7 @@ export default function AccountHistoryModal({ account, filterVehicle, children }
             </div>
 
             {/* Content */}
-            <div className="p-6 overflow-y-auto flex-1">
+            <div className="p-4 md:p-6 overflow-y-auto flex-1">
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-4">
                   <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
@@ -176,24 +181,36 @@ export default function AccountHistoryModal({ account, filterVehicle, children }
 
 function TransactionItem({ t, className = '' }) {
   return (
-    <div className={`flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all bg-white ${className}`}>
-      <div className="flex items-center gap-4">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-          t.type === 'CREDIT' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+    <div className={`p-4 md:p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-0 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all bg-white group ${className}`}>
+      <div className="flex items-start gap-4">
+        <div className={`mt-0.5 w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
+          t.type === 'CREDIT' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'
         }`}>
           {t.type === 'CREDIT' ? <ArrowDownRight size={18} /> : <ArrowUpRight size={18} />}
         </div>
         <div>
-          <h4 className="m-0 mb-1 font-bold text-slate-800 text-[14px] leading-tight max-w-[400px]">{t.description || t.category}</h4>
-          <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500 mt-1">
-            <Clock size={12} />
-            {new Date(t.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-            <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[9px] uppercase font-bold tracking-wider ml-1 text-slate-600">{t.transactionMode}</span>
+          <h4 className="m-0 mb-1.5 font-bold text-slate-800 text-[15px] leading-tight break-words">{t.description || t.category}</h4>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
+            <span className="flex items-center gap-1.5 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-semibold border border-slate-200 shadow-sm">
+              <Clock size={12} className="text-slate-400" />
+              {new Date(t.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+            <span className={`px-2 py-0.5 rounded-md text-[10px] uppercase font-bold tracking-wider shadow-sm border ${
+              t.transactionMode === 'CASH' ? 'bg-amber-50 text-amber-600 border-amber-200' : 
+              t.transactionMode === 'BANK' ? 'bg-blue-50 text-blue-600 border-blue-200' : 
+              'bg-slate-100 text-slate-600 border-slate-200'
+            }`}>
+              {t.transactionMode}
+            </span>
           </div>
         </div>
       </div>
-      <div className={`font-black text-[16px] shrink-0 ${t.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-600'}`}>
-        {t.type === 'CREDIT' ? '' : '-'}₹{t.amount.toLocaleString('en-IN')}
+      
+      <div className="flex items-center justify-between md:justify-end w-full md:w-auto border-t border-slate-100 md:border-t-0 pt-3 md:pt-0 mt-1 md:mt-0">
+        <div className="md:hidden text-xs font-bold text-slate-400 uppercase tracking-wider">Amount</div>
+        <div className={`font-black text-lg tracking-tight ${t.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-600'}`}>
+          {t.type === 'CREDIT' ? '+' : '-'}₹{t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        </div>
       </div>
     </div>
   );

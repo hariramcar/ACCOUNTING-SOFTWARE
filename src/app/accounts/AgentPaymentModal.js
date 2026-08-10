@@ -75,9 +75,15 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="absolute inset-0" onClick={() => setIsOpen(false)}></div>
+          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col relative z-10 animate-in slide-in-from-bottom-full md:slide-in-from-bottom-4 duration-300">
+            {/* Mobile Drag Handle */}
+            <div className="md:hidden flex justify-center pt-4 pb-2 bg-slate-50">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
+            </div>
+            
+            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center gap-2">
                 <ArrowDownRight size={18} className="text-purple-600" />
                 <h2 className="text-lg font-bold text-slate-900 m-0">Agent Car Payment</h2>
@@ -90,7 +96,7 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
+            <form onSubmit={handleSubmit} className="p-6 pt-4 flex flex-col gap-4 overflow-y-auto max-h-[80vh]">
               {error && (
                 <div className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-lg text-sm font-bold flex items-center gap-2">
                   <AlertCircle size={16} />
