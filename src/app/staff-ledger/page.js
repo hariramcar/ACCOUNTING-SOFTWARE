@@ -176,9 +176,9 @@ export default async function StaffLedgerPage() {
               </div>
               <div className="flex flex-col gap-3">
                 {exps.map(exp => (
-                  <div key={exp.id} className="bg-white rounded-xl p-4 md:p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                    <div className="flex items-start gap-4 flex-1">
-                      <div className={`mt-0.5 p-2 rounded-lg border ${
+                  <div key={exp.id} className="bg-white rounded-xl p-4 md:p-5 flex justify-between items-start gap-2 sm:gap-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className={`mt-0.5 p-2 rounded-lg border flex-shrink-0 ${
                         exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' :
                         exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-500 border-blue-100' :
                         exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
@@ -187,10 +187,10 @@ export default async function StaffLedgerPage() {
                          exp.expenseType === 'ADVANCE' ? <Wallet size={16} /> :
                          exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={16} /> : <Car size={16} />}
                       </div>
-                      <div>
-                        <div className="font-bold text-slate-900 text-sm">{exp.description}</div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 text-[13px] sm:text-sm truncate">{exp.description}</div>
+                        <div className="flex items-center flex-wrap gap-1.5 mt-1">
+                          <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${
                             exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
                             exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-600 border-blue-200' :
                             exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-indigo-50 text-indigo-600 border-indigo-200'
@@ -199,18 +199,18 @@ export default async function StaffLedgerPage() {
                           </span>
                           
                           {exp.vehicle && (
-                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                            <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                               {exp.vehicle.make} {exp.vehicle.model}
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1 w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-0 border-slate-100">
-                      <div className={`font-black text-lg ${exp.expenseType === 'INCOME' || exp.expenseType === 'ADVANCE' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                    <div className="flex flex-col items-end justify-center gap-1 flex-shrink-0 text-right">
+                      <div className={`font-black text-sm sm:text-base md:text-lg whitespace-nowrap ${exp.expenseType === 'INCOME' || exp.expenseType === 'ADVANCE' ? 'text-emerald-600' : 'text-slate-900'}`}>
                         {exp.expenseType === 'INCOME' || exp.expenseType === 'ADVANCE' ? '+' : ''}₹{exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </div>
-                      <div className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                      <div className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${
                         exp.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 
                         exp.status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 
                         'bg-red-100 text-red-700'

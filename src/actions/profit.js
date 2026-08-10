@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { getAllExpenses, getAllIncome } from './history';
 
 export async function getMonthlyProfitData(year, monthIndex) {
   try {
@@ -56,7 +57,14 @@ export async function getMonthlyProfitData(year, monthIndex) {
       }
     });
 
-    // 4. Process calculations
+    // 4. Fetch In-Stock Vehicles
+    const inStockVehicles = await prisma.vehicle.findMany({
+      where: { status: 'IN_STOCK' }
+    });
+    const inStockCount = inStockVehicles.length;
+    const inStockValue = inStockVehicles.reduce((sum, v) => sum + Number(v.purchasePrice || 0), 0);
+
+    // 5. Process calculations
     let totalGrossProfit = 0;
     let totalPartnerDeductions = 0;
     let totalOfficeExpenseAmount = 0;
@@ -123,6 +131,18 @@ export async function getMonthlyProfitData(year, monthIndex) {
 
     const netProfit = totalGrossProfit - totalOfficeExpenseAmount;
 
+    // 6. Fetch Ledger History Totals for Summary
+    const { expenses: ledgerExpenses } = await getAllExpenses(year, monthIndex);
+    const { income: ledgerIncome } = await getAllIncome(year, monthIndex);
+
+    const totalLedgerExpenses = ledgerExpenses?.reduce((sum, exp) => {
+      if (exp.requestedMode === 'UGHRANI') return sum;
+      if (exp.isStaffAdvance) return sum;
+      return sum + (!exp.isTransfer && exp.status !== 'REJECTED' ? Number(exp.amount) : 0);
+    }, 0) || 0;
+
+    const totalLedgerIncome = ledgerIncome?.reduce((sum, inc) => sum + (!inc.isTransfer ? Number(inc.amount) : 0), 0) || 0;
+
     return {
       success: true,
       data: {
@@ -132,6 +152,11 @@ export async function getMonthlyProfitData(year, monthIndex) {
         totalOfficeExpenseAmount,
         totalCarExpenseAmount,
         netProfit,
+        inStockCount,
+        inStockValue,
+        soldCount: soldVehicles.length,
+        totalLedgerIncome,
+        totalLedgerExpenses,
         vehicles: processedVehicles,
         officeExpenses: processedOfficeExpenses
       }
@@ -146,16 +171,26 @@ export async function getPendingPayables() {
   try {
     const pendingVehicles = await prisma.vehicle.findMany({
       where: {
-        purchasePendingBalance: {
-          gt: 0
-        },
-        status: 'IN_STOCK' // Usually only active inventory is owed, but we can just query all.
+        purchasePendingBalance: { gt: 0 }
       },
       include: {
         payableAccount: true
       },
       orderBy: {
         purchaseDate: 'desc'
+      }
+    });
+
+    const pendingReceivablesVehicles = await prisma.vehicle.findMany({
+      where: {
+        salePendingBalance: { gt: 0 },
+        status: 'SOLD'
+      },
+      include: {
+        receivableAccount: true
+      },
+      orderBy: {
+        saleDate: 'desc'
       }
     });
 
@@ -170,6 +205,18 @@ export async function getPendingPayables() {
       payableAccountId: v.payableAccountId,
       payableAccountName: v.payableAccount?.name || 'Unknown Account',
       payableAccountType: v.payableAccount?.type || 'UNKNOWN'
+    }));
+
+    const receivables = pendingReceivablesVehicles.map(v => ({
+      id: v.id,
+      make: v.make,
+      model: v.model,
+      registration: v.registration,
+      saleDate: v.saleDate,
+      pendingBalance: Number(v.salePendingBalance),
+      receivableAccountId: v.receivableAccountId,
+      receivableAccountName: v.receivableAccount?.name || 'Unknown Agent/Buyer',
+      receivableAccountType: v.receivableAccount?.type || 'UNKNOWN'
     }));
 
     // Fetch cash/bank accounts for payment dropdown
@@ -187,7 +234,7 @@ export async function getPendingPayables() {
       openingBalance: Number(acc.openingBalance)
     }));
 
-    return { success: true, payables, accounts };
+    return { success: true, payables, receivables, accounts };
   } catch (error) {
     console.error('Failed to get pending payables:', error);
     return { success: false, error: 'Failed to load pending payables.' };
@@ -199,8 +246,8 @@ export async function payPendingBalance(formData) {
     const vehicleId = formData.get('vehicleId');
     const amount = parseFloat(formData.get('amount'));
     const mode = formData.get('mode'); // 'CASH' or 'BANK'
-
     const paymentAccountId = formData.get('paymentAccountId');
+    const paymentType = formData.get('paymentType') || 'PAYABLE';
 
     if (!vehicleId || isNaN(amount) || amount <= 0 || !mode || !paymentAccountId) {
       return { success: false, error: 'Invalid payment details.' };
@@ -215,38 +262,68 @@ export async function payPendingBalance(formData) {
         throw new Error('Vehicle not found');
       }
       
-      const currentPending = Number(vehicle.purchasePendingBalance);
-      if (amount > currentPending) {
-        throw new Error('Payment amount cannot exceed pending balance');
-      }
-
-      // Deduct from our cash/bank (DEBIT to the payment account because we are spending money)
-      await tx.transaction.create({
-        data: {
-          date: new Date(),
-          transactionMode: mode,
-          type: 'DEBIT', // Money leaving our account
-          amount: amount,
-          accountId: paymentAccountId, // The Cash or Bank account they selected
-          category: 'VEHICLE_PURCHASE',
-          description: `Paid Udhari for ${vehicle.make} ${vehicle.model} (${vehicle.registration || 'Unregistered'})`
+      if (paymentType === 'RECEIVABLE') {
+        const currentPending = Number(vehicle.salePendingBalance);
+        if (amount > currentPending) {
+          throw new Error('Payment amount cannot exceed pending balance');
         }
-      });
 
-      // Reduce the pending balance on the vehicle
-      await tx.vehicle.update({
-        where: { id: vehicleId },
-        data: {
-          purchasePendingBalance: {
-            decrement: amount
+        // Add to our cash/bank (CREDIT because we are receiving money)
+        await tx.transaction.create({
+          data: {
+            date: new Date(),
+            transactionMode: mode,
+            type: 'CREDIT', 
+            amount: amount,
+            accountId: paymentAccountId,
+            category: 'VEHICLE_SALE',
+            description: `Received Pending Payment for ${vehicle.make} ${vehicle.model} (${vehicle.registration || 'Unregistered'})`
           }
+        });
+
+        // Reduce the pending sale balance on the vehicle
+        await tx.vehicle.update({
+          where: { id: vehicleId },
+          data: {
+            salePendingBalance: {
+              decrement: amount
+            }
+          }
+        });
+      } else {
+        const currentPending = Number(vehicle.purchasePendingBalance);
+        if (amount > currentPending) {
+          throw new Error('Payment amount cannot exceed pending balance');
         }
-      });
+
+        // Deduct from our cash/bank (DEBIT to the payment account because we are spending money)
+        await tx.transaction.create({
+          data: {
+            date: new Date(),
+            transactionMode: mode,
+            type: 'DEBIT', 
+            amount: amount,
+            accountId: paymentAccountId, 
+            category: 'VEHICLE_PURCHASE',
+            description: `Paid Udhari for ${vehicle.make} ${vehicle.model} (${vehicle.registration || 'Unregistered'})`
+          }
+        });
+
+        // Reduce the pending purchase balance on the vehicle
+        await tx.vehicle.update({
+          where: { id: vehicleId },
+          data: {
+            purchasePendingBalance: {
+              decrement: amount
+            }
+          }
+        });
+      }
     });
 
     return { success: true };
   } catch (error) {
-    console.error('Failed to pay pending balance:', error);
+    console.error('Failed to process pending balance:', error);
     return { success: false, error: error.message || 'Failed to process payment.' };
   }
 }

@@ -71,3 +71,33 @@ export async function deleteUser(formData) {
 
   revalidatePath('/users');
 }
+
+export async function updateUser(formData) {
+  const session = await getSession();
+  if (!session || session.role !== 'ADMIN') {
+    throw new Error('Unauthorized');
+  }
+
+  const id = formData.get('id');
+  const name = formData.get('name');
+  const username = formData.get('username');
+  const password = formData.get('password');
+  const role = formData.get('role');
+
+  const updateData = {
+    name,
+    username,
+    role
+  };
+
+  if (password && password.trim() !== '') {
+    updateData.password = await bcrypt.hash(password, 10);
+  }
+
+  await prisma.user.update({
+    where: { id },
+    data: updateData
+  });
+
+  revalidatePath('/users');
+}

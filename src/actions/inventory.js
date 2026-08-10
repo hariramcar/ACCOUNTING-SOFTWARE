@@ -5,41 +5,50 @@ import { revalidatePath } from 'next/cache';
 
 export async function getInventory(year, month) {
   try {
-    let dateFilter = {};
+    let startDate, endDate;
     if (year !== undefined && month !== undefined) {
-      const startDate = new Date(year, month, 1);
-      const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
-      dateFilter = {
-        OR: [
-          { status: 'IN_STOCK' }, // Always show all current stock
-          {
-            status: 'SOLD',
-            saleDate: {
-              gte: startDate,
-              lte: endDate
-            }
-          }
-        ]
-      };
+      startDate = new Date(year, month, 1);
+      endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    } else {
+      const d = new Date();
+      startDate = new Date(d.getFullYear(), d.getMonth(), 1);
+      endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
     }
 
+    // 1. Fetch vehicles relevant to this specific month
     const vehicles = await prisma.vehicle.findMany({
-      where: Object.keys(dateFilter).length > 0 ? dateFilter : undefined,
+      where: {
+        purchaseDate: { lte: endDate },
+        OR: [
+          { status: 'IN_STOCK' },
+          {
+            status: 'SOLD',
+            saleDate: { gte: startDate }
+          }
+        ]
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         expenses: true,
-        partnerships: {
-          include: {
-            partnerAccount: true
-          }
-        },
+        partnerships: { include: { partnerAccount: true } },
         receivableAccount: true,
         payableAccount: true
       }
     });
 
-    // Process totals
-    const processed = vehicles.map(v => {
+    // 2. Fetch all current stock unconditionally for the Sell Modal
+    const rawAllCurrentStock = await prisma.vehicle.findMany({
+      where: { status: 'IN_STOCK' },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        expenses: true,
+        partnerships: { include: { partnerAccount: true } },
+        receivableAccount: true,
+        payableAccount: true
+      }
+    });
+
+    const processVehicle = (v) => {
       const totalExpenses = v.expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
       const legacyExp = Number(v.legacyExpenses || 0);
       const totalCost = Number(v.purchasePrice) + totalExpenses + legacyExp;
@@ -63,21 +72,30 @@ export async function getInventory(year, month) {
           } : null
         })),
         salePendingBalance: Number(v.salePendingBalance || 0),
-        receivableAccount: v.receivableAccount ? {
-          ...v.receivableAccount,
-          openingBalance: Number(v.receivableAccount.openingBalance)
-        } : null,
-        payableAccount: v.payableAccount ? {
-          ...v.payableAccount,
-          openingBalance: Number(v.payableAccount.openingBalance)
-        } : null
+        receivableAccount: v.receivableAccount ? { ...v.receivableAccount, openingBalance: Number(v.receivableAccount.openingBalance) } : null,
+        payableAccount: v.payableAccount ? { ...v.payableAccount, openingBalance: Number(v.payableAccount.openingBalance) } : null
       };
+    };
+
+    const processed = vehicles.map(processVehicle);
+    const allCurrentStock = rawAllCurrentStock.map(processVehicle);
+
+    const soldThisMonth = [];
+    const inStockThisMonth = [];
+
+    processed.forEach(v => {
+      if (v.status === 'SOLD' && v.saleDate >= startDate && v.saleDate <= endDate) {
+        soldThisMonth.push(v);
+      } else {
+        inStockThisMonth.push(v);
+      }
     });
 
     return {
       success: true,
-      inStock: processed.filter(v => v.status === 'IN_STOCK'),
-      sold: processed.filter(v => v.status === 'SOLD')
+      inStock: inStockThisMonth,
+      sold: soldThisMonth,
+      allCurrentStock
     };
   } catch (error) {
     console.error('Failed to load inventory:', error);

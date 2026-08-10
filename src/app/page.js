@@ -41,8 +41,8 @@ export default async function Home() {
   const trueNetProfit = ourCarProfit - totalOfficeExpenses;
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 md:p-8 flex flex-col gap-8 text-slate-900">
-      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-5">
+    <div className="w-full max-w-7xl mx-auto p-4 md:p-8 flex flex-col gap-4 md:gap-8 text-slate-900">
+      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-3 md:gap-4 border-b border-slate-200 pb-3 md:pb-5">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 mb-2">
             Executive Dashboard

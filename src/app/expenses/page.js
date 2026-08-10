@@ -14,16 +14,16 @@ import { getSession } from '@/lib/session';
 export default async function ExpensesPage({ searchParams }) {
   const session = await getSession();
   const isAdmin = session?.role === 'ADMIN';
-  
+
   const awaitedParams = await searchParams;
   const targetDate = awaitedParams?.date || new Date().toISOString().split('T')[0];
 
   const { expenses } = await getRecentExpenses(targetDate);
   const { accounts } = await getAccountBalances();
-  
+
   // Calculate exact historical Opening/Closing Cash for the selected date
   const { openingCash, closingCash } = await getHistoricalCashBalances(targetDate);
-  
+
   let pendingExpenses = [];
   let staffWallet = null;
 
@@ -45,22 +45,22 @@ export default async function ExpensesPage({ searchParams }) {
       }
     }
   }
-  
+
   const vehiclesRaw = await prisma.vehicle.findMany({
     where: { status: 'IN_STOCK' },
     orderBy: { createdAt: 'desc' },
-    select: { 
-      id: true, 
-      make: true, 
-      model: true, 
-      registration: true, 
+    select: {
+      id: true,
+      make: true,
+      model: true,
+      registration: true,
       status: true,
       purchasePrice: true,
       legacyExpenses: true,
       expenses: { select: { amount: true } }
     }
   });
-  
+
   const vehicles = vehiclesRaw.map(v => {
     const totalExpenses = v.expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
     const legacyExp = Number(v.legacyExpenses || 0);
@@ -76,8 +76,8 @@ export default async function ExpensesPage({ searchParams }) {
   });
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 md:p-8 flex flex-col gap-6 md:gap-8 text-slate-900 pb-24 md:pb-8">
-      <div className="flex flex-col lg:flex-row lg:justify-between items-start lg:items-end gap-4 border-b border-slate-200 pb-5 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-4 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
+    <div className="w-full max-w-7xl mx-auto p-4 md:p-8 flex flex-col gap-4 md:gap-8 text-slate-900 pb-24 md:pb-8">
+      <div className="flex flex-col lg:flex-row lg:justify-between items-start lg:items-end gap-3 md:gap-4 border-b border-slate-200 pb-3 md:pb-5 mb-1 md:mb-6 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-4 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-8 h-8 md:w-10 md:h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100">
@@ -87,28 +87,28 @@ export default async function ExpensesPage({ searchParams }) {
           </div>
           <p className="text-xs md:text-sm text-slate-500 m-0 font-medium ml-0 md:ml-13 mt-1.5 md:mt-0">Rapid data entry for month-end vendor bills and office costs.</p>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
           <div className="flex items-center gap-3 w-full sm:w-auto flex-shrink-0">
             <div className="flex-1 sm:flex-none">
               <DateSelector defaultDate={targetDate} />
             </div>
-            
+
             {/* Mobile + New Button */}
-            <MobileExpenseModal 
-              vehicles={vehicles} 
-              accounts={accounts || []} 
-              addExpenseAction={addExpense} 
-              addTransferAction={addTransfer} 
-              sellVehicleAction={sellVehicle} 
-              isAdmin={isAdmin} 
+            <MobileExpenseModal
+              vehicles={vehicles}
+              accounts={accounts || []}
+              addExpenseAction={addExpense}
+              addTransferAction={addTransfer}
+              sellVehicleAction={sellVehicle}
+              isAdmin={isAdmin}
             />
 
             {isAdmin && (
               <PendingApprovalsModal pendingExpenses={pendingExpenses} />
             )}
           </div>
-          
+
           {isAdmin && (
             <div className="flex bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm w-full sm:w-auto overflow-hidden">
               <div className="pr-4 border-r border-slate-200 flex-1 sm:flex-none">
@@ -123,34 +123,33 @@ export default async function ExpensesPage({ searchParams }) {
           )}
 
           {!isAdmin && staffWallet && (
-            <div className="flex bg-indigo-900 border border-indigo-800 rounded-xl p-3 shadow-md">
-              <div className="pr-4 border-r border-indigo-700/50">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-0.5">My Wallet Balance</div>
+            <div className="flex bg-indigo-900 border border-indigo-800 rounded-xl p-3 shadow-md w-full sm:w-auto">
+              <div className="pr-4 border-r border-indigo-700/50 flex-1 sm:flex-none">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-0.5 truncate">My Wallet Balance</div>
                 <div className="text-xl font-black text-white">₹{staffWallet.balance.toLocaleString('en-IN')}</div>
               </div>
-              <div className="pl-4">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-0.5">Total Spent</div>
+              <div className="pl-4 flex-1 sm:flex-none">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-0.5 truncate">Total Spent</div>
                 <div className="text-xl font-black text-emerald-400">₹{staffWallet.spent.toLocaleString('en-IN')}</div>
               </div>
             </div>
           )}
-          
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
         {/* ADD EXPENSE FORM (CLIENT COMPONENT - HIDDEN ON MOBILE) */}
         <div className="hidden lg:block lg:col-span-1">
           <ExpenseForm vehicles={vehicles} accounts={accounts || []} addExpenseAction={addExpense} addTransferAction={addTransfer} sellVehicleAction={sellVehicle} isAdmin={isAdmin} />
         </div>
 
         {/* EXPENSES LEDGER */}
-        <div className="lg:col-span-2 flex flex-col gap-3">
+        <div className="lg:col-span-2 order-2 lg:order-2 flex flex-col gap-3">
           <h2 className="border-b border-slate-200 pb-3 mb-3 text-lg font-bold text-slate-900">Recent Transactions Ledger</h2>
-          
+
           {(() => {
             if (!expenses || expenses.length === 0) return null;
-            
+
             const grouped = expenses.reduce((acc, exp) => {
               const dateStr = new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
               if (!acc[dateStr]) acc[dateStr] = [];
@@ -168,14 +167,13 @@ export default async function ExpensesPage({ searchParams }) {
                     <div key={exp.id} className="bg-white rounded-xl p-4 flex flex-col shadow-sm border border-slate-200 interactive-card gap-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-3">
-                          <div className={`mt-0.5 p-2 rounded-lg border flex-shrink-0 ${
-                            exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' :
+                          <div className={`mt-0.5 p-2 rounded-lg border flex-shrink-0 ${exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' :
                             exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-500 border-blue-100' :
-                            exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
-                          }`}>
-                            {exp.expenseType === 'INCOME' ? <Wallet size={16} /> : 
-                             exp.expenseType === 'ADVANCE' ? <Wallet size={16} /> : 
-                             exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={16} /> : <Car size={16} />}
+                              exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
+                            }`}>
+                            {exp.expenseType === 'INCOME' ? <Wallet size={16} /> :
+                              exp.expenseType === 'ADVANCE' ? <Wallet size={16} /> :
+                                exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={16} /> : <Car size={16} />}
                           </div>
                           <div className="flex flex-col">
                             <span className="text-[14px] font-bold text-slate-900 leading-tight">{exp.description}</span>
@@ -186,21 +184,20 @@ export default async function ExpensesPage({ searchParams }) {
                             )}
                           </div>
                         </div>
-                        <div className={`font-black text-base whitespace-nowrap ${
-                          exp.expenseType === 'INCOME' ? 'text-emerald-600' :
+                        <div className={`font-black text-base whitespace-nowrap ${exp.expenseType === 'INCOME' ? 'text-emerald-600' :
                           exp.expenseType === 'OFFICE_EXPENSE' ? 'text-red-600' : 'text-indigo-600'
-                        }`}>
+                          }`}>
                           {exp.expenseType === 'INCOME' ? '+' : '-'}₹{Number(exp.amount).toLocaleString('en-IN')}
                         </div>
                       </div>
-                      
+
                       <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
                         {exp.status && (
                           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-1">
                             <div>
                               Status: <span className={
-                                exp.status === 'APPROVED' ? 'text-emerald-600' : 
-                                exp.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'
+                                exp.status === 'APPROVED' ? 'text-emerald-600' :
+                                  exp.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'
                               }>{exp.status}</span>
                             </div>
                             <div className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></div>
@@ -217,10 +214,10 @@ export default async function ExpensesPage({ searchParams }) {
                         )}
                         {isAdmin && (
                           <div className="flex justify-end mt-1">
-                            <TransactionActions 
-                              expense={exp} 
-                              deleteExpenseAction={deleteExpense} 
-                              updateExpenseAction={updateExpense} 
+                            <TransactionActions
+                              expense={exp}
+                              deleteExpenseAction={deleteExpense}
+                              updateExpenseAction={updateExpense}
                               isRawTx={exp.isRawTx}
                             />
                           </div>
@@ -238,14 +235,13 @@ export default async function ExpensesPage({ searchParams }) {
                         <tr key={exp.id} className="hover:bg-slate-50/80 transition-colors group">
                           <td className="py-4 px-5">
                             <div className="flex items-center gap-4">
-                              <div className={`p-2 rounded-lg border ${
-                                exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' :
+                              <div className={`p-2 rounded-lg border ${exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' :
                                 exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-500 border-blue-100' :
-                                exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
-                              }`}>
-                                {exp.expenseType === 'INCOME' ? <Wallet size={18} /> : 
-                                 exp.expenseType === 'ADVANCE' ? <Wallet size={18} /> : 
-                                 exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={18} /> : <Car size={18} />}
+                                  exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
+                                }`}>
+                                {exp.expenseType === 'INCOME' ? <Wallet size={18} /> :
+                                  exp.expenseType === 'ADVANCE' ? <Wallet size={18} /> :
+                                    exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={18} /> : <Car size={18} />}
                               </div>
                               <div className="flex flex-col">
                                 <span className="text-[15px] font-bold text-slate-900">{exp.description}</span>
@@ -262,8 +258,8 @@ export default async function ExpensesPage({ searchParams }) {
                               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex flex-col gap-1">
                                 <div>
                                   Status: <span className={
-                                    exp.status === 'APPROVED' ? 'text-emerald-600' : 
-                                    exp.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'
+                                    exp.status === 'APPROVED' ? 'text-emerald-600' :
+                                      exp.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'
                                   }>{exp.status}</span>
                                 </div>
                                 {exp.recipient && (
@@ -283,20 +279,19 @@ export default async function ExpensesPage({ searchParams }) {
                             )}
                           </td>
                           <td className="py-4 px-5 text-right w-40">
-                            <div className={`font-black text-lg whitespace-nowrap ${
-                              exp.expenseType === 'INCOME' ? 'text-emerald-600' :
+                            <div className={`font-black text-lg whitespace-nowrap ${exp.expenseType === 'INCOME' ? 'text-emerald-600' :
                               exp.expenseType === 'OFFICE_EXPENSE' ? 'text-red-600' : 'text-indigo-600'
-                            }`}>
+                              }`}>
                               {exp.expenseType === 'INCOME' ? '+' : '-'}₹{Number(exp.amount).toLocaleString('en-IN')}
                             </div>
                           </td>
                           <td className="py-4 px-5 text-right w-24">
                             {isAdmin && (
                               <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                <TransactionActions 
-                                  expense={exp} 
-                                  deleteExpenseAction={deleteExpense} 
-                                  updateExpenseAction={updateExpense} 
+                                <TransactionActions
+                                  expense={exp}
+                                  deleteExpenseAction={deleteExpense}
+                                  updateExpenseAction={updateExpense}
                                   isRawTx={exp.isRawTx}
                                 />
                               </div>

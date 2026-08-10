@@ -44,8 +44,8 @@ export default async function AccountsPage() {
   const partnerAccounts = accounts?.filter(a => a.type === 'PARTNER') || [];
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 md:p-8 flex flex-col gap-6 md:gap-8 text-slate-900 pb-24 md:pb-8">
-      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-5 mb-2 md:mb-8 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-4 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
+    <div className="w-full max-w-7xl mx-auto p-4 md:p-8 flex flex-col gap-4 md:gap-8 text-slate-900 pb-24 md:pb-8">
+      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-3 md:gap-4 border-b border-slate-200 pb-3 md:pb-5 mb-1 md:mb-8 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-4 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-8 h-8 md:w-10 md:h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100 shadow-sm">
@@ -55,7 +55,7 @@ export default async function AccountsPage() {
           </div>
           <p className="text-xs md:text-sm text-slate-500 m-0 font-medium ml-0 md:ml-13 mt-1.5 md:mt-0">Manage Banks, Cash Drawers, Loan Agents, and Market Place.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-2.5 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 md:overflow-visible shrink-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <UpadModals 
             upadAccounts={[...staffAccounts, ...ughraniAccounts]} 
             ledgerAccounts={[...cashAccounts, ...bankAccounts]} 
@@ -101,7 +101,7 @@ export default async function AccountsPage() {
         </div>
 
         {/* LOAN AGENTS */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
+        <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
             <BriefcaseBusiness size={18} className="text-purple-500" />
             <h3 className="text-base font-bold text-slate-800 m-0 flex-1">Loan Agents</h3>
@@ -111,8 +111,8 @@ export default async function AccountsPage() {
               vehicles={vehicles} 
             />
           </div>
-          <p className="text-xs font-medium text-slate-500 mb-5 mt-1">Track pending loan payouts and commissions from DSA agents.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+          <p className="text-xs font-medium text-slate-500 mb-3 mt-1">Track pending loan payouts and commissions from DSA agents.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
             {agentAccounts.map(acc => (
               <AccountCard 
                 key={acc.id} account={acc} colorClass="bg-purple-50/30 border-purple-200 text-purple-800" 
@@ -129,13 +129,13 @@ export default async function AccountsPage() {
         </div>
 
         {/* MARKET PLACE */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
+        <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
             <LineChart size={18} className="text-amber-500" />
             <h3 className="text-base font-bold text-slate-800 m-0">Market Place</h3>
           </div>
-          <p className="text-xs font-medium text-slate-500 mb-5 mt-1">Car repair vendors and parts. Track monthly advances (Upad) and work billed.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+          <p className="text-xs font-medium text-slate-500 mb-3 mt-1">Car repair vendors and parts. Track monthly advances (Upad) and work billed.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
             {ughraniAccounts.map(acc => (
               <AccountCard 
                 key={acc.id} account={acc} colorClass="bg-amber-50/30 border-amber-200 text-amber-800" 
@@ -152,13 +152,13 @@ export default async function AccountsPage() {
         </div>
 
         {/* STAFF & EMPLOYEES */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
+        <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
             <Users2 size={18} className="text-pink-500" />
             <h3 className="text-base font-bold text-slate-800 m-0">Staff & Employees</h3>
           </div>
-          <p className="text-xs font-medium text-slate-500 mb-5 mt-1">Track staff Upad (Advances given) vs Salary and Bills settled.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+          <p className="text-xs font-medium text-slate-500 mb-3 mt-1">Track staff Upad (Advances given) vs Salary and Bills settled.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
             {staffAccounts.map(acc => (
               <AccountCard 
                 key={acc.id} account={acc} colorClass="bg-pink-50/30 border-pink-200 text-pink-800" 
@@ -175,13 +175,13 @@ export default async function AccountsPage() {
         </div>
 
         {/* BUSINESS PARTNERS */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
+        <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
             <Handshake size={18} className="text-teal-500" />
             <h3 className="text-base font-bold text-slate-800 m-0">Business Partners</h3>
           </div>
-          <p className="text-xs font-medium text-slate-500 mb-5 mt-1">Partners who co-invest in vehicles. Track their capital, profit shares, and payouts.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+          <p className="text-xs font-medium text-slate-500 mb-3 mt-1">Partners who co-invest in vehicles. Track their capital, profit shares, and payouts.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
             {partnerAccounts.map(acc => (
               <PartnerAccountCard 
                 key={acc.id} account={acc} colorClass="bg-teal-50/30 border-teal-200 text-teal-800" 
@@ -201,14 +201,14 @@ function AccountCard({ account, colorClass, creditLabel, debitLabel, balanceLogi
 
   return (
     <AccountHistoryModal account={account}>
-      <div className={`border rounded-lg p-4 shadow-sm interactive-card cursor-pointer flex flex-col h-full ${colorClass}`}>
+      <div className={`border rounded-lg p-3 shadow-sm interactive-card cursor-pointer flex flex-col h-full ${colorClass}`}>
         <div className="flex justify-between items-center mb-3 border-b border-black/5 pb-2">
           <strong className="text-[15px] tracking-tight flex-1">{account.name}</strong>
           <DeleteAccountButton accountId={account.id} accountName={account.name} />
         </div>
         <div className="flex flex-col gap-2 flex-1">
           {!hideTotals && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1">
+            <div className="grid grid-cols-2 gap-2 mb-1">
               <div className="flex flex-col gap-1 p-2 bg-emerald-50/50 rounded border border-emerald-100">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600/80">{creditLabel}</span>
                 <span className="text-sm font-semibold text-emerald-700">₹{account.totalPaid?.toLocaleString('en-IN') || '0'}</span>
@@ -277,7 +277,7 @@ function PartnerAccountCard({ account, colorClass }) {
   return (
     <div className={`border rounded-xl shadow-sm flex flex-col h-full bg-white relative ${colorClass}`}>
       <AccountHistoryModal account={account}>
-        <div className="flex justify-between items-center mb-3 border-b border-black/5 pb-2 p-4 cursor-pointer hover:bg-black/5 rounded-t-xl transition-colors interactive-card">
+        <div className="flex justify-between items-center mb-2 border-b border-black/5 pb-2 p-3 cursor-pointer hover:bg-black/5 rounded-t-xl transition-colors interactive-card">
           <strong className="text-[15px] tracking-tight flex-1">{account.name}</strong>
           <div>
             <DeleteAccountButton accountId={account.id} accountName={account.name} />
