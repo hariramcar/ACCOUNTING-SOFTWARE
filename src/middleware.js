@@ -5,7 +5,7 @@ export function middleware(request) {
   const { pathname } = request.nextUrl;
 
   // Paths that do not require authentication
-  if (pathname === '/login' || pathname === '/setup') {
+  if (pathname === '/login') {
     if (session) {
       // If already logged in, redirect to home
       return NextResponse.redirect(new URL('/', request.url));

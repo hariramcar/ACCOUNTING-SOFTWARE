@@ -50,31 +50,3 @@ export async function logout() {
   redirect('/login');
 }
 
-// A temporary function to create the first admin user
-export async function setupFirstAdmin(formData) {
-  const username = formData.get('username');
-  const password = formData.get('password');
-  const name = formData.get('name');
-
-  const existingAdmin = await prisma.user.findFirst({
-    where: { role: 'ADMIN' }
-  });
-
-  if (existingAdmin) {
-    return { success: false, error: 'An admin already exists. Please login.' };
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  const user = await prisma.user.create({
-    data: {
-      username,
-      name,
-      password: hashedPassword,
-      role: 'ADMIN'
-    }
-  });
-
-  await createSession(user);
-  redirect('/profit');
-}
