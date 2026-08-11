@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Edit2, X, ShieldAlert } from 'lucide-react';
 import { updateUser } from '@/actions/users';
@@ -14,8 +14,13 @@ export default function EditUserModal({ user }) {
     setMounted(true);
   }, []);
 
+  const isSubmittingRef = useRef(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
     setIsSubmitting(true);
     const formData = new FormData(e.target);
     try {
@@ -24,6 +29,7 @@ export default function EditUserModal({ user }) {
     } catch (error) {
       alert(`Error updating user: ${error.message}`);
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };

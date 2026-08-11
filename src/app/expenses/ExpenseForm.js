@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowLeftRight, Building2, Car, PlusCircle, Trash2 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
 
@@ -63,44 +63,60 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
     setPayments(payments.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
 
+  const isSubmittingRef = useRef(false);
+
   const finalExpenseType = txType === 'INCOME' ? 'INCOME' : expenseSubType;
   const handleExpenseSubmit = async (formData) => {
-    if (finalExpenseType === 'INCOME' && formData.get('vehicleId')) {
-      // Map form fields to match sellVehicle backend action
-      formData.set('salePrice', formData.get('amount'));
-      formData.set('saleDate', formData.get('date'));
-      
-      const result = await sellVehicleAction(formData);
-      if (result && !result.success) {
-        alert(`Error: ${result.error}`);
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
+    try {
+      if (finalExpenseType === 'INCOME' && formData.get('vehicleId')) {
+        // Map form fields to match sellVehicle backend action
+        formData.set('salePrice', formData.get('amount'));
+        formData.set('saleDate', formData.get('date'));
+        
+        const result = await sellVehicleAction(formData);
+        if (result && !result.success) {
+          alert(`Error: ${result.error}`);
+        } else {
+          setAmount('');
+          setMode('');
+          setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
+          document.getElementById('expense-form').reset();
+          if (onSuccess) onSuccess();
+        }
       } else {
-        setAmount('');
-        setMode('');
-        setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
-        document.getElementById('expense-form').reset();
-        if (onSuccess) onSuccess();
+        const result = await addExpenseAction(formData);
+        if (result && !result.success) {
+          alert(`Error: ${result.error}`);
+        } else {
+          setAmount('');
+          setMode('');
+          setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
+          document.getElementById('expense-form').reset();
+          if (onSuccess) onSuccess();
+        }
       }
-    } else {
-      const result = await addExpenseAction(formData);
-      if (result && !result.success) {
-        alert(`Error: ${result.error}`);
-      } else {
-        setAmount('');
-        setMode('');
-        setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
-        document.getElementById('expense-form').reset();
-        if (onSuccess) onSuccess();
-      }
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
 
   const handleTransferSubmit = async (formData) => {
-    const result = await addTransferAction(formData);
-    if (result && !result.success) {
-      alert(`Error: ${result.error}`);
-    } else {
-      document.getElementById('transfer-form').reset();
-      if (onSuccess) onSuccess();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
+    try {
+      const result = await addTransferAction(formData);
+      if (result && !result.success) {
+        alert(`Error: ${result.error}`);
+      } else {
+        document.getElementById('transfer-form').reset();
+        if (onSuccess) onSuccess();
+      }
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
 

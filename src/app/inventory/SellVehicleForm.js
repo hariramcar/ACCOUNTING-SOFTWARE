@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { sellVehicle } from '@/actions/inventory';
+import SubmitButton from '@/components/SubmitButton';
 
 export default function SellVehicleForm({ car, accounts }) {
   const [salePrice, setSalePrice] = useState('');
@@ -147,9 +148,9 @@ export default function SellVehicleForm({ car, accounts }) {
 
 
 
-      <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded border-none cursor-pointer text-xs font-bold transition-colors shadow-sm uppercase tracking-wider">
+      <SubmitButton className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded border-none cursor-pointer text-xs font-bold transition-colors shadow-sm uppercase tracking-wider" pendingText="Confirming...">
         Confirm Sale
-      </button>
+      </SubmitButton>
     </form>
   );
 }

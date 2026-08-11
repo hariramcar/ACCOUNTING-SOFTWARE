@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { X, ArrowDownRight, AlertCircle } from 'lucide-react';
 import { receiveAgentCarPayment } from '@/actions/upad';
 
@@ -19,26 +19,34 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
+  const isSubmittingRef = useRef(false);
+
   const handleAmountChange = (e) => setAmount(formatIndianNumber(e.target.value));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
     const formData = new FormData(e.currentTarget);
     setIsSubmitting(true);
     setError(null);
     
-    const result = await receiveAgentCarPayment(formData);
-    
-    if (result && !result.success) {
-      setError(result.error);
+    try {
+      const result = await receiveAgentCarPayment(formData);
+      
+      if (result && !result.success) {
+        setError(result.error);
+      } else {
+        setIsOpen(false);
+        setAmount('');
+        setSelectedVehicleId('');
+        setSelectedAgentId('');
+        e.target.reset();
+      }
+    } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
-    } else {
-      setIsSubmitting(false);
-      setIsOpen(false);
-      setAmount('');
-      setSelectedVehicleId('');
-      setSelectedAgentId('');
-      e.target.reset();
     }
   };
 

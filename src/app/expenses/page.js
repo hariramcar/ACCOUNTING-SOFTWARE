@@ -262,11 +262,6 @@ export default async function ExpensesPage({ searchParams }) {
                                       exp.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'
                                   }>{exp.status}</span>
                                 </div>
-                                {exp.recipient && (
-                                  <div className="text-slate-700">
-                                    To/From: {exp.recipient}
-                                  </div>
-                                )}
                               </div>
                             )}
                           </td>

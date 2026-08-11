@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { PlusCircle, X, AlertCircle } from 'lucide-react';
 
@@ -70,31 +70,48 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
       (Number((purchasePrice || '').replace(/,/g, '')) || 0) 
       - (Number((payment1Amount || '').replace(/,/g, '')) || 0) 
       - (Number((payment2Amount || '').replace(/,/g, '')) || 0)
+      - (Number((partnerInvestment || '').replace(/,/g, '')) || 0)
     ) * 100) / 100
   );
 
+  const isSubmittingRef = useRef(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
     setIsSubmitting(true);
     setError(null);
-    const result = await addVehicleAction(formData);
+
+    const formData = new FormData(e.currentTarget);
+    formData.append('purchasePrice', (purchasePrice || '0').replace(/,/g, ''));
+    formData.append('payment1Amount', (payment1Amount || '0').replace(/,/g, ''));
+    formData.append('payment2Amount', (payment2Amount || '0').replace(/,/g, ''));
+    formData.append('partnerInvestment', (partnerInvestment || '0').replace(/,/g, ''));
     
-    if (result && !result.success) {
-      setError(result.error);
+    try {
+      const result = await addVehicleAction(formData);
+
+      if (result && !result.success) {
+        setError(result.error || 'Failed to add vehicle');
+      } else {
+        setIsOpen(false);
+        setPurchasePrice('');
+        setPayment1Amount('');
+        setPayment2Amount('');
+        setPayment1Mode('');
+        setPayment2Mode('');
+        setPartnerInvestment('');
+        setProfitSharePercentage('');
+        setPartnerPaymentMode('CASH');
+        e.target.reset();
+      }
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred');
+    } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
-    } else {
-      setIsSubmitting(false);
-      setIsOpen(false);
-      setPurchasePrice('');
-      setPayment1Amount('');
-      setPayment2Amount('');
-      setPayment1Mode('');
-      setPayment2Mode('');
-      setPartnerInvestment('');
-      setProfitSharePercentage('');
-      setPartnerPaymentMode('CASH');
-      e.target.reset();
     }
   };
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowUpRight, ArrowDownRight, X, AlertCircle } from 'lucide-react';
 import { giveAdvance, settleBill } from '@/actions/upad';
@@ -21,43 +21,57 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
   const [error, setError] = useState(null);
   const [mounted, setMounted] = useState(false);
 
+  const isSubmittingRef = useRef(false);
+
   useEffect(() => setMounted(true), []);
 
   const handleAmountChange = (e) => setAmount(formatIndianNumber(e.target.value));
 
   const handleAdvanceSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
     const formData = new FormData(e.currentTarget);
     setIsSubmitting(true);
     setError(null);
-    const result = await giveAdvance(formData);
-    
-    if (result && !result.success) {
-      setError(result.error);
+    try {
+      const result = await giveAdvance(formData);
+      
+      if (result && !result.success) {
+        setError(result.error);
+      } else {
+        setActiveModal(null);
+        setAmount('');
+        e.target.reset();
+      }
+    } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
-    } else {
-      setIsSubmitting(false);
-      setActiveModal(null);
-      setAmount('');
-      e.target.reset();
     }
   };
 
   const handleSettleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
     const formData = new FormData(e.currentTarget);
     setIsSubmitting(true);
     setError(null);
-    const result = await settleBill(formData);
-    
-    if (result && !result.success) {
-      setError(result.error);
+    try {
+      const result = await settleBill(formData);
+      
+      if (result && !result.success) {
+        setError(result.error);
+      } else {
+        setActiveModal(null);
+        setAmount('');
+        e.target.reset();
+      }
+    } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
-    } else {
-      setIsSubmitting(false);
-      setActiveModal(null);
-      setAmount('');
-      e.target.reset();
     }
   };
 

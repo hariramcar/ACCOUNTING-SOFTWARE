@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { PlusCircle, Trash2, HandCoins, X, ChevronDown, Check } from 'lucide-react';
 import { sellVehicle } from '@/actions/inventory';
+import SubmitButton from '@/components/SubmitButton';
 
 export default function SellVehicleModal({ inStock, accounts }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -265,14 +266,14 @@ export default function SellVehicleModal({ inStock, accounts }) {
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit"
+                <SubmitButton
                   disabled={!selectedVehicleId || inStock?.length === 0}
                   className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  pendingText="Selling..."
                 >
                   <HandCoins size={18} />
                   Confirm Sale
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>

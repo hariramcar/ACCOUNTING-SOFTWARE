@@ -37,6 +37,12 @@ export default async function Home() {
   });
   const totalOfficeExpenses = officeExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
+  // Fetch Total Car Expenses
+  const carExpenses = await prisma.expense.findMany({
+    where: { expenseType: 'CAR_EXPENSE' }
+  });
+  const totalCarExpenses = carExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+
   // TRUE NET PROFIT
   const trueNetProfit = ourCarProfit - totalOfficeExpenses;
 
@@ -61,8 +67,8 @@ export default async function Home() {
         </div>
 
         <div className="glass-card interactive-card p-6 rounded-2xl border-l-4 border-l-purple-500 flex flex-col justify-center">
-          <div className="text-xs md:text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Partner Payouts</div>
-          <div className="text-2xl md:text-3xl font-black text-purple-500">₹{totalPartnerPayouts.toLocaleString('en-IN')}</div>
+          <div className="text-xs md:text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Car Expenses</div>
+          <div className="text-2xl md:text-3xl font-black text-purple-500">₹{totalCarExpenses.toLocaleString('en-IN')}</div>
         </div>
 
         <div className="glass-card interactive-card p-6 rounded-2xl border-l-4 border-l-red-500 flex flex-col justify-center">

@@ -141,13 +141,12 @@ export async function addVehicle(formData) {
       }
     }
 
-    const payableAccountId = formData.get('payableAccountId');
-    const pendingAmount = Math.round((purchasePrice - (p1Amount + p2Amount)) * 100) / 100;
-
-    // Partnership
     const partnerAccountId = formData.get('partnerAccountId');
     const partnerInvestment = parseFloat((formData.get('partnerInvestment') || '0').replace(/,/g, ''));
     const profitSharePercentage = parseFloat(formData.get('profitSharePercentage') || '0');
+
+    const payableAccountId = formData.get('payableAccountId');
+    const pendingAmount = Math.round((purchasePrice - (p1Amount + p2Amount + partnerInvestment)) * 100) / 100;
 
     await prisma.$transaction(async (tx) => {
       const vehicle = await tx.vehicle.create({

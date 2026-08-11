@@ -4,6 +4,7 @@ import { UserPlus, ShieldAlert, Trash2 } from 'lucide-react';
 import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import EditUserModal from './EditUserModal';
+import SubmitButton from '@/components/SubmitButton';
 
 export default async function UsersPage() {
   const session = await getSession();
@@ -71,12 +72,12 @@ export default async function UsersPage() {
             </select>
           </div>
           <div className="sm:col-span-2 lg:col-span-1 mt-2 lg:mt-0">
-            <button 
-              type="submit" 
+            <SubmitButton 
               className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg font-semibold cursor-pointer transition-all shadow-sm text-sm flex items-center justify-center gap-2"
+              pendingText="Creating..."
             >
               Create User
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </div>
@@ -110,9 +111,13 @@ export default async function UsersPage() {
                     <EditUserModal user={user} />
                     <form action={deleteUser}>
                       <input type="hidden" name="id" value={user.id} />
-                      <button type="submit" className="inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 md:p-2.5 rounded-md md:rounded-lg transition-colors border border-transparent md:border-slate-100" title="Delete User">
+                      <SubmitButton 
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 md:p-2.5 rounded-md md:rounded-lg transition-colors border border-transparent md:border-red-100 bg-white" 
+                        title="Delete User"
+                        pendingText={<Trash2 size={16} className="opacity-50" />}
+                      >
                         <Trash2 size={16} />
-                      </button>
+                      </SubmitButton>
                     </form>
                   </div>
                 </td>
@@ -144,9 +149,12 @@ export default async function UsersPage() {
                 <EditUserModal user={user} />
                 <form action={deleteUser}>
                   <input type="hidden" name="id" value={user.id} />
-                  <button type="submit" className="text-slate-400 hover:text-red-600 bg-slate-50 hover:bg-red-50 p-2.5 rounded-lg transition-colors border border-slate-100" title="Delete User">
-                    <Trash2 size={16} />
-                  </button>
+                  <SubmitButton 
+                    className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-semibold cursor-pointer transition-colors text-xs flex items-center justify-center gap-1.5"
+                    pendingText="Deleting..."
+                  >
+                    <Trash2 size={14} /> Delete
+                  </SubmitButton>
                 </form>
               </div>
             </div>

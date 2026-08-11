@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { X, Calendar, Wrench, Handshake, IndianRupee, FileText, AlertCircle } from 'lucide-react';
 import { payVehiclePendingBalance } from '@/actions/inventory';
 
@@ -13,8 +13,13 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
 
   if (!isOpen || !car) return null;
 
+  const isSubmittingRef = useRef(false);
+
   const handlePayPending = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
     setIsSubmitting(true);
     setError(null);
     
@@ -23,16 +28,19 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
     formData.append('amount', amount);
     formData.append('sourceAccountId', sourceAccountId);
 
-    const result = await payVehiclePendingBalance(formData);
-    if (result && !result.success) {
-      setError(result.error);
+    try {
+      const result = await payVehiclePendingBalance(formData);
+      if (result && !result.success) {
+        setError(result.error);
+      } else {
+        setIsPaying(false);
+        setAmount('');
+        setSourceAccountId('');
+        onClose(); // Close modal to refresh
+      }
+    } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
-    } else {
-      setIsSubmitting(false);
-      setIsPaying(false);
-      setAmount('');
-      setSourceAccountId('');
-      onClose(); // Close modal to refresh
     }
   };
 

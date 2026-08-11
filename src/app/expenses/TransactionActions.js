@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
 
 export default function TransactionActions({ expense, deleteExpenseAction, updateExpenseAction, isRawTx, hideDelete = false }) {
@@ -13,20 +13,35 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
     date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : ''
   });
 
+  const isSubmittingRef = useRef(false);
+
   const handleDelete = async () => {
     if (confirm('Are you sure you want to delete this transaction? This will refund any cash deducted in the ledger.')) {
+      if (isSubmittingRef.current) return;
+      isSubmittingRef.current = true;
       setIsDeleting(true);
-      await deleteExpenseAction(expense.id, isRawTx);
-      setIsDeleting(false);
+      try {
+        await deleteExpenseAction(expense.id, isRawTx);
+      } finally {
+        isSubmittingRef.current = false;
+        setIsDeleting(false);
+      }
     }
   };
 
   const handleEdit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setIsDeleting(true); // Reusing this for loading state
-    await updateExpenseAction(expense.id, editData, isRawTx);
-    setIsDeleting(false);
-    setIsEditing(false);
+    
+    try {
+      await updateExpenseAction(expense.id, editData, isRawTx);
+      setIsEditing(false);
+    } finally {
+      isSubmittingRef.current = false;
+      setIsDeleting(false);
+    }
   };
 
   return (

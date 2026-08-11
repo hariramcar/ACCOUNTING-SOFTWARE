@@ -1,6 +1,8 @@
 import { login } from '@/actions/auth';
 import { LockKeyhole } from 'lucide-react';
 
+import SubmitButton from '@/components/SubmitButton';
+
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -32,12 +34,12 @@ export default function LoginPage() {
               className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium"
             />
           </div>
-          <button 
-            type="submit" 
+          <SubmitButton 
             className="w-full py-2.5 mt-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all focus:ring-4 focus:ring-indigo-500/20 shadow-sm"
+            pendingText="Signing In..."
           >
             Sign In
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </div>

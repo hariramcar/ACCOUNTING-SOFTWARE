@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { CreditCard, X, AlertCircle, HandCoins, ArrowUpRight, ArrowDownRight, CheckCircle2 } from 'lucide-react';
 import { payPendingBalance } from '@/actions/profit';
 import { useRouter } from 'next/navigation';
@@ -19,8 +19,13 @@ export default function PendingPayablesModal({ payables = [], receivables = [], 
   const totalPayables = payables.reduce((sum, p) => sum + p.pendingBalance, 0);
   const totalReceivables = receivables.reduce((sum, p) => sum + p.pendingBalance, 0);
 
+  const isSubmittingRef = useRef(false);
+
   const handlePay = async (e, vehicleId, isReceivable) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
     setIsSubmitting(true);
     setError(null);
     setSuccessMsg(null);
@@ -34,19 +39,22 @@ export default function PendingPayablesModal({ payables = [], receivables = [], 
     formData.append('paymentAccountId', paymentAccountId);
     formData.append('paymentType', isReceivable ? 'RECEIVABLE' : 'PAYABLE');
 
-    const result = await payPendingBalance(formData);
-    
-    if (result.success) {
-      setPayingVehicleId(null);
-      setAmount('');
-      setSuccessMsg('Payment processed successfully!');
-      router.refresh(); // Refresh page data
-      setTimeout(() => setSuccessMsg(null), 3000);
-    } else {
-      setError(result.error);
+    try {
+      const result = await payPendingBalance(formData);
+      
+      if (result.success) {
+        setPayingVehicleId(null);
+        setAmount('');
+        setSuccessMsg('Payment processed successfully!');
+        router.refresh(); // Refresh page data
+        setTimeout(() => setSuccessMsg(null), 3000);
+      } else {
+        setError(result.error);
+      }
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
-    
-    setIsSubmitting(false);
   };
 
   const activeData = activeTab === 'PAYABLES' ? payables : receivables;

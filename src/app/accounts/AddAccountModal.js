@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { PlusCircle, X } from 'lucide-react';
 import { createAccount } from '@/actions/accounts';
@@ -11,14 +11,21 @@ export default function AddAccountModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accountType, setAccountType] = useState('CASH');
   const [mounted, setMounted] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => setMounted(true), []);
 
   const handleSubmit = async (formData) => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
-    await createAccount(formData);
-    setIsSubmitting(false);
-    setIsOpen(false);
+    try {
+      await createAccount(formData);
+      setIsOpen(false);
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   return (
