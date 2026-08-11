@@ -1,12 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, CheckCircle, XCircle, X, Building2, Car } from 'lucide-react';
 import { approveExpense, rejectExpense } from '@/actions/expenses';
 
 export default function PendingApprovalsModal({ pendingExpenses }) {
   const [isOpen, setIsOpen] = useState(false);
   const [processingId, setProcessingId] = useState(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const pendingCount = pendingExpenses?.length || 0;
 
@@ -37,8 +43,8 @@ export default function PendingApprovalsModal({ pendingExpenses }) {
         )}
       </button>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end md:flex-row md:justify-end bg-slate-900/20 backdrop-blur-sm">
+      {mounted && isOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex flex-col justify-end md:flex-row md:justify-end bg-slate-900/40 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setIsOpen(false)}></div>
           <div className="w-full h-[85dvh] md:h-full md:max-w-md bg-white shadow-2xl flex flex-col relative z-10 animate-in slide-in-from-bottom-full md:slide-in-from-right duration-300 rounded-t-3xl md:rounded-none">
             {/* Mobile Drag Handle */}
@@ -133,7 +139,8 @@ export default function PendingApprovalsModal({ pendingExpenses }) {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
