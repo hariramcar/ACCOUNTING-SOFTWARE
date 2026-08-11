@@ -8,7 +8,7 @@ import AgentPaymentModal from './AgentPaymentModal';
 import { cookies } from 'next/headers';
 import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
-
+import prisma from '@/lib/prisma';
 export default async function AccountsPage() {
   const session = await getSession();
   if (!session || session.role !== 'ADMIN') {
