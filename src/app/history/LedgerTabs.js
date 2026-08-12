@@ -48,19 +48,20 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
     return filtered;
   };
 
-  const filteredIncome = useMemo(() => applyFilters(income), [income, filterType, searchQuery]);
-  const filteredExpenses = useMemo(() => applyFilters(expenses), [expenses, filterType, searchQuery]);
+  const filteredIncome = useMemo(() => applyFilters(income).filter(i => !i.isTransfer), [income, filterType, searchQuery]);
+  const filteredExpenses = useMemo(() => applyFilters(expenses).filter(e => !e.isTransfer), [expenses, filterType, searchQuery]);
+  const filteredTransfers = useMemo(() => applyFilters(expenses).filter(e => e.isTransfer), [expenses, filterType, searchQuery]);
 
   const netProfit = totalIncome - totalExpenses;
 
   return (
     <div className="flex flex-col gap-8 mt-2">
       {/* Summary Cards acting as Toggle Buttons */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
+      <div className="grid grid-cols-3 gap-2 md:gap-6">
         {/* Income Card Toggle */}
         <div 
           onClick={() => setActiveTab('INCOME')}
-          className={`rounded-xl p-3 md:p-6 flex flex-col md:flex-row items-start md:items-center justify-between relative overflow-hidden cursor-pointer transition-all duration-300 ease-out transform ${
+          className={`rounded-xl p-2 md:p-6 flex flex-col md:flex-row items-center justify-between relative overflow-hidden cursor-pointer transition-all duration-300 ease-out transform ${
             activeTab === 'INCOME' 
               ? 'bg-white border-2 border-emerald-400 shadow-[0_8px_30px_rgb(16,185,129,0.15)] scale-[1.02]' 
               : 'bg-white border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md opacity-70 hover:opacity-100 scale-100'
@@ -68,8 +69,8 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
         >
           {activeTab === 'INCOME' && <div className="absolute -right-4 -top-4 w-16 h-16 md:w-24 md:h-24 bg-emerald-50 rounded-full blur-xl md:blur-2xl opacity-100"></div>}
           <div className="relative z-10 w-full text-center md:text-left">
-            <p className={`text-[10px] md:text-[11px] font-bold uppercase tracking-widest mb-0.5 md:mb-1 ${activeTab === 'INCOME' ? 'text-emerald-600/90' : 'text-slate-500'}`}>Total Income</p>
-            <h2 className={`text-[17px] sm:text-xl md:text-3xl font-black tracking-tight m-0 ${activeTab === 'INCOME' ? 'text-emerald-600' : 'text-slate-700'}`}>₹{Number(totalIncome).toLocaleString('en-IN')}</h2>
+            <p className={`text-[9px] md:text-[11px] font-bold uppercase tracking-widest mb-0.5 md:mb-1 ${activeTab === 'INCOME' ? 'text-emerald-600/90' : 'text-slate-500'}`}>Total Income</p>
+            <h2 className={`text-[14px] sm:text-xl md:text-3xl font-black tracking-tight m-0 ${activeTab === 'INCOME' ? 'text-emerald-600' : 'text-slate-700'}`}>₹{Number(totalIncome).toLocaleString('en-IN')}</h2>
           </div>
           <div className={`hidden md:flex w-12 h-12 rounded-full items-center justify-center relative z-10 transition-colors flex-shrink-0 ${
             activeTab === 'INCOME' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'
@@ -81,7 +82,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
         {/* Expense Card Toggle */}
         <div 
           onClick={() => setActiveTab('EXPENSE')}
-          className={`rounded-xl p-3 md:p-6 flex flex-col md:flex-row items-start md:items-center justify-between relative overflow-hidden cursor-pointer transition-all duration-300 ease-out transform ${
+          className={`rounded-xl p-2 md:p-6 flex flex-col md:flex-row items-center justify-between relative overflow-hidden cursor-pointer transition-all duration-300 ease-out transform ${
             activeTab === 'EXPENSE' 
               ? 'bg-white border-2 border-red-400 shadow-[0_8px_30px_rgb(239,68,68,0.15)] scale-[1.02]' 
               : 'bg-white border border-slate-200 shadow-sm hover:border-red-300 hover:shadow-md opacity-70 hover:opacity-100 scale-100'
@@ -89,8 +90,8 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
         >
           {activeTab === 'EXPENSE' && <div className="absolute -right-4 -top-4 w-16 h-16 md:w-24 md:h-24 bg-red-50 rounded-full blur-xl md:blur-2xl opacity-100"></div>}
           <div className="relative z-10 w-full text-center md:text-left">
-            <p className={`text-[10px] md:text-[11px] font-bold uppercase tracking-widest mb-0.5 md:mb-1 ${activeTab === 'EXPENSE' ? 'text-red-600/90' : 'text-slate-500'}`}>Total Expenses</p>
-            <h2 className={`text-[17px] sm:text-xl md:text-3xl font-black tracking-tight m-0 ${activeTab === 'EXPENSE' ? 'text-red-600' : 'text-slate-700'}`}>₹{Number(totalExpenses).toLocaleString('en-IN')}</h2>
+            <p className={`text-[9px] md:text-[11px] font-bold uppercase tracking-widest mb-0.5 md:mb-1 ${activeTab === 'EXPENSE' ? 'text-red-600/90' : 'text-slate-500'}`}>Total Expenses</p>
+            <h2 className={`text-[14px] sm:text-xl md:text-3xl font-black tracking-tight m-0 ${activeTab === 'EXPENSE' ? 'text-red-600' : 'text-slate-700'}`}>₹{Number(totalExpenses).toLocaleString('en-IN')}</h2>
           </div>
           <div className={`hidden md:flex w-12 h-12 rounded-full items-center justify-center relative z-10 transition-colors flex-shrink-0 ${
             activeTab === 'EXPENSE' ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-400'
@@ -98,17 +99,24 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
             <Receipt className="w-6 h-6" />
           </div>
         </div>
-        {/* Net Profit Card (Desktop Only) */}
+
+        {/* Transfers Card Toggle */}
         <div 
-          className="hidden md:flex rounded-xl p-3 md:p-6 flex-col md:flex-row items-start md:items-center justify-between relative overflow-hidden bg-white border border-slate-200 shadow-sm opacity-90 scale-100 cursor-default"
+          onClick={() => setActiveTab('TRANSFERS')}
+          className={`rounded-xl p-2 md:p-6 flex flex-col md:flex-row items-center justify-between relative overflow-hidden cursor-pointer transition-all duration-300 ease-out transform ${
+            activeTab === 'TRANSFERS' 
+              ? 'bg-white border-2 border-blue-400 shadow-[0_8px_30px_rgb(59,130,246,0.15)] scale-[1.02]' 
+              : 'bg-white border border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md opacity-70 hover:opacity-100 scale-100'
+          }`}
         >
+          {activeTab === 'TRANSFERS' && <div className="absolute -right-4 -top-4 w-16 h-16 md:w-24 md:h-24 bg-blue-50 rounded-full blur-xl md:blur-2xl opacity-100"></div>}
           <div className="relative z-10 w-full text-center md:text-left">
-            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest mb-0.5 md:mb-1 text-slate-500">Net Profit (expenses-income)</p>
-            <h2 className={`text-[17px] sm:text-xl md:text-3xl font-black tracking-tight m-0 ${netProfit >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
-              {netProfit < 0 ? '-' : ''}₹{Math.abs(netProfit).toLocaleString('en-IN')}
-            </h2>
+            <p className={`text-[9px] md:text-[11px] font-bold uppercase tracking-widest mb-0.5 md:mb-1 ${activeTab === 'TRANSFERS' ? 'text-blue-600/90' : 'text-slate-500'}`}>Transfers</p>
+            <h2 className={`text-[14px] sm:text-xl md:text-3xl font-black tracking-tight m-0 ${activeTab === 'TRANSFERS' ? 'text-blue-600' : 'text-slate-700'}`}>View All</h2>
           </div>
-          <div className={`hidden md:flex w-12 h-12 rounded-full items-center justify-center relative z-10 transition-colors flex-shrink-0 ${netProfit >= 0 ? 'bg-indigo-100 text-indigo-600' : 'bg-rose-100 text-rose-600'}`}>
+          <div className={`hidden md:flex w-12 h-12 rounded-full items-center justify-center relative z-10 transition-colors flex-shrink-0 ${
+            activeTab === 'TRANSFERS' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'
+          }`}>
             <Wallet className="w-6 h-6" />
           </div>
         </div>
@@ -147,7 +155,6 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
               { id: 'ALL', label: 'All' },
               { id: 'CASH', label: 'Cash' },
               { id: 'BANK', label: 'Bank' },
-              { id: 'TRANSFERS', label: 'Transfers' },
               { id: 'CAR_EXPENSE', label: 'Car Expenses' },
               { id: 'OFFICE_EXPENSE', label: 'Office Expenses' },
               { id: 'ADVANCE', label: 'Advances' },
@@ -393,6 +400,97 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                   <Search size={24} />
                 </div>
                 <p className="text-slate-600 text-lg font-bold m-0 mb-1">No expense records found</p>
+                <p className="text-slate-500 text-sm font-medium m-0">Try adjusting your search or filters.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'TRANSFERS' && (
+          <div className="flex flex-col gap-3">
+            {/* Mobile Card Layout */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {(() => {
+                if (!filteredTransfers || filteredTransfers.length === 0) return null;
+                const grouped = filteredTransfers.reduce((acc, exp) => {
+                  const dateStr = new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                  if (!acc[dateStr]) acc[dateStr] = [];
+                  acc[dateStr].push(exp);
+                  return acc;
+                }, {});
+                return Object.entries(grouped).map(([dateStr, items]) => (
+                  <div key={dateStr} className="mb-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-2">{dateStr}</h3>
+                    <div className="bg-white rounded-xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 overflow-hidden flex flex-col">
+                      {items.map(tx => (
+                        <div key={tx.id} className="p-3 border-b border-slate-100 last:border-0 active:bg-slate-50 transition-colors flex justify-between items-start gap-3">
+                          <div className="flex flex-col gap-1 flex-1 min-w-0">
+                            <span className="text-[13px] font-bold leading-tight text-slate-900 line-clamp-2">{tx.transferDetails || tx.description}</span>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="text-[10px] font-semibold text-slate-500 uppercase">INTERNAL TRANSFER</span>
+                            </div>
+                          </div>
+                          <span className="text-[14px] font-black tracking-tight whitespace-nowrap shrink-0 mt-0.5 text-blue-600">
+                            ₹{Number(tx.amount).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            {/* Desktop Table Layout */}
+            <div className="hidden md:block w-full overflow-hidden bg-white border border-slate-200 rounded-xl shadow-sm">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200">
+                    <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                    <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Transfer Details</th>
+                    <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Amount</th>
+                    <th className="py-4 px-5"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredTransfers?.map(tx => (
+                    <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="py-4 px-5 text-[12px] font-bold text-slate-600 whitespace-nowrap">
+                        {new Date(tx.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="py-4 px-5">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg border flex-shrink-0 bg-blue-50 text-blue-500 border-blue-100">
+                            <Wallet size={16} />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[14px] font-bold text-slate-900">{tx.transferDetails || tx.description}</span>
+                            <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">INTERNAL TRANSFER</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-5 text-right font-black text-lg whitespace-nowrap">
+                        <span className="text-blue-600">
+                          ₹{Number(tx.amount).toLocaleString('en-IN')}
+                        </span>
+                      </td>
+                      <td className="py-4 px-5 text-right">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end">
+                          <TransactionActions expense={tx} updateExpenseAction={updateExpense} isRawTx={true} hideDelete={true} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {(!filteredTransfers || filteredTransfers.length === 0) && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-12 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-400">
+                  <Wallet size={24} />
+                </div>
+                <p className="text-slate-600 text-lg font-bold m-0 mb-1">No transfers found</p>
                 <p className="text-slate-500 text-sm font-medium m-0">Try adjusting your search or filters.</p>
               </div>
             )}
