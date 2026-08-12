@@ -24,7 +24,6 @@ export async function decrypt(session) {
 }
 
 export async function createSession(user) {
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const session = await encrypt({ 
     userId: user.id, 
     role: user.role, 
@@ -36,7 +35,6 @@ export async function createSession(user) {
   cookieStore.set('session', session, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    expires: expiresAt,
     sameSite: 'lax',
     path: '/',
   });
@@ -50,11 +48,9 @@ export async function updateSession() {
   const payload = await decrypt(session);
   if (!payload) return;
 
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   cookieStore.set('session', session, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    expires: expiresAt,
     sameSite: 'lax',
     path: '/',
   });

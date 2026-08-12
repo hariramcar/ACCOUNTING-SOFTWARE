@@ -1,7 +1,13 @@
 import prisma from '@/lib/prisma';
 import Link from 'next/link';
+import { getSession } from '@/lib/session';
+import { redirect } from 'next/navigation';
 
 export default async function Home() {
+  const session = await getSession();
+  if (!session) {
+    redirect('/login');
+  }
   // Fetch sold vehicles with their expenses and partnerships to calculate accurate profit
   const soldVehicles = await prisma.vehicle.findMany({
     where: { status: 'SOLD' },
