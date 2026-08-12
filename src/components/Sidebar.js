@@ -24,6 +24,7 @@ export default function Sidebar({ session }) {
   const pathname = usePathname();
   const [isExpanded, setIsExpanded] = useState(false);
   const sidebarRef = useRef(null);
+  const mobileSheetRef = useRef(null);
 
   const navItems = [
     { name: 'Daily Expenses', path: '/expenses', icon: <Receipt size={20} /> },
@@ -37,7 +38,10 @@ export default function Sidebar({ session }) {
 
   useEffect(() => {
     function handleClickOutside(event) {
-      if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+      const clickedOutsideSidebar = sidebarRef.current && !sidebarRef.current.contains(event.target);
+      const clickedOutsideMobileSheet = !mobileSheetRef.current || !mobileSheetRef.current.contains(event.target);
+      
+      if (clickedOutsideSidebar && clickedOutsideMobileSheet) {
         setIsExpanded(false);
       }
     }
@@ -160,7 +164,7 @@ export default function Sidebar({ session }) {
       {isExpanded && (
         <div className="md:hidden fixed inset-0 z-40 flex flex-col justify-end">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setIsExpanded(false)} />
-          <div className="bg-slate-950 rounded-t-[2.5rem] p-6 pb-28 relative z-50 animate-in slide-in-from-bottom-full duration-300 shadow-2xl border-t border-slate-800 text-slate-300">
+          <div ref={mobileSheetRef} className="bg-slate-950 rounded-t-[2.5rem] p-6 pb-28 relative z-50 animate-in slide-in-from-bottom-full duration-300 shadow-2xl border-t border-slate-800 text-slate-300">
             <div className="w-12 h-1.5 bg-slate-800 rounded-full mx-auto mb-6"></div>
 
             <div className="flex items-center gap-4 mb-6 px-2">
