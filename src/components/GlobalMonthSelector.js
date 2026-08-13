@@ -10,8 +10,12 @@ export default function GlobalMonthSelector({ isExpanded }) {
     if (typeof document !== 'undefined') {
       const match = document.cookie.match(/(^| )global_month=([^;]+)/);
       if (match) {
-        const [year, month] = match[2].split('-');
-        return new Date(Number(year), Number(month), 1);
+        const [yearStr, monthStr] = match[2].split('-');
+        const year = Number(yearStr);
+        const month = Number(monthStr);
+        if (!isNaN(year) && !isNaN(month)) {
+          return new Date(year, month, 1);
+        }
       }
     }
     return new Date();
@@ -42,13 +46,13 @@ export default function GlobalMonthSelector({ isExpanded }) {
     router.refresh();
   };
 
-  const monthName = currentDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+  const monthName = currentDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
 
   if (!isExpanded) {
     return (
       <div className="flex flex-col items-center justify-center p-2 mt-4 border-t border-slate-800 cursor-default" title={monthName}>
         <Calendar size={18} className="text-slate-500 mb-1" />
-        <span className="text-[9px] font-bold text-slate-400 uppercase">{currentDate.toLocaleString('default', { month: 'short' })}</span>
+        <span suppressHydrationWarning className="text-[9px] font-bold text-slate-400 uppercase">{currentDate.toLocaleString('en-US', { month: 'short' })}</span>
       </div>
     );
   }
@@ -60,7 +64,7 @@ export default function GlobalMonthSelector({ isExpanded }) {
         <button onClick={handlePrevMonth} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors">
           <ChevronLeft size={16} />
         </button>
-        <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">{monthName}</span>
+        <span suppressHydrationWarning className="text-xs font-bold text-slate-300 uppercase tracking-wider">{monthName}</span>
         <button onClick={handleNextMonth} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors">
           <ChevronRight size={16} />
         </button>
