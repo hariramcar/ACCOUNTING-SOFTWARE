@@ -27,12 +27,15 @@ export const viewport = {
 export const metadata = {
   title: "Hariram Accounting",
   description: "Hariram Motors Accounting & Inventory Software",
+  applicationName: "Hariram",
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
-    title: "Hariram Accounting",
+    statusBarStyle: 'black-translucent',
+    title: "Hariram",
   },
-  manifest: '/manifest.json',
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default async function RootLayout({ children }) {
