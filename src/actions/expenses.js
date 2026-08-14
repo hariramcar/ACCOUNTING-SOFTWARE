@@ -311,32 +311,6 @@ export async function addExpense(formData) {
             }
           });
         }
-
-        if (expenseType === 'CAR_EXPENSE' && vehicleId) {
-          const vehicle = await tx.vehicle.findUnique({
-            where: { id: vehicleId },
-            include: { partnerships: true }
-          });
-          if (vehicle && vehicle.partnerships.length > 0) {
-            for (const p of vehicle.partnerships) {
-              const partnerShareAmount = Math.round(amount * Number(p.profitSharePercentage)) / 100;
-              if (partnerShareAmount > 0) {
-                await tx.transaction.create({
-                  data: {
-                    date,
-                    transactionMode: 'CASH',
-                    type: 'CREDIT',
-                    amount: partnerShareAmount,
-                    accountId: p.partnerAccountId,
-                    category: 'GENERAL',
-                    referenceId: expense.id,
-                    description: `Auto-Entry: Partner expense share for ${description} (${vehicle.make} ${vehicle.model})`
-                  }
-                });
-              }
-            }
-          }
-        }
       }
     }, { maxWait: 15000, timeout: 30000 });
 
