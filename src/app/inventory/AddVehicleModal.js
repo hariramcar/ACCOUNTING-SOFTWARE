@@ -23,6 +23,7 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
   }, []);
 
   const [purchasePrice, setPurchasePrice] = useState('');
+  const [isLegacy, setIsLegacy] = useState(false);
   const [payment1Amount, setPayment1Amount] = useState('');
   const [payment2Amount, setPayment2Amount] = useState('');
   
@@ -31,6 +32,8 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
 
   const [partnerInvestment, setPartnerInvestment] = useState('');
   const [profitSharePercentage, setProfitSharePercentage] = useState('');
+  const [partnerPaidAmount, setPartnerPaidAmount] = useState('');
+  const [partnerPaymentMode, setPartnerPaymentMode] = useState('');
   
   const formatIndianNumber = (val) => {
     let numericString = val.replace(/[^0-9.]/g, '');
@@ -112,7 +115,9 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
         setPayment2Mode('');
         setPartnerInvestment('');
         setProfitSharePercentage('');
-        setPartnerPaymentMode('CASH');
+        setPartnerPaymentMode('');
+        setPartnerPaidAmount('');
+        setIsLegacy(false);
         e.target.reset();
       }
     } catch (err) {
@@ -163,7 +168,14 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
               )}
 
               <div className="flex items-center gap-3 bg-amber-50/50 p-4 rounded-xl border border-amber-200/60 shadow-[0_2px_10px_-4px_rgba(245,158,11,0.1)]">
-                <input type="checkbox" name="isLegacy" id="isLegacy" className="w-5 h-5 text-amber-600 rounded border-amber-300 focus:ring-amber-500 focus:ring-offset-0 transition-all" />
+                <input 
+                  type="checkbox" 
+                  name="isLegacy" 
+                  id="isLegacy" 
+                  checked={isLegacy}
+                  onChange={(e) => setIsLegacy(e.target.checked)}
+                  className="w-5 h-5 text-amber-600 rounded border-amber-300 focus:ring-amber-500 focus:ring-offset-0 transition-all" 
+                />
                 <label htmlFor="isLegacy" className="m-0 font-bold text-amber-800 cursor-pointer text-xs uppercase tracking-wider">Legacy Stock (Already here)</label>
               </div>
               
@@ -184,7 +196,7 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div className="flex flex-col gap-2">
+                <div className={`flex flex-col gap-2 ${isLegacy ? 'sm:col-span-2' : ''}`}>
                   <label className="text-[11px] uppercase tracking-wider font-bold text-indigo-700">Car Price (₹)</label>
                   <input 
                     type="text" 
@@ -197,10 +209,12 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                     className="w-full p-4 rounded-xl border border-indigo-100 bg-white text-indigo-950 text-[16px] outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-[0_2px_10px_-4px_rgba(79,70,229,0.15)] font-black transition-all placeholder:text-indigo-200" 
                   />
                 </div>
-                <div className="flex flex-col gap-2">
-                  <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Purchase Date</label>
-                  <input type="date" name="purchaseDate" required defaultValue={getLocalDateString()} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-700 text-[15px] outline-none focus:ring-4 focus:ring-indigo-500/15 focus:border-indigo-500 focus:bg-white font-bold transition-all" />
-                </div>
+                {!isLegacy && (
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Purchase Date</label>
+                    <input type="date" name="purchaseDate" required defaultValue={getLocalDateString()} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-700 text-[15px] outline-none focus:ring-4 focus:ring-indigo-500/15 focus:border-indigo-500 focus:bg-white font-bold transition-all" />
+                  </div>
+                )}
               </div>
 
               <div className="bg-slate-50/50 p-5 rounded-2xl mt-3 border border-slate-100 flex flex-col gap-3">
@@ -297,6 +311,40 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                       onChange={handlePercentageChange}
                       className="text-[13px] font-black flex-1 p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 placeholder:text-purple-300 transition-all" 
                     />
+                  </div>
+                  <div className="flex gap-3 mt-1 pt-3 border-t border-purple-200/50">
+                    <select 
+                      name="partnerPaymentMode"
+                      value={partnerPaymentMode}
+                      onChange={(e) => setPartnerPaymentMode(e.target.value)}
+                      className="text-[13px] font-bold flex-1 p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all"
+                    >
+                      <option value="">No Payment Received</option>
+                      <option value="CASH">Received in Cash</option>
+                      <option value="BANK">Received in Bank</option>
+                    </select>
+
+                    {partnerPaymentMode && (
+                      <>
+                        <select name="partnerPaymentAccountId" required className="text-[13px] font-bold flex-1 p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all">
+                          <option value="">Select Account...</option>
+                          {accounts?.filter(acc => acc.type === partnerPaymentMode).map(acc => (
+                            <option key={acc.id} value={acc.id}>{acc.name}</option>
+                          ))}
+                        </select>
+
+                        <input 
+                          type="text" 
+                          inputMode="decimal"
+                          name="partnerPaidAmount"
+                          required
+                          placeholder="Paid Amt (₹)"
+                          value={partnerPaidAmount}
+                          onChange={(e) => setPartnerPaidAmount(formatIndianNumber(e.target.value))}
+                          className="text-[13px] font-black flex-1 p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 placeholder:text-purple-300 transition-all"
+                        />
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

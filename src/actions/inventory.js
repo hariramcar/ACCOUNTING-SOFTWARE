@@ -145,6 +145,10 @@ export async function addVehicle(formData) {
     const partnerInvestment = parseFloat((formData.get('partnerInvestment') || '0').replace(/,/g, ''));
     const profitSharePercentage = parseFloat(formData.get('profitSharePercentage') || '0');
 
+    const partnerPaidAmount = parseFloat((formData.get('partnerPaidAmount') || '0').replace(/,/g, ''));
+    const partnerPaymentMode = formData.get('partnerPaymentMode') || null;
+    const partnerPaymentAccountId = formData.get('partnerPaymentAccountId') || null;
+
     const payableAccountId = formData.get('payableAccountId');
     const pendingAmount = Math.round((purchasePrice - (p1Amount + p2Amount + partnerInvestment)) * 100) / 100;
 
@@ -217,23 +221,43 @@ export async function addVehicle(formData) {
             partnerAccountId: partnerAccountId,
             investmentAmount: partnerInvestment,
             profitSharePercentage: profitSharePercentage,
-            investmentMode: 'PENDING',
-            isInvestmentPaid: false
+            investmentMode: partnerPaymentMode || 'PENDING',
+            isInvestmentPaid: partnerPaidAmount >= partnerInvestment
           }
         });
 
-        // Always add the investment to their ledger so it tracks their capital contribution
-        await tx.transaction.create({
-          data: {
-            date: purchaseDate,
-            transactionMode: 'CASH', // Standardized for partner ledger display
-            type: 'CREDIT', // We owe them their capital
-            amount: partnerInvestment,
-            accountId: partnerAccountId,
-            category: 'GENERAL',
-            description: `Auto-Entry: Partnership Investment for ${make} ${model} (Car Value: ₹${Number(purchasePrice).toLocaleString('en-IN')}, Partner Share: ${profitSharePercentage}%)`
-          }
-        });
+        // The amount to credit to the partner's ledger is what they ACTUALLY paid.
+        // If they didn't specify a payment mode, we fall back to the full investment (legacy behavior)
+        const amountToCreditPartner = (partnerPaymentMode && partnerPaymentAccountId) ? partnerPaidAmount : partnerInvestment;
+
+        if (amountToCreditPartner > 0) {
+          await tx.transaction.create({
+            data: {
+              date: purchaseDate,
+              transactionMode: 'CASH', 
+              type: 'CREDIT', 
+              amount: amountToCreditPartner,
+              accountId: partnerAccountId,
+              category: 'GENERAL',
+              description: `Auto-Entry: Partnership Investment for ${make} ${model} (Car Value: ₹${Number(purchasePrice).toLocaleString('en-IN')}, Partner Share: ${profitSharePercentage}%)`
+            }
+          });
+        }
+
+        // Record the actual payment received from the partner to the firm's cash/bank
+        if (partnerPaymentMode && partnerPaymentAccountId && partnerPaidAmount > 0) {
+          await tx.transaction.create({
+            data: {
+              date: purchaseDate,
+              transactionMode: partnerPaymentMode,
+              type: 'CREDIT', // Money comes IN to the firm
+              amount: partnerPaidAmount,
+              accountId: partnerPaymentAccountId,
+              category: 'GENERAL',
+              description: `Auto-Entry: Capital Received from Partner for ${make} ${model}`
+            }
+          });
+        }
       }
     });
 
