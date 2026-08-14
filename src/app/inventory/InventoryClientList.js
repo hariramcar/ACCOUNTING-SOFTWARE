@@ -55,15 +55,15 @@ export default function InventoryClientList({ inStock, accounts = [] }) {
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Pending</span>
                   {hasFirmPending && (
-                    <div className="font-bold text-amber-600 text-xs">
-                      <span className="text-[9px] text-amber-600/70 uppercase mr-1">Firm</span>
+                    <div className="font-bold text-amber-600 text-xs flex items-center justify-start gap-1">
                       ₹{car.purchasePendingBalance.toLocaleString('en-IN')}
+                      <span className="text-[9px] text-amber-600/70 uppercase">Firm</span>
                     </div>
                   )}
                   {hasPartnerPending && (
-                    <div className="font-bold text-purple-600 text-xs">
-                      <span className="text-[9px] text-purple-600/70 uppercase mr-1">Ptr</span>
+                    <div className="font-bold text-purple-600 text-xs flex items-center justify-start gap-1">
                       ₹{partnerPending.toLocaleString('en-IN')}
+                      <span className="text-[9px] text-purple-600/70 uppercase">Ptr</span>
                     </div>
                   )}
                   {!hasFirmPending && !hasPartnerPending && (
@@ -135,15 +135,15 @@ export default function InventoryClientList({ inStock, accounts = [] }) {
                   </td>
                   <td className="py-4 px-6 text-right whitespace-nowrap">
                     {hasFirmPending && (
-                      <div className="font-bold text-amber-600">
-                        <span className="text-[10px] text-amber-600/70 uppercase mr-1">Firm</span>
+                      <div className="font-bold text-amber-600 flex items-center justify-end gap-1">
                         ₹{car.purchasePendingBalance.toLocaleString('en-IN')}
+                        <span className="text-[10px] text-amber-600/70 uppercase">Firm</span>
                       </div>
                     )}
                     {hasPartnerPending && (
-                      <div className={`font-bold text-purple-600 ${hasFirmPending ? 'mt-0.5' : ''}`}>
-                        <span className="text-[10px] text-purple-600/70 uppercase mr-1">Partner</span>
+                      <div className={`font-bold text-purple-600 flex items-center justify-end gap-1 ${hasFirmPending ? 'mt-0.5' : ''}`}>
                         ₹{partnerPending.toLocaleString('en-IN')}
+                        <span className="text-[10px] text-purple-600/70 uppercase">Ptr</span>
                       </div>
                     )}
                     {!hasFirmPending && !hasPartnerPending && <span className="text-slate-400 font-bold">-</span>}
