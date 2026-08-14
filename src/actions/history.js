@@ -163,6 +163,7 @@ export async function getAllIncome(year, month) {
         NOT: [
           { description: { in: ['Opening Balance', 'Capital Introduced / Opening Balance'] } },
           { description: { startsWith: 'Auto-Entry: Partnership Investment' } },
+          { description: { startsWith: 'Auto-Entry: Paid Pending Investment Share' } },
           { description: { startsWith: 'Auto-Entry: Profit Share' } },
           { description: { startsWith: 'Auto-Entry: Pending Receivable' } },
           { description: { startsWith: 'Auto-Entry: Advance Received' } },
