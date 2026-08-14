@@ -100,6 +100,31 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
     formData.append('payment1Amount', (payment1Amount || '0').replace(/,/g, ''));
     formData.append('payment2Amount', (payment2Amount || '0').replace(/,/g, ''));
     formData.append('partnerInvestment', (partnerInvestment || '0').replace(/,/g, ''));
+
+    const partnerId = formData.get('partnerAccountId');
+    const pInv = parseFloat((partnerInvestment || '0').replace(/,/g, ''));
+    const pShare = parseFloat(formData.get('profitSharePercentage') || '0');
+
+    if (partnerId || pInv > 0 || pShare > 0) {
+      if (!partnerId) {
+        setError('Please select a Partner Account in the Partnership section.');
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+        return;
+      }
+      if (pInv <= 0) {
+        setError('Please enter a valid Partner Investment amount.');
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+        return;
+      }
+      if (pShare <= 0) {
+        setError('Please enter a valid Profit Share Percentage.');
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+        return;
+      }
+    }
     
     try {
       const result = await addVehicleAction(formData);

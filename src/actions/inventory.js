@@ -66,6 +66,7 @@ export async function getInventory(year, month) {
           ...p,
           investmentAmount: Number(p.investmentAmount),
           profitSharePercentage: Number(p.profitSharePercentage),
+          paidAmount: Number(p.paidAmount || 0),
           partnerAccount: p.partnerAccount ? {
             ...p.partnerAccount,
             openingBalance: Number(p.partnerAccount.openingBalance)
@@ -222,7 +223,8 @@ export async function addVehicle(formData) {
             investmentAmount: partnerInvestment,
             profitSharePercentage: profitSharePercentage,
             investmentMode: partnerPaymentMode || 'PENDING',
-            isInvestmentPaid: partnerPaidAmount >= partnerInvestment
+            isInvestmentPaid: partnerPaidAmount >= partnerInvestment,
+            paidAmount: partnerPaidAmount > 0 ? partnerPaidAmount : 0
           }
         });
 
@@ -511,5 +513,76 @@ export async function addRepairExpense(formData) {
   } catch (error) {
     console.error('Failed to add expense:', error);
     return { success: false, error: 'Failed to add repair expense.' };
+  }
+}
+
+export async function payPartnerPendingInvestment(formData) {
+  try {
+    const partnershipId = formData.get('partnershipId');
+    const amount = parseFloat((formData.get('amount') || '0').replace(/,/g, ''));
+    const targetAccountId = formData.get('targetAccountId'); // The firm's Cash/Bank receiving the money
+
+    if (!partnershipId || !targetAccountId || isNaN(amount) || amount <= 0) {
+      throw new Error('Invalid input');
+    }
+
+    const targetAcc = await prisma.account.findUnique({ where: { id: targetAccountId } });
+    if (!targetAcc) throw new Error('Target receiving account not found');
+
+    await prisma.$transaction(async (tx) => {
+      const partnership = await tx.partnership.findUnique({ 
+        where: { id: partnershipId },
+        include: { vehicle: true, partnerAccount: true }
+      });
+      if (!partnership) throw new Error('Partnership not found');
+      
+      const remainingUnpaid = Number(partnership.investmentAmount) - Number(partnership.paidAmount);
+      if (remainingUnpaid < amount) {
+        throw new Error('Payment exceeds the pending unpaid investment balance');
+      }
+
+      // Update partnership paid amount
+      const newPaidAmount = Number(partnership.paidAmount) + amount;
+      await tx.partnership.update({
+        where: { id: partnershipId },
+        data: {
+          paidAmount: newPaidAmount,
+          isInvestmentPaid: newPaidAmount >= Number(partnership.investmentAmount)
+        }
+      });
+
+      // 1. We also need to credit the Partner's Ledger to reflect they actually gave us more of their share
+      await tx.transaction.create({
+        data: {
+          date: new Date(),
+          transactionMode: 'CASH', // Internal ledger mode
+          type: 'CREDIT', 
+          amount: amount,
+          accountId: partnership.partnerAccountId,
+          category: 'GENERAL',
+          description: `Auto-Entry: Paid Pending Investment Share for ${partnership.vehicle.make} ${partnership.vehicle.model}`
+        }
+      });
+
+      // 2. We credit the Firm's Cash/Bank account to receive the money
+      await tx.transaction.create({
+        data: {
+          date: new Date(),
+          transactionMode: targetAcc.type === 'BANK' ? 'BANK' : 'CASH',
+          type: 'CREDIT', // Money IN
+          amount: amount,
+          accountId: targetAccountId,
+          category: 'GENERAL',
+          description: `Auto-Entry: Received Pending Capital from ${partnership.partnerAccount.name} for ${partnership.vehicle.make} ${partnership.vehicle.model}`
+        }
+      });
+    });
+
+    revalidatePath('/inventory');
+    revalidatePath('/rojmel');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to pay partner pending investment:', error);
+    return { success: false, error: error.message || 'Failed to process payment.' };
   }
 }

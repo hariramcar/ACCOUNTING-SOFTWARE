@@ -71,6 +71,7 @@ model Partnership {
   profitSharePercentage Decimal
   investmentMode        String?
   isInvestmentPaid      Boolean  @default(false)
+  paidAmount            Decimal  @default(0)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   partnerAccount        Account  @relation(fields: [partnerAccountId], references: [id])

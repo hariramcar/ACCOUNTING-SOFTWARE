@@ -2,18 +2,21 @@
 
 import { useState, useRef } from 'react';
 import { X, Calendar, Wrench, Handshake, IndianRupee, FileText, AlertCircle } from 'lucide-react';
-import { payVehiclePendingBalance } from '@/actions/inventory';
+import { payVehiclePendingBalance, payPartnerPendingInvestment } from '@/actions/inventory';
 
 export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [] }) {
   const [isPaying, setIsPaying] = useState(false);
+  const [payingPartnerId, setPayingPartnerId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [amount, setAmount] = useState('');
   const [sourceAccountId, setSourceAccountId] = useState('');
+  const [partnerAmount, setPartnerAmount] = useState('');
+  const [partnerSourceAccountId, setPartnerSourceAccountId] = useState('');
   const [error, setError] = useState(null);
+  const [partnerError, setPartnerError] = useState(null);
+  const isSubmittingRef = useRef(false);
 
   if (!isOpen || !car) return null;
-
-  const isSubmittingRef = useRef(false);
 
   const handlePayPending = async (e) => {
     e.preventDefault();
@@ -36,6 +39,35 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
         setIsPaying(false);
         setAmount('');
         setSourceAccountId('');
+        onClose(); // Close modal to refresh
+      }
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePayPartnerPending = async (e, partnershipId) => {
+    e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
+    setIsSubmitting(true);
+    setPartnerError(null);
+    
+    const formData = new FormData();
+    formData.append('partnershipId', partnershipId);
+    formData.append('amount', partnerAmount);
+    formData.append('targetAccountId', partnerSourceAccountId);
+
+    try {
+      const result = await payPartnerPendingInvestment(formData);
+      if (result && !result.success) {
+        setPartnerError(result.error);
+      } else {
+        setPayingPartnerId(null);
+        setPartnerAmount('');
+        setPartnerSourceAccountId('');
         onClose(); // Close modal to refresh
       }
     } finally {
@@ -236,20 +268,80 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                 <Handshake size={14} /> Partnership Details
               </h3>
               <div className="space-y-3">
-                {car.partnerships.map(p => (
-                  <div key={p.id} className="bg-purple-50/50 border border-purple-100 rounded-xl p-4 flex justify-between items-center">
-                    <div>
-                      <div className="font-bold text-purple-900">{p.partnerAccount?.name || 'Unknown Partner'}</div>
-                      <div className="text-xs font-medium text-purple-600 mt-0.5">
-                        {p.profitSharePercentage}% Profit Share
+                {car.partnerships.map(p => {
+                  const invested = Number(p.investmentAmount);
+                  const paid = Number(p.paidAmount || 0);
+                  const unpaid = invested - paid;
+                  const isPayingThis = payingPartnerId === p.id;
+                  
+                  return (
+                    <div key={p.id} className="bg-purple-50/50 border border-purple-100 rounded-xl p-4 flex flex-col gap-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-bold text-purple-900">{p.partnerAccount?.name || 'Unknown Partner'}</div>
+                          <div className="text-xs font-medium text-purple-600 mt-0.5">
+                            {p.profitSharePercentage}% Profit Share
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[9px] font-bold text-purple-400 uppercase tracking-wider">Invested</div>
+                          <div className="font-bold text-sm text-purple-700">₹{invested.toLocaleString('en-IN')}</div>
+                        </div>
                       </div>
+
+                      {unpaid > 0 && (
+                        <div className="mt-2 pt-3 border-t border-purple-100 flex flex-col gap-2">
+                          <div className="flex justify-between items-center">
+                            <div className="text-[10px] font-bold text-purple-500 uppercase tracking-wider">Pending (Not Paid)</div>
+                            {!isPayingThis && (
+                              <button 
+                                onClick={() => { setPayingPartnerId(p.id); setPartnerAmount(unpaid.toString()); }}
+                                className="text-[10px] font-bold bg-purple-100 text-purple-700 px-3 py-1.5 rounded-md hover:bg-purple-200 transition-colors"
+                              >
+                                Pay Now
+                              </button>
+                            )}
+                          </div>
+                          <div className="text-sm font-black text-purple-600">₹{unpaid.toLocaleString('en-IN')}</div>
+                          
+                          {isPayingThis && (
+                            <form onSubmit={(e) => handlePayPartnerPending(e, p.id)} className="flex flex-col gap-3 mt-2">
+                              {partnerError && <div className="text-[10px] text-red-600 bg-red-50 p-2 rounded-md">{partnerError}</div>}
+                              <select 
+                                required
+                                value={partnerSourceAccountId}
+                                onChange={(e) => setPartnerSourceAccountId(e.target.value)}
+                                className="text-sm p-2 rounded-lg border border-purple-300 bg-white font-medium outline-none focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500"
+                              >
+                                <option value="">Receive To (Cash/Bank)...</option>
+                                {accounts.filter(a => ['CASH', 'BANK'].includes(a.type)).map(acc => (
+                                  <option key={acc.id} value={acc.id}>{acc.name}</option>
+                                ))}
+                              </select>
+                              <input 
+                                type="text"
+                                inputMode="decimal"
+                                required
+                                value={partnerAmount}
+                                onChange={(e) => setPartnerAmount(e.target.value.replace(/,/g, ''))}
+                                className="text-sm p-2 rounded-lg border border-purple-300 bg-white font-bold outline-none focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500"
+                                placeholder="Amount Received"
+                              />
+                              <div className="flex flex-col gap-2 mt-1">
+                                <button type="submit" disabled={isSubmitting} className="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2.5 rounded-lg transition-colors">
+                                  {isSubmitting ? 'Processing...' : 'Confirm Receipt'}
+                                </button>
+                                <button type="button" onClick={() => setPayingPartnerId(null)} className="w-full py-2 text-slate-500 hover:text-slate-700 hover:bg-purple-100/50 rounded-lg text-xs font-bold transition-colors">
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-right">
-                      <div className="text-[9px] font-bold text-purple-400 uppercase tracking-wider">Invested</div>
-                      <div className="font-bold text-sm text-purple-700">₹{Number(p.investmentAmount).toLocaleString('en-IN')}</div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
