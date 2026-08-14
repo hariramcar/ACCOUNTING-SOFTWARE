@@ -357,35 +357,41 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
               {/* EXPENSE SIMPLE AUTO-DEDUCT SECTION */}
               <div className="bg-slate-50 p-4 rounded-lg mt-2 border border-slate-200">
                 <p className="m-0 mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-700">{isAdmin ? 'Auto-Deduct from Rojmel (Optional)' : 'Payment Source'}</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Payment Mode</label>
-                    <select
-                      name="mode"
-                      value={mode ?? ''}
-                      onChange={(e) => setMode(e.target.value)}
-                      className="p-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium outline-none focus:border-indigo-500"
-                    >
-                      {isAdmin && <option value="">No Auto-Entry</option>}
-                      <option value="CASH">{isAdmin ? 'Cash' : 'My Advance (Cash)'}</option>
-                      {isAdmin && <option value="BANK">Bank</option>}
-                      <option value="UGHRANI">Market Place (Garage/Vendor)</option>
-                    </select>
+                {accounts.length === 0 ? (
+                  <div className="bg-red-50 text-red-600 border border-red-200 rounded-md p-3 text-sm font-semibold">
+                    ⚠️ You haven't created any Cash Drawers or Bank Accounts yet! Go to the Master Capital Dashboard (Bank Icon) to add one first.
                   </div>
-                  
-                  {/* For STAFF, hide account dropdown if CASH (auto-assigned). For ADMIN, show it for everything if mode is selected. */}
-                  {(mode === 'BANK' || mode === 'UGHRANI' || (isAdmin && mode === 'CASH')) && (
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Ledger Account</label>
-                      <select name="accountId" required={mode !== ''} className="p-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium outline-none focus:border-indigo-500">
-                        <option value="">Select Account...</option>
-                        {accounts.filter(acc => acc.type === mode).map(acc => (
-                          <option key={acc.id} value={acc.id}>{acc.name}</option>
-                        ))}
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Payment Mode</label>
+                      <select
+                        name="mode"
+                        value={mode ?? ''}
+                        onChange={(e) => setMode(e.target.value)}
+                        className="p-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium outline-none focus:border-indigo-500"
+                      >
+                        {isAdmin && <option value="">No Auto-Entry (Keep Pending)</option>}
+                        <option value="CASH">{isAdmin ? 'Cash' : 'My Advance (Cash)'}</option>
+                        {isAdmin && <option value="BANK">Bank</option>}
+                        <option value="UGHRANI">Market Place (Garage/Vendor)</option>
                       </select>
                     </div>
-                  )}
-                </div>
+                    
+                    {/* For STAFF, hide account dropdown if CASH (auto-assigned). For ADMIN, show it for everything if mode is selected. */}
+                    {(mode === 'BANK' || mode === 'UGHRANI' || (isAdmin && mode === 'CASH')) && (
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Ledger Account</label>
+                        <select name="accountId" required={mode !== ''} className="p-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium outline-none focus:border-indigo-500">
+                          <option value="">Select Account...</option>
+                          {accounts.filter(acc => acc.type === mode).map(acc => (
+                            <option key={acc.id} value={acc.id}>{acc.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}

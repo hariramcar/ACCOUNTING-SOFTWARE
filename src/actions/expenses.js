@@ -346,8 +346,7 @@ export async function addExpense(formData) {
     return { success: true };
   } catch (error) {
     console.error('Failed to add expense:', error);
-    require('fs').writeFileSync('E:/hariram motor/accouting/software/debug_error.log', error.stack || error.toString());
-    return { success: false, error: 'Failed to add expense.' };
+    return { success: false, error: error.message || 'Failed to add expense.' };
   }
 }
 
