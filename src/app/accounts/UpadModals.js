@@ -1,4 +1,12 @@
 'use client';
+function getLocalDateString() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -153,7 +161,7 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 block">Date</label>
-                    <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-700 text-[15px] font-bold outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 focus:bg-white transition-all cursor-pointer" />
+                    <input type="date" name="date" required defaultValue={getLocalDateString()} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-700 text-[15px] font-bold outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 focus:bg-white transition-all cursor-pointer" />
                   </div>
                   
                   <div>
@@ -249,7 +257,7 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
                       type="date" 
                       name="date" 
                       required
-                      defaultValue={new Date().toISOString().split('T')[0]}
+                      defaultValue={getLocalDateString()}
                       className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-700 text-[15px] font-bold outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer" 
                     />
                   </div>

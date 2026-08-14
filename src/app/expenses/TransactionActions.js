@@ -7,10 +7,19 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   
+  const getLocalDateString = (dateObj) => {
+    if (!dateObj) return '';
+    const d = new Date(dateObj);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [editData, setEditData] = useState({
     description: expense.description,
     amount: expense.amount,
-    date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : ''
+    date: getLocalDateString(expense.date)
   });
 
   const isSubmittingRef = useRef(false);

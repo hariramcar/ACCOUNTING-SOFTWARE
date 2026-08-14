@@ -1,5 +1,13 @@
 'use client';
 
+function getLocalDateString() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeftRight, Building2, Car, PlusCircle, Trash2 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
@@ -232,7 +240,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                 </div>
                 <div className="flex-1 w-full">
                   <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Date</label>
-                  <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 text-slate-700 shadow-sm" />
+                  <input type="date" name="date" required defaultValue={getLocalDateString()} className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 text-slate-700 shadow-sm" />
                 </div>
               </div>
 
@@ -350,7 +358,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                 </div>
                 <div className="flex flex-col gap-1.5 flex-1">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Date</label>
-                  <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium" />
+                  <input type="date" name="date" required defaultValue={getLocalDateString()} className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium" />
                 </div>
               </div>
 
@@ -442,7 +450,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
             </div>
             <div className="flex flex-col gap-1.5 flex-1">
               <label className="text-[11px] font-bold uppercase tracking-wider text-blue-700">Date</label>
-              <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="p-2.5 rounded-lg border border-blue-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm font-medium shadow-sm" />
+              <input type="date" name="date" required defaultValue={getLocalDateString()} className="p-2.5 rounded-lg border border-blue-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm font-medium shadow-sm" />
             </div>
           </div>
 

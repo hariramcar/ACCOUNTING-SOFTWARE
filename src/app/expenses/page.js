@@ -16,7 +16,17 @@ export default async function ExpensesPage({ searchParams }) {
   const isAdmin = session?.role === 'ADMIN';
 
   const awaitedParams = await searchParams;
-  const targetDate = awaitedParams?.date || new Date().toISOString().split('T')[0];
+  let defaultDateStr = '';
+  if (!awaitedParams?.date) {
+    const d = new Date();
+    d.setUTCHours(d.getUTCHours() + 5);
+    d.setUTCMinutes(d.getUTCMinutes() + 30);
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    defaultDateStr = `${year}-${month}-${day}`;
+  }
+  const targetDate = awaitedParams?.date || defaultDateStr;
 
   const { expenses } = await getRecentExpenses(targetDate);
   const { accounts } = await getAccountBalances();

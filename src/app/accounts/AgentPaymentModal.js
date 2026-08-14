@@ -1,4 +1,12 @@
 'use client';
+function getLocalDateString() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 
 import { useState, useRef } from 'react';
 import { X, ArrowDownRight, AlertCircle } from 'lucide-react';
@@ -174,7 +182,7 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
                     type="date"
                     name="date"
                     required
-                    defaultValue={new Date().toISOString().split('T')[0]}
+                    defaultValue={getLocalDateString()}
                     style={{ colorScheme: 'light' }}
                     className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:border-indigo-500 transition-all font-medium text-sm block w-full"
                   />

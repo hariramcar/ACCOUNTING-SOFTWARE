@@ -1,4 +1,12 @@
 'use client';
+function getLocalDateString() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 
 import { useState, useEffect } from 'react';
 import { PlusCircle, Trash2 } from 'lucide-react';
@@ -52,7 +60,7 @@ export default function SellVehicleForm({ car, accounts }) {
         </div>
         <div className="flex-[0.8]">
           <label className="text-[9px] uppercase font-bold text-emerald-700 mb-0.5 block tracking-wider">Sale Date</label>
-          <input type="date" name="saleDate" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-1.5 rounded border border-emerald-200 bg-white text-xs font-medium outline-none focus:border-emerald-500 text-slate-600" />
+          <input type="date" name="saleDate" required defaultValue={getLocalDateString()} className="w-full p-1.5 rounded border border-emerald-200 bg-white text-xs font-medium outline-none focus:border-emerald-500 text-slate-600" />
         </div>
         
         {/* Pending Balance */}

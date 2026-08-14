@@ -1,4 +1,12 @@
 'use client';
+function getLocalDateString() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -191,7 +199,7 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Purchase Date</label>
-                  <input type="date" name="purchaseDate" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-700 text-[15px] outline-none focus:ring-4 focus:ring-indigo-500/15 focus:border-indigo-500 focus:bg-white font-bold transition-all" />
+                  <input type="date" name="purchaseDate" required defaultValue={getLocalDateString()} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-700 text-[15px] outline-none focus:ring-4 focus:ring-indigo-500/15 focus:border-indigo-500 focus:bg-white font-bold transition-all" />
                 </div>
               </div>
 
