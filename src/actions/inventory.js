@@ -169,8 +169,8 @@ export async function addVehicle(formData) {
         }
       });
 
-      // Handle Payment 1
-      if (p1AccountId && p1Mode && p1Amount > 0) {
+      // Handle Payment 1 (Suppress cash deduction for legacy cars)
+      if (!isLegacy && p1AccountId && p1Mode && p1Amount > 0) {
         await tx.transaction.create({
           data: {
             date: purchaseDate,
@@ -179,13 +179,14 @@ export async function addVehicle(formData) {
             amount: p1Amount,
             accountId: p1AccountId,
             category: 'VEHICLE_PURCHASE',
+            referenceId: vehicle.id,
             description: `Auto-Entry: Purchased ${make} ${model} (${registration || 'Unregistered'})`
           }
         });
       }
 
-      // Handle Payment 2
-      if (p2AccountId && p2Mode && p2Amount > 0) {
+      // Handle Payment 2 (Suppress cash deduction for legacy cars)
+      if (!isLegacy && p2AccountId && p2Mode && p2Amount > 0) {
         await tx.transaction.create({
           data: {
             date: purchaseDate,
@@ -194,6 +195,7 @@ export async function addVehicle(formData) {
             amount: p2Amount,
             accountId: p2AccountId,
             category: 'VEHICLE_PURCHASE',
+            referenceId: vehicle.id,
             description: `Auto-Entry: Purchased ${make} ${model} (Split Payment 2)`
           }
         });
@@ -209,6 +211,7 @@ export async function addVehicle(formData) {
             amount: pendingAmount,
             accountId: payableAccountId,
             category: 'VEHICLE_PURCHASE',
+            referenceId: vehicle.id,
             description: `Auto-Entry: Pending Udhari for ${make} ${model} (${registration || 'Unregistered'})`
           }
         });
@@ -241,13 +244,14 @@ export async function addVehicle(formData) {
               amount: amountToCreditPartner,
               accountId: partnerAccountId,
               category: 'GENERAL',
+              referenceId: vehicle.id,
               description: `Auto-Entry: Partnership Investment for ${make} ${model} (Car Value: ₹${Number(purchasePrice).toLocaleString('en-IN')}, Partner Share: ${profitSharePercentage}%)`
             }
           });
         }
 
-        // Record the actual payment received from the partner to the firm's cash/bank
-        if (partnerPaymentMode && partnerPaymentAccountId && partnerPaidAmount > 0) {
+        // Record the actual payment received from the partner to the firm's cash/bank (Suppress for legacy cars)
+        if (!isLegacy && partnerPaymentMode && partnerPaymentAccountId && partnerPaidAmount > 0) {
           await tx.transaction.create({
             data: {
               date: purchaseDate,
@@ -256,7 +260,22 @@ export async function addVehicle(formData) {
               amount: partnerPaidAmount,
               accountId: partnerPaymentAccountId,
               category: 'GENERAL',
+              referenceId: vehicle.id,
               description: `Auto-Entry: Capital Received from Partner for ${make} ${model}`
+            }
+          });
+
+          // And since this capital was used to buy the car, it passes through to the seller
+          await tx.transaction.create({
+            data: {
+              date: purchaseDate,
+              transactionMode: partnerPaymentMode,
+              type: 'DEBIT', // Money goes OUT to the seller
+              amount: partnerPaidAmount,
+              accountId: partnerPaymentAccountId,
+              category: 'VEHICLE_PURCHASE',
+              referenceId: vehicle.id,
+              description: `Auto-Entry: Paid to Seller (from Partner Capital) for ${make} ${model}`
             }
           });
         }
@@ -309,6 +328,7 @@ export async function payVehiclePendingBalance(formData) {
           amount,
           accountId: sourceAccountId,
           category: 'VEHICLE_PURCHASE',
+          referenceId: vehicleId,
           description: `Auto-Entry: Paid Pending Udhari for ${vehicle.make} ${vehicle.model}`
         }
       });
@@ -560,6 +580,7 @@ export async function payPartnerPendingInvestment(formData) {
           amount: amount,
           accountId: partnership.partnerAccountId,
           category: 'GENERAL',
+          referenceId: partnership.vehicleId,
           description: `Auto-Entry: Paid Pending Investment Share for ${partnership.vehicle.make} ${partnership.vehicle.model}`
         }
       });
@@ -573,6 +594,7 @@ export async function payPartnerPendingInvestment(formData) {
           amount: amount,
           accountId: targetAccountId,
           category: 'GENERAL',
+          referenceId: partnership.vehicleId,
           description: `Auto-Entry: Received Pending Capital from ${partnership.partnerAccount.name} for ${partnership.vehicle.make} ${partnership.vehicle.model}`
         }
       });

@@ -15,9 +15,9 @@ async function run() {
     await pool.query(`DELETE FROM "Transaction" WHERE "amount" = 700000 AND "description" LIKE 'Payment Received for Sold Car: Toyota%'`);
     // Delete the Bank Transaction
     await pool.query(`DELETE FROM "Transaction" WHERE "amount" = 700000 AND "description" LIKE 'Income Received:%'`);
-    
+
     console.log('Cleaned up the duplicate entries!');
-  } catch(e) {
+  } catch (e) {
     console.error(e);
   }
   process.exit(0);

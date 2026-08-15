@@ -530,6 +530,62 @@ export async function deleteExpense(expenseId, isRawTx = false) {
             }
           } else {
             // Delete standard raw transaction (e.g. VEHICLE_PURCHASE)
+            
+            // Reversal logic for dynamically linked entities
+            if (txToDelete.referenceId) {
+              const vehicle = await tx.vehicle.findUnique({ where: { id: txToDelete.referenceId }});
+              if (vehicle) {
+                // If it's a vehicle purchase payment, deleting it means we didn't pay the seller!
+                // So the amount we owe the seller (pending balance) increases!
+                if (txToDelete.category === 'VEHICLE_PURCHASE' && txToDelete.type === 'DEBIT') {
+                  await tx.vehicle.update({
+                    where: { id: vehicle.id },
+                    data: { purchasePendingBalance: Number(vehicle.purchasePendingBalance) + Number(txToDelete.amount) }
+                  });
+                }
+                
+                // If it's a partner capital payment to the firm, deleting it means they haven't paid!
+                // So the paidAmount in the Partnership decreases!
+                if (txToDelete.category === 'GENERAL' && txToDelete.type === 'CREDIT' && 
+                   (txToDelete.description.includes('Capital Received from Partner') || 
+                    txToDelete.description.includes('Paid Pending Investment Share'))) {
+                  
+                  const partnership = await tx.partnership.findFirst({
+                    where: { vehicleId: vehicle.id, partnerAccountId: txToDelete.accountId }
+                  });
+                  
+                  if (partnership) {
+                    const newPaidAmount = Math.max(0, Number(partnership.paidAmount) - Number(txToDelete.amount));
+                    await tx.partnership.update({
+                      where: { id: partnership.id },
+                      data: { 
+                        paidAmount: newPaidAmount,
+                        isInvestmentPaid: newPaidAmount >= Number(partnership.investmentAmount)
+                      }
+                    });
+                  }
+                  
+                  // Also, if there's a matching pass-through DEBIT (Paid to Seller from Partner Capital), delete it too
+                  if (txToDelete.description.includes('Capital Received from Partner')) {
+                     await tx.transaction.deleteMany({
+                       where: {
+                         referenceId: vehicle.id,
+                         category: 'VEHICLE_PURCHASE',
+                         type: 'DEBIT',
+                         amount: txToDelete.amount,
+                         description: { contains: 'Paid to Seller (from Partner Capital)' }
+                       }
+                     });
+                     // And since we deleted a pass-through DEBIT (payment to seller), we must ALSO increase pending balance
+                     await tx.vehicle.update({
+                       where: { id: vehicle.id },
+                       data: { purchasePendingBalance: Number(vehicle.purchasePendingBalance) + Number(txToDelete.amount) }
+                     });
+                  }
+                }
+              }
+            }
+            
             await tx.transaction.delete({ where: { id: expenseId } });
           }
         }
