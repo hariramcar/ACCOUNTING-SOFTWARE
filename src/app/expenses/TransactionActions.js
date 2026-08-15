@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
 
-export default function TransactionActions({ expense, deleteExpenseAction, updateExpenseAction, isRawTx, hideDelete = false, accounts = [] }) {
+export default function TransactionActions({ expense, deleteExpenseAction, updateExpenseAction, isRawTx, hideDelete = false, accounts = [], vehicles = [] }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   
@@ -16,14 +16,78 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
     return `${year}-${month}-${day}`;
   };
 
+  const handleAmountFormat = (val) => {
+    if (val === null || val === undefined) return '';
+    const rawValue = String(val).replace(/[^0-9.]/g, '');
+    if (!rawValue) return '';
+    const parts = rawValue.split('.');
+    parts[0] = Number(parts[0]).toLocaleString('en-IN');
+    return parts.join('.');
+  };
+
   const [editData, setEditData] = useState({
     description: expense.description,
-    amount: expense.amount,
+    amount: handleAmountFormat(expense.amount),
     date: getLocalDateString(expense.date),
-    accountId: expense.accountId || ''
+    accountId: expense.accountId || '',
+    vehicleId: expense.vehicle?.id || expense.referenceId || ''
   });
 
+  
   const isSubmittingRef = useRef(false);
+
+  const isIncome = expense.expenseType === 'INCOME';
+  const isOffice = expense.expenseType === 'OFFICE_EXPENSE';
+  const isTransfer = expense.isTransfer;
+  
+  let themeName = 'indigo';
+  let title = 'Edit Car Expense';
+  if (isIncome) {
+    themeName = 'emerald';
+    title = 'Edit Income';
+  } else if (isOffice) {
+    themeName = 'red';
+    title = 'Edit Office Expense';
+  } else if (isTransfer) {
+    themeName = 'blue';
+    title = 'Edit Transfer';
+  }
+
+  const theme = {
+    emerald: {
+      text: 'text-emerald-700',
+      border: 'border-emerald-200',
+      focusBorder: 'focus:border-emerald-500',
+      focusRing: 'focus:ring-emerald-500',
+      focusRingLight: 'focus:ring-emerald-500/20',
+      bgBtn: 'bg-emerald-600 hover:bg-emerald-700',
+    },
+    red: {
+      text: 'text-red-700',
+      border: 'border-red-200',
+      focusBorder: 'focus:border-red-500',
+      focusRing: 'focus:ring-red-500',
+      focusRingLight: 'focus:ring-red-500/20',
+      bgBtn: 'bg-red-600 hover:bg-red-700',
+    },
+    blue: {
+      text: 'text-blue-700',
+      border: 'border-blue-200',
+      focusBorder: 'focus:border-blue-500',
+      focusRing: 'focus:ring-blue-500',
+      focusRingLight: 'focus:ring-blue-500/20',
+      bgBtn: 'bg-blue-600 hover:bg-blue-700',
+    },
+    indigo: {
+      text: 'text-indigo-700',
+      border: 'border-indigo-200',
+      focusBorder: 'focus:border-indigo-500',
+      focusRing: 'focus:ring-indigo-500',
+      focusRingLight: 'focus:ring-indigo-500/20',
+      bgBtn: 'bg-indigo-600 hover:bg-indigo-700',
+    },
+  }[themeName];
+
 
   const handleDelete = async () => {
     if (confirm('Are you sure you want to delete this transaction? This will refund any cash deducted in the ledger.')) {
@@ -87,67 +151,92 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
             </div>
             
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 sticky top-0 z-10">
-              <h3 className="font-bold text-slate-800 m-0">Edit Transaction</h3>
+              <h3 className="font-bold text-slate-800 m-0">{title}</h3>
               <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600 bg-white rounded-full p-1 border shadow-sm">
                 <X size={18} />
               </button>
             </div>
             
             <form onSubmit={handleEdit} className="p-6 pt-4 flex flex-col gap-4 overflow-y-auto max-h-[80vh]">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Description</label>
-                <input 
-                  type="text" 
-                  value={editData.description}
-                  onChange={e => setEditData({...editData, description: e.target.value})}
-                  required 
-                  className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium" 
-                />
+              
+              <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
+                <div className="flex-1 w-full">
+                  <label className={`text-xs uppercase font-bold ${theme.text} mb-1.5 block tracking-wider`}>Description</label>
+                  <input 
+                    type="text" 
+                    value={editData.description}
+                    onChange={e => setEditData({...editData, description: e.target.value})}
+                    required 
+                    className={`w-full p-2.5 rounded-lg border ${theme.border} bg-white text-sm font-medium outline-none ${theme.focusBorder} focus:ring-1 ${theme.focusRing} transition-all shadow-sm`}
+                  />
+                </div>
               </div>
 
-              <div className="flex gap-4">
-                <div className="flex flex-col gap-1.5 flex-1">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Amount (₹)</label>
+              <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
+                <div className="flex-1 w-full">
+                  <label className={`text-xs uppercase font-bold ${theme.text} mb-1.5 block tracking-wider`}>Amount (₹)</label>
                   <input 
-                    type="number" 
-                    step="0.01"
+                    type="text" 
+                    inputMode="decimal"
                     value={editData.amount}
-                    onChange={e => setEditData({...editData, amount: e.target.value})}
+                    onChange={e => setEditData({...editData, amount: handleAmountFormat(e.target.value)})}
                     required 
-                    className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-bold" 
+                    className={`w-full p-2.5 rounded-lg border ${theme.border} bg-white text-sm font-bold outline-none ${theme.focusBorder} focus:ring-1 ${theme.focusRing} transition-all shadow-sm`}
                   />
                 </div>
                 
-                <div className="flex flex-col gap-1.5 flex-1">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Date</label>
+                <div className="flex-1 w-full">
+                  <label className={`text-xs uppercase font-bold ${theme.text} mb-1.5 block tracking-wider`}>Date</label>
                   <input 
                     type="date" 
                     value={editData.date}
                     onChange={e => setEditData({...editData, date: e.target.value})}
                     required 
-                    className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium" 
+                    className={`w-full p-2.5 rounded-lg border ${theme.border} bg-white text-sm font-medium outline-none ${theme.focusBorder} focus:ring-1 ${theme.focusRing} text-slate-700 transition-all shadow-sm`}
                   />
                 </div>
               </div>
               
-              {editData.accountId && accounts.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Payment Source</label>
-                  <select
-                    value={editData.accountId}
-                    onChange={e => setEditData({...editData, accountId: e.target.value})}
-                    required
-                    className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium"
-                  >
-                    <option value="">Select Account</option>
-                    {accounts.filter(a => a.type === 'CASH' || a.type === 'BANK').map(acc => (
-                      <option key={acc.id} value={acc.id}>{acc.name} ({acc.type})</option>
-                    ))}
-                  </select>
+              {(isIncome || themeName === 'indigo') && vehicles.length > 0 && (
+                <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
+                  <div className="flex-1 w-full">
+                    <label className={`text-xs uppercase font-bold ${theme.text} mb-1.5 block tracking-wider`}>Select Vehicle</label>
+                    <select
+                      value={editData.vehicleId}
+                      onChange={e => setEditData({...editData, vehicleId: e.target.value})}
+                      className={`w-full p-2.5 rounded-lg border ${theme.border} bg-white text-sm font-medium outline-none ${theme.focusBorder} focus:ring-1 ${theme.focusRing} text-slate-700 transition-all shadow-sm`}
+                    >
+                      <option value="">-- No Specific Vehicle --</option>
+                      {vehicles.filter(v => v.status !== 'SOLD').map(v => (
+                        <option key={v.id} value={v.id}>
+                          {v.make} {v.model} {v.registration ? `(${v.registration})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
 
-              <button type="submit" disabled={isDeleting} className="mt-4 w-full p-3 rounded-lg font-bold border-none cursor-pointer text-white text-sm transition-all shadow-sm flex items-center justify-center gap-2 focus:ring-4 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500/20 disabled:opacity-50">
+              {editData.accountId && accounts.length > 0 && (
+                <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
+                  <div className="flex-1 w-full">
+                    <label className={`text-xs uppercase font-bold ${theme.text} mb-1.5 block tracking-wider`}>Payment Source</label>
+                    <select
+                      value={editData.accountId}
+                      onChange={e => setEditData({...editData, accountId: e.target.value})}
+                      required
+                      className={`w-full p-2.5 rounded-lg border ${theme.border} bg-white text-sm font-medium outline-none ${theme.focusBorder} focus:ring-1 ${theme.focusRing} text-slate-700 transition-all shadow-sm`}
+                    >
+                      <option value="">Select Account</option>
+                      {accounts.filter(a => a.type === 'CASH' || a.type === 'BANK').map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.type})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <button type="submit" disabled={isDeleting} className={`mt-2 w-full p-3 rounded-lg font-bold border-none cursor-pointer text-white text-sm transition-all shadow-sm flex items-center justify-center gap-2 focus:ring-4 ${theme.bgBtn} ${theme.focusRingLight} disabled:opacity-50`}>
                 {isDeleting ? 'Saving...' : 'Save Changes'}
               </button>
             </form>

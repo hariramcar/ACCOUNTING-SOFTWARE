@@ -5,7 +5,7 @@ import { Building2, Car, ArrowDownRight, ArrowUpRight, TrendingUp, Receipt, Wall
 import TransactionActions from '../expenses/TransactionActions';
 import { updateExpense } from '@/actions/expenses';
 
-export default function LedgerTabs({ income, expenses, totalIncome, totalExpenses }) {
+export default function LedgerTabs({ income, expenses, totalIncome, totalExpenses, accounts = [], vehicles = [] }) {
   const [activeTab, setActiveTab] = useState('INCOME');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL'); // 'ALL', 'CASH', 'BANK', 'TRANSFERS'
@@ -52,6 +52,15 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
   const filteredExpenses = useMemo(() => applyFilters(expenses), [expenses, filterType, searchQuery]);
 
   const netProfit = totalIncome - totalExpenses;
+
+  
+  const handleAmountFormat = (val) => {
+    const rawValue = val.replace(/[^0-9.]/g, '');
+    if (!rawValue) return '';
+    const parts = rawValue.split('.');
+    parts[0] = Number(parts[0]).toLocaleString('en-IN');
+    return parts.join('.');
+  };
 
   return (
     <div className="flex flex-col gap-8 mt-2">
@@ -262,7 +271,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                       </td>
                       <td className="py-4 px-5 text-right">
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end">
-                          <TransactionActions expense={inc} updateExpenseAction={updateExpense} isRawTx={inc.isRawTx} hideDelete={true} />
+                          <TransactionActions expense={inc} updateExpenseAction={updateExpense} isRawTx={inc.isRawTx} hideDelete={true} accounts={accounts} vehicles={vehicles} />
                         </div>
                       </td>
                     </tr>
@@ -378,7 +387,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                       </td>
                       <td className="py-4 px-5 text-right">
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end">
-                          <TransactionActions expense={exp} updateExpenseAction={updateExpense} isRawTx={exp.isRawTx} hideDelete={true} />
+                          <TransactionActions expense={exp} updateExpenseAction={updateExpense} isRawTx={exp.isRawTx} hideDelete={true} accounts={accounts} vehicles={vehicles} />
                         </div>
                       </td>
                     </tr>

@@ -11,6 +11,15 @@ export default function AddAccountModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accountType, setAccountType] = useState('CASH');
   const [mounted, setMounted] = useState(false);
+  
+  const handleAmountFormat = (val) => {
+    const rawValue = val.replace(/[^0-9.]/g, '');
+    if (!rawValue) return '';
+    const parts = rawValue.split('.');
+    parts[0] = Number(parts[0]).toLocaleString('en-IN');
+    return parts.join('.');
+  };
+
   const isSubmittingRef = useRef(false);
 
   useEffect(() => setMounted(true), []);

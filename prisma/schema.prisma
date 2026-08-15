@@ -37,6 +37,8 @@ model Vehicle {
   saleDate               DateTime?
   salePendingBalance     Decimal       @default(0)
   receivableAccountId    String?
+  customerName           String?
+  customerMobile         String?
   profit                 Decimal?
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt

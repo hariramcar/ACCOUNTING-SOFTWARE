@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { checkSufficientBalance } from '@/lib/balanceCheck';
 
 export async function getInventory(year, month) {
   try {
@@ -171,6 +172,7 @@ export async function addVehicle(formData) {
 
       // Handle Payment 1 (Suppress cash deduction for legacy cars)
       if (!isLegacy && p1AccountId && p1Mode && p1Amount > 0) {
+        await checkSufficientBalance(tx, p1AccountId, p1Amount);
         await tx.transaction.create({
           data: {
             date: purchaseDate,
@@ -187,6 +189,7 @@ export async function addVehicle(formData) {
 
       // Handle Payment 2 (Suppress cash deduction for legacy cars)
       if (!isLegacy && p2AccountId && p2Mode && p2Amount > 0) {
+        await checkSufficientBalance(tx, p2AccountId, p2Amount);
         await tx.transaction.create({
           data: {
             date: purchaseDate,
@@ -305,6 +308,7 @@ export async function payVehiclePendingBalance(formData) {
     if (!sourceAcc) throw new Error('Source account not found');
 
     await prisma.$transaction(async (tx) => {
+      await checkSufficientBalance(tx, sourceAccountId, amount);
       const vehicle = await tx.vehicle.findUnique({ where: { id: vehicleId } });
       if (!vehicle) throw new Error('Vehicle not found');
       if (Number(vehicle.purchasePendingBalance) < amount) {
@@ -364,6 +368,8 @@ export async function sellVehicle(formData) {
     const vehicleId = formData.get('vehicleId');
     const salePrice = parseFloat(formData.get('salePrice'));
     const saleDate = new Date(formData.get('saleDate') || Date.now());
+    const customerName = formData.get('customerName');
+    const customerMobile = formData.get('customerMobile');
 
     // Dynamic Payments
     const paymentModes = formData.getAll('paymentModes');
@@ -501,6 +507,9 @@ export async function addRepairExpense(formData) {
     const mode = formData.get('mode');
 
     await prisma.$transaction(async (tx) => {
+      if (paymentMode && paymentSourceId && amount > 0) {
+        await checkSufficientBalance(tx, paymentSourceId, amount);
+      }
       const expense = await tx.expense.create({
         data: {
           amount,
@@ -628,5 +637,51 @@ export async function payPartnerPendingInvestment(formData) {
   } catch (error) {
     console.error('Failed to pay partner pending investment:', error);
     return { success: false, error: error.message || 'Failed to process payment.' };
+  }
+}
+
+export async function payPartnerProfit(formData) {
+  try {
+    const partnershipId = formData.get('partnershipId');
+    const amount = parseFloat((formData.get('amount') || '0').replace(/,/g, ''));
+    const sourceAccountId = formData.get('sourceAccountId'); // Firm's Cash/Bank
+
+    if (!partnershipId || !sourceAccountId || isNaN(amount) || amount <= 0) {
+      throw new Error('Invalid input');
+    }
+
+    const sourceAcc = await prisma.account.findUnique({ where: { id: sourceAccountId } });
+    if (!sourceAcc) throw new Error('Source payment account not found');
+
+    await prisma.$transaction(async (tx) => {
+      await checkSufficientBalance(tx, sourceAccountId, amount);
+      const partnership = await tx.partnership.findUnique({ 
+        where: { id: partnershipId },
+        include: { vehicle: true, partnerAccount: true }
+      });
+      if (!partnership) throw new Error('Partnership not found');
+      
+      // DEBIT from Firm's Cash/Bank Account (It's an Expense payout)
+      await tx.transaction.create({
+        data: {
+          date: new Date(),
+          transactionMode: sourceAcc.type === 'BANK' ? 'BANK' : 'CASH',
+          type: 'DEBIT', // Money OUT of firm
+          amount: amount,
+          accountId: sourceAccountId,
+          category: 'GENERAL',
+          referenceId: partnership.vehicleId, // Link to vehicle so we can detect it
+          description: `Auto-Entry: Paid Profit Share (${partnership.profitSharePercentage}%) to ${partnership.partnerAccount.name} for ${partnership.vehicle.make} ${partnership.vehicle.model}`
+        }
+      });
+    });
+
+    revalidatePath('/inventory');
+    revalidatePath('/rojmel');
+    revalidatePath('/expenses');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to pay partner profit:', error);
+    return { success: false, error: error.message || 'Failed to pay partner profit.' };
   }
 }

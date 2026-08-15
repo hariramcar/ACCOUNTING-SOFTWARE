@@ -21,6 +21,14 @@ export default function SellVehicleModal({ inStock, accounts }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
   const [salePrice, setSalePrice] = useState('');
+  const handleAmountFormat = (val) => {
+    const rawValue = val.replace(/[^0-9.]/g, '');
+    if (!rawValue) return '';
+    const parts = rawValue.split('.');
+    parts[0] = Number(parts[0]).toLocaleString('en-IN');
+    return parts.join('.');
+  };
+
   const [payments, setPayments] = useState([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
   const [pendingBalance, setPendingBalance] = useState(0);
 
@@ -29,8 +37,8 @@ export default function SellVehicleModal({ inStock, accounts }) {
   }, []);
 
   useEffect(() => {
-    const price = parseFloat(salePrice) || 0;
-    const totalPaid = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const price = parseFloat((salePrice || '').toString().replace(/,/g, '')) || 0;
+    const totalPaid = payments.reduce((sum, p) => sum + (parseFloat((p.amount || '').toString().replace(/,/g, '')) || 0), 0);
     const pending = Math.round((price - totalPaid) * 100) / 100;
     setPendingBalance(pending);
   }, [salePrice, payments]);
@@ -166,16 +174,27 @@ export default function SellVehicleModal({ inStock, accounts }) {
                       placeholder="Final Price" 
                       required 
                       value={salePrice}
-                      onChange={(e) => setSalePrice(e.target.value.replace(/,/g, ''))}
+                      onChange={(e) => setSalePrice(handleAmountFormat(e.target.value))}
                       className="w-full p-4 rounded-xl border border-emerald-100 bg-white text-[16px] font-black outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-[0_2px_10px_-4px_rgba(16,185,129,0.2)] text-emerald-900 placeholder:text-emerald-200" 
                     />
                   </div>
-                  <div className="flex-1 w-full">
-                    <label className="text-[11px] uppercase font-bold text-slate-500 mb-2 block tracking-wider">Sale Date</label>
-                    <input type="date" name="saleDate" required defaultValue={getLocalDateString()} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
+                                      <div className="flex-1 w-full">
+                      <label className="text-[11px] uppercase font-bold text-slate-500 mb-2 block tracking-wider">Sale Date</label>
+                      <input type="date" name="saleDate" required defaultValue={getLocalDateString()} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col md:flex-row gap-4 mt-4">
+                    <div className="flex-1">
+                      <label className="text-[11px] uppercase font-bold text-slate-500 mb-2 block tracking-wider">Customer Name</label>
+                      <input type="text" name="customerName" placeholder="Enter Customer Name" className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[11px] uppercase font-bold text-slate-500 mb-2 block tracking-wider">Customer Mobile Number</label>
+                      <input type="text" name="customerMobile" placeholder="Enter Mobile Number" maxLength={10} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
+                    </div>
                   </div>
                 </div>
-              </div>
               
               <div className={`p-3 rounded-lg border flex flex-col md:flex-row md:items-center justify-between gap-3 ${pendingBalance !== 0 ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
                 <div>
@@ -247,7 +266,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
                           placeholder="Amount" 
                           required 
                           value={p.amount || ''}
-                          onChange={(e) => updatePayment(p.id, 'amount', e.target.value.replace(/,/g, ''))}
+                          onChange={(e) => updatePayment(p.id, 'amount', handleAmountFormat(e.target.value))}
                           className="w-full p-3 rounded-lg border-0 bg-slate-100 shadow-inner text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 placeholder:font-medium transition-all" 
                         />
                       </div>

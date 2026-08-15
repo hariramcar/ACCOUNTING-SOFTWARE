@@ -84,7 +84,7 @@ export async function getAllExpenses(year, month) {
 
     const rawTx = await prisma.transaction.findMany({
       where: {
-        category: { in: ['VEHICLE_PURCHASE', 'INTERNAL_TRANSFER', 'UPAD_WITHDRAWAL', 'UPAD_REPAYMENT'] },
+        category: { in: ['VEHICLE_PURCHASE', 'INTERNAL_TRANSFER', 'UPAD_WITHDRAWAL', 'UPAD_REPAYMENT', 'GENERAL'] },
         type: 'DEBIT',
         date: {
           gte: startDate,
@@ -100,6 +100,12 @@ export async function getAllExpenses(year, month) {
     const filteredRawTx = rawTx.filter(tx => {
       if (tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') {
         if (tx.account && (tx.account.type === 'CASH' || tx.account.type === 'BANK')) {
+          return false;
+        }
+      }
+      if (tx.category === 'GENERAL') {
+        // Only show GENERAL debits from Cash/Bank (like Paid Profit Share)
+        if (!tx.account || (tx.account.type !== 'CASH' && tx.account.type !== 'BANK')) {
           return false;
         }
       }
@@ -131,7 +137,7 @@ export async function getAllExpenses(year, month) {
           amount: finalAmount,
           date: tx.date,
           description: tx.description,
-          expenseType: tx.category === 'VEHICLE_PURCHASE' ? 'CAR_EXPENSE' : (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') ? 'ADVANCE' : 'OFFICE_EXPENSE',
+          expenseType: (tx.category === 'VEHICLE_PURCHASE' || (tx.category === 'GENERAL' && tx.referenceId)) ? 'CAR_EXPENSE' : (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') ? 'ADVANCE' : 'OFFICE_EXPENSE',
           status: 'APPROVED',
           vehicle: null,
           submittedBy: null,

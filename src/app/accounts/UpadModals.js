@@ -25,6 +25,14 @@ const formatIndianNumber = (val) => {
 export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
   const [activeModal, setActiveModal] = useState(null); // 'advance' | 'settle' | null
   const [amount, setAmount] = useState('');
+  const handleAmountFormat = (val) => {
+    const rawValue = val.replace(/[^0-9.]/g, '');
+    if (!rawValue) return '';
+    const parts = rawValue.split('.');
+    parts[0] = Number(parts[0]).toLocaleString('en-IN');
+    return parts.join('.');
+  };
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [mounted, setMounted] = useState(false);

@@ -15,12 +15,20 @@ import SubmitButton from '@/components/SubmitButton';
 
 export default function SellVehicleForm({ car, accounts }) {
   const [salePrice, setSalePrice] = useState('');
+  const handleAmountFormat = (val) => {
+    const rawValue = val.replace(/[^0-9.]/g, '');
+    if (!rawValue) return '';
+    const parts = rawValue.split('.');
+    parts[0] = Number(parts[0]).toLocaleString('en-IN');
+    return parts.join('.');
+  };
+
   const [payments, setPayments] = useState([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
   const [pendingBalance, setPendingBalance] = useState(0);
 
   useEffect(() => {
-    const price = parseFloat(salePrice) || 0;
-    const totalPaid = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const price = parseFloat((salePrice || '').toString().replace(/,/g, '')) || 0;
+    const totalPaid = payments.reduce((sum, p) => sum + (parseFloat((p.amount || '').toString().replace(/,/g, '')) || 0), 0);
     const pending = price - totalPaid;
     setPendingBalance(pending > 0 ? pending : 0);
   }, [salePrice, payments]);
@@ -54,7 +62,7 @@ export default function SellVehicleForm({ car, accounts }) {
             required 
             step="0.01" 
             value={salePrice}
-            onChange={(e) => setSalePrice(e.target.value)}
+            onChange={(e) => setSalePrice(handleAmountFormat(e.target.value))}
             className="w-full p-1.5 rounded border border-emerald-200 bg-white text-xs font-bold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all" 
           />
         </div>
@@ -136,7 +144,7 @@ export default function SellVehicleForm({ car, accounts }) {
                 placeholder="Amt" 
                 step="0.01" 
                 value={p.amount}
-                onChange={(e) => updatePayment(p.id, 'amount', e.target.value)}
+                onChange={(e) => updatePayment(p.id, 'amount', handleAmountFormat(e.target.value))}
                 className="w-full p-1.5 rounded border border-slate-200 bg-white text-xs font-semibold outline-none focus:border-emerald-500" 
               />
             </div>

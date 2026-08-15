@@ -1,7 +1,9 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { syncVehicleState } from './syncVehicle';
 import { revalidatePath } from 'next/cache';
+import { checkSufficientBalance } from '@/lib/balanceCheck';
 import { getSession } from '@/lib/session';
 
 function processExpense(exp) {
@@ -92,7 +94,7 @@ export async function getRecentExpenses(dateString = null) {
       
       let expType = 'OFFICE_EXPENSE';
       if (tx.type === 'CREDIT') expType = 'INCOME';
-      else if (tx.category === 'VEHICLE_PURCHASE') expType = 'CAR_EXPENSE';
+      else if (tx.category === 'VEHICLE_PURCHASE' || tx.category === 'GENERAL') expType = 'CAR_EXPENSE';
       else if (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') expType = 'ADVANCE';
 
       return {
@@ -268,6 +270,9 @@ export async function addExpense(formData) {
     const status = isStaff ? 'PENDING' : 'APPROVED';
 
     await prisma.$transaction(async (tx) => {
+      if (paymentSourceId && paymentSource !== 'PENDING') {
+        await checkSufficientBalance(tx, paymentSourceId, amount);
+      }
       // 1. Create the Expense Record
       const expense = await tx.expense.create({
         data: {
@@ -332,9 +337,13 @@ export async function addExpense(formData) {
           });
         }
       }
-    }, { maxWait: 15000, timeout: 30000 });
+    }, { maxWait: 15000, timeout: 30000 }, { maxWait: 15000, timeout: 30000 });
 
     revalidatePath('/expenses');
+    revalidatePath('/history');
+    revalidatePath('/');
+    revalidatePath('/profit');
+    revalidatePath('/dashboard');
     revalidatePath('/inventory');
     revalidatePath('/rojmel');
     return { success: true };
@@ -427,9 +436,17 @@ export async function approveExpense(formData) {
           }
         });
       }
-    });
+
+      if (expense.vehicleId) {
+        await syncVehicleState(tx, expense.vehicleId);
+      }
+    }, { maxWait: 15000, timeout: 30000 });
 
     revalidatePath('/expenses');
+    revalidatePath('/history');
+    revalidatePath('/');
+    revalidatePath('/profit');
+    revalidatePath('/dashboard');
     revalidatePath('/rojmel');
     revalidatePath('/inventory');
     return { success: true };
@@ -446,12 +463,21 @@ export async function rejectExpense(formData) {
     
     const expenseId = formData.get('expenseId');
     
-    await prisma.expense.update({
-      where: { id: expenseId },
-      data: { status: 'REJECTED' }
-    });
+    await prisma.$transaction(async (tx) => {
+      const exp = await tx.expense.update({
+        where: { id: expenseId },
+        data: { status: 'REJECTED' }
+      });
+      if (exp.vehicleId) {
+        await syncVehicleState(tx, exp.vehicleId);
+      }
+    }, { maxWait: 15000, timeout: 30000 });
 
     revalidatePath('/expenses');
+    revalidatePath('/history');
+    revalidatePath('/');
+    revalidatePath('/profit');
+    revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {
     console.error('Failed to reject expense:', error);
@@ -510,9 +536,13 @@ export async function addTransfer(formData) {
           description: `Transfer In: ${description}`
         }
       });
-    });
+    }, { maxWait: 15000, timeout: 30000 });
 
     revalidatePath('/expenses');
+    revalidatePath('/history');
+    revalidatePath('/');
+    revalidatePath('/profit');
+    revalidatePath('/dashboard');
     revalidatePath('/accounts');
     revalidatePath('/rojmel');
     return { success: true };
@@ -618,9 +648,13 @@ export async function deleteExpense(expenseId, isRawTx = false) {
           where: { id: expenseId }
         });
       }
-    });
+    }, { maxWait: 15000, timeout: 30000 });
 
     revalidatePath('/expenses');
+    revalidatePath('/history');
+    revalidatePath('/');
+    revalidatePath('/profit');
+    revalidatePath('/dashboard');
     revalidatePath('/rojmel');
     revalidatePath('/inventory');
     return { success: true };
@@ -644,7 +678,7 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
             await tx.transaction.update({
               where: { id: expenseId },
               data: {
-                amount: Math.round(parseFloat(data.amount) * 100) / 100,
+                amount: Math.round(parseFloat(String(data.amount || '0').replace(/,/g, '')) * 100) / 100,
                 date: new Date(data.date),
                 description: `Transfer Out: ${data.description.replace(/^Transfer Out:\s*/, '')}`
               }
@@ -664,7 +698,7 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
               await tx.transaction.update({
                 where: { id: matchingCredit.id },
                 data: {
-                  amount: Math.round(parseFloat(data.amount) * 100) / 100,
+                  amount: Math.round(parseFloat(String(data.amount || '0').replace(/,/g, '')) * 100) / 100,
                   date: new Date(data.date),
                   description: `Transfer In: ${data.description.replace(/^Transfer Out:\s*/, '').replace(/^Transfer In:\s*/, '')}`
                 }
@@ -673,7 +707,7 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
           } else {
             // Update standard raw transaction (e.g. VEHICLE_PURCHASE)
             const updateData = {
-              amount: Math.round(parseFloat(data.amount) * 100) / 100,
+              amount: Math.round(parseFloat(String(data.amount || '0').replace(/,/g, '')) * 100) / 100,
               date: new Date(data.date),
               description: data.description
             };
@@ -685,16 +719,20 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
               }
             }
             await tx.transaction.update({
-              where: { id: expenseId },
-              data: updateData
-            });
+                where: { id: expenseId },
+                data: updateData
+              });
+              
+              if (txToUpdate.referenceId) {
+                await syncVehicleState(tx, txToUpdate.referenceId);
+              }
           }
         }
       } else {
         // Standard expense update
         const expToUpdate = await tx.expense.findUnique({ where: { id: expenseId }});
         const updateData = {
-          amount: Math.round(parseFloat(data.amount) * 100) / 100,
+          amount: Math.round(parseFloat(String(data.amount || '0').replace(/,/g, '')) * 100) / 100,
           date: new Date(data.date),
           description: data.description
         };
@@ -712,10 +750,14 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
           data: updateData
         });
         
+        if (expToUpdate.vehicleId) {
+          await syncVehicleState(tx, expToUpdate.vehicleId);
+        }
+        
         const txs = await tx.transaction.findMany({ where: { referenceId: expenseId } });
         if (txs.length === 1) {
           const txUpdateData = {
-            amount: Math.round(parseFloat(data.amount) * 100) / 100,
+            amount: Math.round(parseFloat(String(data.amount || '0').replace(/,/g, '')) * 100) / 100,
             date: new Date(data.date),
             description: `Auto-Entry: ${data.description}`
           };
@@ -736,9 +778,13 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
           }
         }
       }
-    });
+    }, { maxWait: 15000, timeout: 30000 });
 
     revalidatePath('/expenses');
+    revalidatePath('/history');
+    revalidatePath('/');
+    revalidatePath('/profit');
+    revalidatePath('/dashboard');
     revalidatePath('/rojmel');
     revalidatePath('/inventory');
     return { success: true };

@@ -1,19 +1,30 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { X, Calendar, Wrench, Handshake, IndianRupee, FileText, AlertCircle } from 'lucide-react';
-import { payVehiclePendingBalance, payPartnerPendingInvestment } from '@/actions/inventory';
+import { X, Calendar, Wrench, Handshake, IndianRupee, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { payVehiclePendingBalance, payPartnerPendingInvestment, payPartnerProfit } from '@/actions/inventory';
 
 export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [] }) {
   const [isPaying, setIsPaying] = useState(false);
   const [payingPartnerId, setPayingPartnerId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [amount, setAmount] = useState('');
+  const handleAmountFormat = (val) => {
+    const rawValue = val.replace(/[^0-9.]/g, '');
+    if (!rawValue) return '';
+    const parts = rawValue.split('.');
+    parts[0] = Number(parts[0]).toLocaleString('en-IN');
+    return parts.join('.');
+  };
+
   const [sourceAccountId, setSourceAccountId] = useState('');
   const [partnerAmount, setPartnerAmount] = useState('');
   const [partnerSourceAccountId, setPartnerSourceAccountId] = useState('');
+  const [payingProfitId, setPayingProfitId] = useState(null);
+  const [profitSourceAccountId, setProfitSourceAccountId] = useState('');
   const [error, setError] = useState(null);
   const [partnerError, setPartnerError] = useState(null);
+  const [profitError, setProfitError] = useState(null);
   const isSubmittingRef = useRef(false);
 
   if (!isOpen || !car) return null;
@@ -68,7 +79,35 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
         setPayingPartnerId(null);
         setPartnerAmount('');
         setPartnerSourceAccountId('');
-        onClose(); // Close modal to refresh
+        onClose();
+      }
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePayPartnerProfit = async (e, partnershipId, amount) => {
+    e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
+    setIsSubmitting(true);
+    setProfitError(null);
+    
+    const formData = new FormData();
+    formData.append('partnershipId', partnershipId);
+    formData.append('amount', amount);
+    formData.append('sourceAccountId', profitSourceAccountId);
+
+    try {
+      const result = await payPartnerProfit(formData);
+      if (result && !result.success) {
+        setProfitError(result.error);
+      } else {
+        setPayingProfitId(null);
+        setProfitSourceAccountId('');
+        onClose();
       }
     } finally {
       isSubmittingRef.current = false;
@@ -115,14 +154,24 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
           {/* Sale Information (If Sold) */}
           {car.status === 'SOLD' && (
             <div className="bg-indigo-900 rounded-xl border border-indigo-800 shadow-lg overflow-hidden">
-              <div className="p-4 border-b border-indigo-800 flex items-center gap-3">
-                <div className="p-2 bg-indigo-800 text-indigo-300 rounded-lg">
-                  <IndianRupee size={20} />
+              <div className="p-4 border-b border-indigo-800 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-800 text-indigo-300 rounded-lg">
+                    <IndianRupee size={20} />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider">Vehicle Sold For</div>
+                    <div className="text-2xl font-black text-white">₹{Number(car.salePrice).toLocaleString('en-IN')}</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider">Vehicle Sold For</div>
-                  <div className="text-2xl font-black text-white">₹{Number(car.salePrice).toLocaleString('en-IN')}</div>
-                </div>
+                
+                {(car.customerName || car.customerMobile) && (
+                  <div className="text-right">
+                    <div className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider">Sold To</div>
+                    {car.customerName && <div className="text-sm font-bold text-white capitalize">{car.customerName}</div>}
+                    {car.customerMobile && <div className="text-xs text-indigo-200">{car.customerMobile}</div>}
+                  </div>
+                )}
               </div>
               
               <div className="bg-indigo-950 p-4 border-b border-indigo-800/50 grid grid-cols-2 gap-4">
@@ -159,16 +208,59 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                     <div className="flex flex-col gap-2">
                       {car.partnerships.map((p, i) => {
                         const partnerProfit = Math.round((Number(car.profit || 0) * (Number(p.profitSharePercentage) / 100)) * 100) / 100;
+                        const isPaid = car.profitPayouts?.some(t => t.description.includes(p.partnerAccount?.name));
+                        const isPayingThis = payingProfitId === p.id;
+                        
                         return (
-                          <div key={i} className="flex justify-between items-center text-xs bg-indigo-900/50 p-2 rounded-lg border border-indigo-800/30">
-                            <div>
-                              <span className="font-bold text-indigo-200">{p.partnerAccount?.name}</span>
-                              <span className="text-indigo-400 ml-1">({p.profitSharePercentage}%)</span>
+                          <div key={i} className="flex flex-col gap-2 bg-indigo-900/50 p-2 rounded-lg border border-indigo-800/30">
+                            <div className="flex justify-between items-center text-xs">
+                              <div>
+                                <span className="font-bold text-indigo-200">{p.partnerAccount?.name}</span>
+                                <span className="text-indigo-400 ml-1">({p.profitSharePercentage}%)</span>
+                              </div>
+                              <div className="text-right flex items-center gap-2">
+                                <span className="font-bold text-purple-300">₹{partnerProfit.toLocaleString('en-IN')}</span>
+                                {isPaid ? (
+                                  <span className="text-[9px] font-bold text-emerald-400/90 bg-emerald-400/10 px-1.5 py-0.5 rounded-sm uppercase tracking-widest flex items-center gap-1">
+                                    <CheckCircle2 size={10} /> Paid
+                                  </span>
+                                ) : (
+                                  !isPayingThis && partnerProfit > 0 && (
+                                    <button 
+                                      onClick={() => setPayingProfitId(p.id)}
+                                      className="text-[9px] font-bold text-white bg-emerald-500/80 hover:bg-emerald-500 px-2 py-1 rounded-sm uppercase tracking-widest transition-colors"
+                                    >
+                                      Pay Profit
+                                    </button>
+                                  )
+                                )}
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <span className="font-bold text-purple-300">₹{partnerProfit.toLocaleString('en-IN')}</span>
-                              <div className="text-[9px] font-bold text-emerald-400/80 mt-0.5 uppercase tracking-widest">Credited to Ledger</div>
-                            </div>
+                            
+                            {isPayingThis && !isPaid && (
+                              <form onSubmit={(e) => handlePayPartnerProfit(e, p.id, partnerProfit)} className="mt-1 pt-2 border-t border-indigo-800/50 flex flex-col gap-2">
+                                {profitError && <div className="text-[10px] text-red-400 bg-red-400/10 p-1.5 rounded-md">{profitError}</div>}
+                                <select 
+                                  required
+                                  value={profitSourceAccountId}
+                                  onChange={(e) => setProfitSourceAccountId(e.target.value)}
+                                  className="text-xs p-1.5 rounded-md border border-indigo-700 bg-indigo-800/50 text-indigo-100 font-medium outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                >
+                                  <option value="">Pay From (Cash/Bank)...</option>
+                                  {accounts.filter(a => ['CASH', 'BANK'].includes(a.type)).map(acc => (
+                                    <option key={acc.id} value={acc.id}>{acc.name}</option>
+                                  ))}
+                                </select>
+                                <div className="flex gap-2">
+                                  <button type="submit" disabled={isSubmitting} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] uppercase tracking-wider font-bold py-1.5 rounded-md transition-colors">
+                                    {isSubmitting ? '...' : 'Confirm'}
+                                  </button>
+                                  <button type="button" onClick={() => setPayingProfitId(null)} className="flex-1 bg-indigo-800 hover:bg-indigo-700 text-indigo-200 text-[10px] uppercase tracking-wider font-bold py-1.5 rounded-md transition-colors">
+                                    Cancel
+                                  </button>
+                                </div>
+                              </form>
+                            )}
                           </div>
                         );
                       })}
@@ -242,7 +334,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                         inputMode="decimal"
                         required
                         value={amount}
-                        onChange={(e) => setAmount(e.target.value.replace(/,/g, ''))}
+                        onChange={(e) => setAmount(handleAmountFormat(e.target.value))}
                         className="text-sm p-2 rounded-lg border border-amber-300 bg-white font-bold outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500"
                         placeholder="Amount to pay"
                       />
@@ -323,7 +415,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                                 inputMode="decimal"
                                 required
                                 value={partnerAmount}
-                                onChange={(e) => setPartnerAmount(e.target.value.replace(/,/g, ''))}
+                                onChange={(e) => setPartnerAmount(handleAmountFormat(e.target.value))}
                                 className="text-sm p-2 rounded-lg border border-purple-300 bg-white font-bold outline-none focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500"
                                 placeholder="Amount Received"
                               />

@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { checkSufficientBalance } from '@/lib/balanceCheck';
 
 export async function getDailyTransactions(dateString) {
   // Parse date to start and end of day
@@ -73,7 +74,7 @@ export async function getAccounts() {
 
 export async function addTransaction(formData) {
   try {
-    const amount = parseFloat(formData.get('amount'));
+    const amount = parseFloat((formData.get('amount') || '0').replace(/,/g, ''));
     const type = formData.get('type');
     const transactionMode = formData.get('mode');
     const accountId = formData.get('accountId');

@@ -85,6 +85,8 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
     ) * 100) / 100
   );
 
+  
+  
   const isSubmittingRef = useRef(false);
 
   const handleSubmit = async (e) => {

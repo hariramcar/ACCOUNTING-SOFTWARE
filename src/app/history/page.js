@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { BookOpen, Receipt, TrendingUp } from 'lucide-react';
 import { cookies } from 'next/headers';
 import LedgerTabs from './LedgerTabs';
+import prisma from '@/lib/prisma';
 
 export default async function HistoryPage() {
   const session = await getSession();
@@ -27,6 +28,43 @@ export default async function HistoryPage() {
 
   const { expenses } = await getAllExpenses(year, month);
   const { income } = await getAllIncome(year, month);
+  
+  const accountsRaw = await prisma.account.findMany({
+    orderBy: { type: 'asc' }
+  });
+  const accounts = accountsRaw.map(acc => ({
+    ...acc,
+    openingBalance: Number(acc.openingBalance)
+  }));
+  
+  const vehiclesRaw = await prisma.vehicle.findMany({
+    where: { status: 'IN_STOCK' },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      make: true,
+      model: true,
+      registration: true,
+      status: true,
+      purchasePrice: true,
+      legacyExpenses: true,
+      expenses: { select: { amount: true } }
+    }
+  });
+
+  const vehicles = vehiclesRaw.map(v => {
+    const totalExpenses = v.expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+    const legacyExp = Number(v.legacyExpenses || 0);
+    const totalCost = Number(v.purchasePrice || 0) + totalExpenses + legacyExp;
+    return {
+      id: v.id,
+      make: v.make,
+      model: v.model,
+      registration: v.registration,
+      status: v.status,
+      totalCost
+    };
+  });
 
   // Calculate totals (exclude internal transfers, Market Place, and Staff Advances from totals)
   const totalExpenses = expenses?.reduce((sum, exp) => {
@@ -56,6 +94,8 @@ export default async function HistoryPage() {
         expenses={expenses} 
         totalIncome={totalIncome}
         totalExpenses={totalExpenses}
+        accounts={accounts}
+        vehicles={vehicles}
       />
     </div>
   );

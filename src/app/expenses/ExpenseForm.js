@@ -45,13 +45,21 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
 
   // Income State (Mirrors Sell Vehicle)
   const [amount, setAmount] = useState('');
+  const handleAmountFormat = (val) => {
+    const rawValue = val.replace(/[^0-9.]/g, '');
+    if (!rawValue) return '';
+    const parts = rawValue.split('.');
+    parts[0] = Number(parts[0]).toLocaleString('en-IN');
+    return parts.join('.');
+  };
+
   const [payments, setPayments] = useState([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
   const [pendingBalance, setPendingBalance] = useState(0);
 
   useEffect(() => {
     if (txType === 'INCOME') {
-      const total = parseFloat(amount) || 0;
-      const totalPaid = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      const total = parseFloat((amount || '').toString().replace(/,/g, '')) || 0;
+      const totalPaid = payments.reduce((sum, p) => sum + (parseFloat((p.amount || '').toString().replace(/,/g, '')) || 0), 0);
       const pending = Math.round((total - totalPaid) * 100) / 100;
       setPendingBalance(pending);
     }
@@ -234,7 +242,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                     required
                     placeholder="0"
                     value={amount ?? ''}
-                    onChange={(e) => setAmount(e.target.value.replace(/,/g, ''))}
+                    onChange={(e) => setAmount(handleAmountFormat(e.target.value))}
                     className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-bold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm"
                   />
                 </div>
@@ -352,7 +360,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                     required
                     placeholder="0"
                     value={amount ?? ''}
-                    onChange={(e) => setAmount(e.target.value.replace(/,/g, ''))}
+                    onChange={(e) => setAmount(handleAmountFormat(e.target.value))}
                     className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-semibold"
                   />
                 </div>

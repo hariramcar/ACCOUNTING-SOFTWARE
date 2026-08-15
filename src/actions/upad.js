@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { checkSufficientBalance } from '@/lib/balanceCheck';
 import { getSession } from '@/lib/session';
 
 export async function giveAdvance(formData) {
@@ -21,6 +22,7 @@ export async function giveAdvance(formData) {
     if (!sourceAcc) throw new Error('Source account not found');
 
     await prisma.$transaction(async (tx) => {
+      await checkSufficientBalance(tx, sourceAccountId, amount);
       // 1. DEBIT UPAD Account (They OWE us more money now, so their balance goes UP)
       await tx.transaction.create({
         data: {
@@ -76,6 +78,9 @@ export async function settleBill(formData) {
     if (!sourceAcc) throw new Error('Source account not found');
 
     await prisma.$transaction(async (tx) => {
+      if (amount > 0 && paymentSourceId && paymentSourceMode) {
+        await checkSufficientBalance(tx, paymentSourceId, amount);
+      }
       // 1. DEBIT UPAD Account (We owe them less / they owe us more)
       await tx.transaction.create({
         data: {

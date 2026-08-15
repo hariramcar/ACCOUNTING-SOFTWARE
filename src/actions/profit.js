@@ -111,6 +111,7 @@ export async function getMonthlyProfitData(year, monthIndex) {
           ...p,
           investmentAmount: Number(p.investmentAmount),
           profitSharePercentage: Number(p.profitSharePercentage),
+          paidAmount: Number(p.paidAmount || 0),
           partnerAccount: p.partnerAccount ? {
             ...p.partnerAccount,
             openingBalance: Number(p.partnerAccount.openingBalance)

@@ -230,6 +230,7 @@ export default async function ExpensesPage({ searchParams }) {
                               updateExpenseAction={updateExpense}
                               isRawTx={exp.isRawTx}
                               accounts={accounts || []}
+                              vehicles={vehicles || []}
                             />
                           </div>
                         )}
@@ -300,6 +301,7 @@ export default async function ExpensesPage({ searchParams }) {
                                   updateExpenseAction={updateExpense}
                                   isRawTx={exp.isRawTx}
                                   accounts={accounts || []}
+                                  vehicles={vehicles || []}
                                 />
                               </div>
                             )}

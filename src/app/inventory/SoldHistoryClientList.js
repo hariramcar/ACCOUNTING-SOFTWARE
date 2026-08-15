@@ -30,6 +30,7 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
             <div className="border-t border-slate-100 pt-3 mt-1 flex flex-col gap-2">
               <div className="flex justify-between items-center text-[11px] font-medium text-slate-500 uppercase tracking-wider">
                 {car.saleDate ? new Date(car.saleDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'}
+                {car.customerName && <div className="text-slate-400 mt-0.5 lowercase capitalize-first">{car.customerName} {car.customerMobile && `- ${car.customerMobile}`}</div>}
                 <span className="font-bold text-slate-700">Sold: ₹{car.salePrice.toLocaleString('en-IN')}</span>
               </div>
               
@@ -105,6 +106,8 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
                   <div className="font-bold text-slate-900 mb-1">₹{car.salePrice.toLocaleString('en-IN')}</div>
                   <div className="text-[11px] text-slate-500 uppercase tracking-wider">
                     {car.saleDate ? new Date(car.saleDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                    {car.customerName && <div className="text-slate-400 mt-1 capitalize">{car.customerName}</div>}
+                    {car.customerMobile && <div className="text-slate-400">{car.customerMobile}</div>}
                   </div>
                 </td>
                 <td className="py-4 px-6 align-top text-right">
