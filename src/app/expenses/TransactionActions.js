@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
 
-export default function TransactionActions({ expense, deleteExpenseAction, updateExpenseAction, isRawTx, hideDelete = false }) {
+export default function TransactionActions({ expense, deleteExpenseAction, updateExpenseAction, isRawTx, hideDelete = false, accounts = [] }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   
@@ -19,7 +19,8 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
   const [editData, setEditData] = useState({
     description: expense.description,
     amount: expense.amount,
-    date: getLocalDateString(expense.date)
+    date: getLocalDateString(expense.date),
+    accountId: expense.accountId || ''
   });
 
   const isSubmittingRef = useRef(false);
@@ -128,6 +129,23 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
                   />
                 </div>
               </div>
+              
+              {editData.accountId && accounts.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Payment Source</label>
+                  <select
+                    value={editData.accountId}
+                    onChange={e => setEditData({...editData, accountId: e.target.value})}
+                    required
+                    className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium"
+                  >
+                    <option value="">Select Account</option>
+                    {accounts.filter(a => a.type === 'CASH' || a.type === 'BANK').map(acc => (
+                      <option key={acc.id} value={acc.id}>{acc.name} ({acc.type})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <button type="submit" disabled={isDeleting} className="mt-4 w-full p-3 rounded-lg font-bold border-none cursor-pointer text-white text-sm transition-all shadow-sm flex items-center justify-center gap-2 focus:ring-4 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500/20 disabled:opacity-50">
                 {isDeleting ? 'Saving...' : 'Save Changes'}

@@ -60,6 +60,7 @@ export async function getRecentExpenses(dateString = null) {
             { description: { startsWith: 'Auto-Entry: Partnership Investment' } },
             { description: { startsWith: 'Auto-Entry: Profit Share' } },
             { description: { startsWith: 'Auto-Entry: Agent Car Payment Settled' } },
+            { description: { startsWith: 'Auto-Entry: Paid Pending Investment Share' } },
             { description: { startsWith: 'Income Received:' } },
             { description: { startsWith: 'Pending Income Baki:' } },
             { category: 'EXPENSE' } // Expenses are pulled from the Expense table below
@@ -105,6 +106,7 @@ export async function getRecentExpenses(dateString = null) {
         transferDetails: (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') ? tx.referenceId : null,
         paymentSource,
         recipient: tx.account ? tx.account.name : null,
+        accountId: tx.accountId,
         isRawTx: true,
         isTransfer: tx.category === 'INTERNAL_TRANSFER'
       };
@@ -147,6 +149,7 @@ export async function getRecentExpenses(dateString = null) {
         expenseType: exp.expenseType,
         status: exp.status,
         paymentSource,
+        accountId: exp.requestedAccountId,
         vehicle: exp.vehicle ? {
           make: exp.vehicle.make,
           model: exp.vehicle.model,
@@ -669,36 +672,60 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
             }
           } else {
             // Update standard raw transaction (e.g. VEHICLE_PURCHASE)
+            const updateData = {
+              amount: Math.round(parseFloat(data.amount) * 100) / 100,
+              date: new Date(data.date),
+              description: data.description
+            };
+            if (data.accountId && data.accountId !== txToUpdate.accountId) {
+              const newAcc = await tx.account.findUnique({ where: { id: data.accountId }});
+              if (newAcc) {
+                updateData.accountId = data.accountId;
+                updateData.transactionMode = newAcc.type === 'BANK' ? 'BANK' : 'CASH';
+              }
+            }
             await tx.transaction.update({
               where: { id: expenseId },
-              data: {
-                amount: Math.round(parseFloat(data.amount) * 100) / 100,
-                date: new Date(data.date),
-                description: data.description
-              }
+              data: updateData
             });
           }
         }
       } else {
         // Standard expense update
+        const expToUpdate = await tx.expense.findUnique({ where: { id: expenseId }});
+        const updateData = {
+          amount: Math.round(parseFloat(data.amount) * 100) / 100,
+          date: new Date(data.date),
+          description: data.description
+        };
+        
+        if (data.accountId && data.accountId !== expToUpdate.requestedAccountId) {
+          const newAcc = await tx.account.findUnique({ where: { id: data.accountId }});
+          if (newAcc) {
+            updateData.requestedAccountId = data.accountId;
+            updateData.requestedMode = newAcc.type === 'BANK' ? 'BANK' : 'CASH';
+          }
+        }
+        
         await tx.expense.update({
           where: { id: expenseId },
-          data: {
-            amount: Math.round(parseFloat(data.amount) * 100) / 100,
-            date: new Date(data.date),
-            description: data.description
-          }
+          data: updateData
         });
         
         const txs = await tx.transaction.findMany({ where: { referenceId: expenseId } });
         if (txs.length === 1) {
+          const txUpdateData = {
+            amount: Math.round(parseFloat(data.amount) * 100) / 100,
+            date: new Date(data.date),
+            description: `Auto-Entry: ${data.description}`
+          };
+          if (updateData.requestedAccountId) {
+            txUpdateData.accountId = updateData.requestedAccountId;
+            txUpdateData.transactionMode = updateData.requestedMode;
+          }
           await tx.transaction.update({
             where: { id: txs[0].id },
-            data: {
-              amount: Math.round(parseFloat(data.amount) * 100) / 100,
-              date: new Date(data.date),
-              description: `Auto-Entry: ${data.description}`
-            }
+            data: txUpdateData
           });
         } else if (txs.length > 1) {
           for (const t of txs) {

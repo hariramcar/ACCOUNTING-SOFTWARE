@@ -229,6 +229,7 @@ export default async function ExpensesPage({ searchParams }) {
                               deleteExpenseAction={deleteExpense}
                               updateExpenseAction={updateExpense}
                               isRawTx={exp.isRawTx}
+                              accounts={accounts || []}
                             />
                           </div>
                         )}
@@ -298,6 +299,7 @@ export default async function ExpensesPage({ searchParams }) {
                                   deleteExpenseAction={deleteExpense}
                                   updateExpenseAction={updateExpense}
                                   isRawTx={exp.isRawTx}
+                                  accounts={accounts || []}
                                 />
                               </div>
                             )}

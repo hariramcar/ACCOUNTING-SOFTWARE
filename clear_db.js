@@ -20,8 +20,11 @@ async function clearData() {
   // 3. Vehicles might have foreign keys to accounts
   await pool.query('DELETE FROM "Vehicle"');
   
-  // 4. Finally delete all accounts
+  // 4. Delete all accounts
   await pool.query('DELETE FROM "Account"');
+
+  // 5. Delete all users except admin@hariramcars.com
+  await pool.query('DELETE FROM "User" WHERE username != $1', ['admin@hariramcars.com']);
 
   console.log('✅ All data cleared successfully! The system is now completely fresh.');
   console.log('✅ Admin users were preserved so you can still log in.');
