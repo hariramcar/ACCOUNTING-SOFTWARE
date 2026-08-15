@@ -60,6 +60,8 @@ export async function getRecentExpenses(dateString = null) {
             { description: { startsWith: 'Auto-Entry: Partnership Investment' } },
             { description: { startsWith: 'Auto-Entry: Profit Share' } },
             { description: { startsWith: 'Auto-Entry: Agent Car Payment Settled' } },
+            { description: { startsWith: 'Income Received:' } },
+            { description: { startsWith: 'Pending Income Baki:' } },
             { category: 'EXPENSE' } // Expenses are pulled from the Expense table below
           ],
           ...(dateString ? { date: dateFilter } : {})
@@ -113,6 +115,21 @@ export async function getRecentExpenses(dateString = null) {
 
       const paymentAccount = allAccounts.find(a => a.id === exp.requestedAccountId);
       let paymentSource = exp.requestedMode || 'PENDING';
+      
+      if (exp.expenseType === 'INCOME' && exp.requestedMode) {
+        try {
+          const parsed = JSON.parse(exp.requestedMode);
+          if (parsed.payments && parsed.payments.length === 1) {
+            paymentSource = parsed.payments[0].mode === 'CASH' ? 'Cash' : 'Bank';
+          } else if (parsed.payments && parsed.payments.length > 1) {
+            paymentSource = 'Split Payment';
+          } else {
+            paymentSource = 'Pending';
+          }
+        } catch (e) {
+          // If it's not valid JSON, leave it as is
+        }
+      }
       
       if (paymentAccount) {
         if (exp.requestedMode === 'UGHRANI') {
@@ -566,7 +583,7 @@ export async function deleteExpense(expenseId, isRawTx = false) {
                   }
                   
                   // Also, if there's a matching pass-through DEBIT (Paid to Seller from Partner Capital), delete it too
-                  if (txToDelete.description.includes('Capital Received from Partner')) {
+                  if (txToDelete.description.includes('Capital Received from Partner') || txToDelete.description.includes('Received Pending Capital from')) {
                      await tx.transaction.deleteMany({
                        where: {
                          referenceId: vehicle.id,

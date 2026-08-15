@@ -598,6 +598,28 @@ export async function payPartnerPendingInvestment(formData) {
           description: `Auto-Entry: Received Pending Capital from ${partnership.partnerAccount.name} for ${partnership.vehicle.make} ${partnership.vehicle.model}`
         }
       });
+
+      // 3. We pass this money directly to the seller, so we create a matching DEBIT
+      await tx.transaction.create({
+        data: {
+          date: new Date(),
+          transactionMode: targetAcc.type === 'BANK' ? 'BANK' : 'CASH',
+          type: 'DEBIT', // Money OUT to seller
+          amount: amount,
+          accountId: targetAccountId,
+          category: 'VEHICLE_PURCHASE',
+          referenceId: partnership.vehicleId,
+          description: `Auto-Entry: Paid to Seller (from Partner Capital) for ${partnership.vehicle.make} ${partnership.vehicle.model}`
+        }
+      });
+
+      // 4. And since we paid the seller, we must reduce the pending balance on the car!
+      await tx.vehicle.update({
+        where: { id: partnership.vehicleId },
+        data: {
+          purchasePendingBalance: Math.max(0, Number(partnership.vehicle.purchasePendingBalance) - amount)
+        }
+      });
     });
 
     revalidatePath('/inventory');

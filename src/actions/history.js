@@ -13,6 +13,7 @@ export async function getAllExpenses(year, month) {
 
     const expensesRaw = await prisma.expense.findMany({
       where: {
+        expenseType: { not: 'INCOME' },
         date: {
           gte: startDate,
           lte: endDate
@@ -35,6 +36,21 @@ export async function getAllExpenses(year, month) {
       const paymentAccount = allAccounts.find(a => a.id === exp.requestedAccountId);
       let paymentSource = exp.requestedMode || 'PENDING';
       let isStaffAdvance = false;
+
+      if (exp.expenseType === 'INCOME' && exp.requestedMode) {
+        try {
+          const parsed = JSON.parse(exp.requestedMode);
+          if (parsed.payments && parsed.payments.length === 1) {
+            paymentSource = parsed.payments[0].mode === 'CASH' ? 'Cash' : 'Bank';
+          } else if (parsed.payments && parsed.payments.length > 1) {
+            paymentSource = 'Split Payment';
+          } else {
+            paymentSource = 'Pending';
+          }
+        } catch (e) {
+          // If it's not valid JSON, leave it as is
+        }
+      }
 
       if (paymentAccount) {
         if (exp.requestedMode === 'UGHRANI') {
