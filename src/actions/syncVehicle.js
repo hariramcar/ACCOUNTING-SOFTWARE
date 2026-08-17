@@ -46,32 +46,38 @@ export async function syncVehicleState(tx, vehicleId) {
 
   for (const t of txs) {
     if (t.category === 'VEHICLE_PURCHASE') {
-      if (t.type === 'DEBIT' && t.description.startsWith('Auto-Entry: Purchased')) {
-        purchasePrice += Number(t.amount);
-      } else if (t.type === 'CREDIT' && t.description.startsWith('Auto-Entry: Pending Udhari')) {
+      if (t.transactionMode === 'PENDING' && t.type === 'CREDIT') {
         purchasePrice += Number(t.amount);
         purchasePendingBalance += Number(t.amount);
-      } else if (t.type === 'DEBIT' && t.description.startsWith('Auto-Entry: Paid Pending Udhari')) {
+      } else if (t.type === 'CREDIT' && t.description.includes('Pending Udhari')) {
+        purchasePrice += Number(t.amount);
+        purchasePendingBalance += Number(t.amount);
+      } else if (t.type === 'DEBIT' && (t.description.includes('Paid Pending Udhari') || t.description.includes('from Partner Capital'))) {
         purchasePendingBalance -= Number(t.amount);
+      } else if (t.type === 'DEBIT') {
+        purchasePrice += Number(t.amount);
       }
     } else if (t.category === 'VEHICLE_SALE') {
-      if (t.type === 'CREDIT' && t.description.startsWith('Auto-Entry: Sold') && !t.description.includes('Payment')) {
-        salePrice += Number(t.amount);
-      } else if (t.type === 'CREDIT' && t.description.startsWith('Auto-Entry: Sold') && t.description.includes('Payment')) {
-        salePrice += Number(t.amount);
-      } else if (t.type === 'DEBIT' && (t.description.startsWith('Auto-Entry: Pending Receivable') || t.description.startsWith('Auto-Entry: Advance Received'))) {
-        salePrice += Number(t.amount);
-        salePendingBalance += Number(t.amount); // If they owe us, the balance is positive
-      } else if (t.type === 'CREDIT' && t.description.startsWith('Auto-Entry: Received Pending Payment')) {
+      if (t.transactionMode === 'PENDING') {
+        if (t.type === 'DEBIT') {
+          salePrice += Number(t.amount);
+          salePendingBalance += Number(t.amount);
+        } else if (t.type === 'CREDIT') {
+          salePrice -= Number(t.amount);
+          salePendingBalance -= Number(t.amount);
+        }
+      } else if (t.type === 'CREDIT' && t.description.includes('Received Pending Payment')) {
         salePendingBalance -= Number(t.amount);
+      } else if (t.type === 'CREDIT' && t.description.includes('Advance Received')) {
+        salePrice += Number(t.amount);
+      } else if (t.type === 'CREDIT') {
+        salePrice += Number(t.amount);
+      } else if (t.type === 'DEBIT' && t.description.includes('Pending Receivable')) {
+        salePrice += Number(t.amount);
+        salePendingBalance += Number(t.amount);
+      } else if (t.type === 'DEBIT' && t.description.includes('Refund')) {
+        salePrice -= Number(t.amount);
       }
-    }
-  }
-
-  // Handle Partner pass-through payments (they reduce purchase pending balance)
-  for (const t of txs) {
-    if (t.category === 'GENERAL' && t.type === 'DEBIT' && t.description.startsWith('Auto-Entry: Paid to Seller (from Partner Capital)')) {
-      purchasePendingBalance -= Number(t.amount);
     }
   }
 

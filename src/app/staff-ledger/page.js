@@ -200,7 +200,7 @@ export default async function StaffLedgerPage() {
                           
                           {exp.vehicle && (
                             <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                              {exp.vehicle.make} {exp.vehicle.model}
+                              {exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration})
                             </span>
                           )}
                         </div>

@@ -1,4 +1,11 @@
 'use client';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { PlusCircle, Trash2, HandCoins, X, ChevronDown, Check } from 'lucide-react';
+import { sellVehicle } from '@/actions/inventory';
+import SubmitButton from '@/components/SubmitButton';
+import toast from 'react-hot-toast';
+
 function getLocalDateString() {
   const d = new Date();
   const year = d.getFullYear();
@@ -6,13 +13,6 @@ function getLocalDateString() {
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
-
-
-import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { PlusCircle, Trash2, HandCoins, X, ChevronDown, Check } from 'lucide-react';
-import { sellVehicle } from '@/actions/inventory';
-import SubmitButton from '@/components/SubmitButton';
 
 export default function SellVehicleModal({ inStock, accounts }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -22,15 +22,38 @@ export default function SellVehicleModal({ inStock, accounts }) {
   
   const [salePrice, setSalePrice] = useState('');
   const handleAmountFormat = (val) => {
-    const rawValue = val.replace(/[^0-9.]/g, '');
+    if (!val) return '';
+    let lowerVal = val.toString().toLowerCase();
+    let multiplier = 1;
+    if (lowerVal.endsWith('k')) {
+      multiplier = 1000;
+      lowerVal = lowerVal.slice(0, -1);
+    } else if (lowerVal.endsWith('l')) {
+      multiplier = 100000;
+      lowerVal = lowerVal.slice(0, -1);
+    }
+    const rawValue = lowerVal.replace(/[^0-9.]/g, '');
     if (!rawValue) return '';
-    const parts = rawValue.split('.');
-    parts[0] = Number(parts[0]).toLocaleString('en-IN');
-    return parts.join('.');
+    let num = parseFloat(rawValue);
+    if (isNaN(num)) return '';
+    num = num * multiplier;
+    if (multiplier > 1) {
+       const parts = num.toString().split('.');
+       parts[0] = Number(parts[0]).toLocaleString('en-IN');
+       return parts.join('.');
+    } else {
+       const parts = rawValue.split('.');
+       parts[0] = Number(parts[0]).toLocaleString('en-IN');
+       return parts.join('.');
+    }
   };
 
   const [payments, setPayments] = useState([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
+  const [appliedTokenId, setAppliedTokenId] = useState('');
   const [pendingBalance, setPendingBalance] = useState(0);
+
+  // Derive the currently selected vehicle object to access its tokens
+  const selectedVehicle = inStock.find(v => v.id === selectedVehicleId);
 
   useEffect(() => {
     setMounted(true);
@@ -38,10 +61,18 @@ export default function SellVehicleModal({ inStock, accounts }) {
 
   useEffect(() => {
     const price = parseFloat((salePrice || '').toString().replace(/,/g, '')) || 0;
-    const totalPaid = payments.reduce((sum, p) => sum + (parseFloat((p.amount || '').toString().replace(/,/g, '')) || 0), 0);
-    const pending = Math.round((price - totalPaid) * 100) / 100;
+    const totalPayments = payments.reduce((sum, p) => sum + (parseFloat((p.amount || '').toString().replace(/,/g, '')) || 0), 0);
+    
+    // Add applied token amount to total paid
+    let appliedTokenAmount = 0;
+    if (appliedTokenId && selectedVehicle?.tokens) {
+      const token = selectedVehicle.tokens.find(t => t.id === appliedTokenId);
+      if (token) appliedTokenAmount = Number(token.amount);
+    }
+    
+    const pending = Math.round((price - (totalPayments + appliedTokenAmount)) * 100) / 100;
     setPendingBalance(pending);
-  }, [salePrice, payments]);
+  }, [salePrice, payments, appliedTokenId, selectedVehicle]);
 
   const addPayment = () => {
     setPayments([...payments, { id: Date.now(), mode: '', accountId: '', amount: '' }]);
@@ -57,25 +88,29 @@ export default function SellVehicleModal({ inStock, accounts }) {
     setPayments(payments.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
   
-  const handleSubmit = async (formData) => {
+  const handleAction = async (formData) => {
     if (!selectedVehicleId) {
-      alert("Please select a vehicle to sell.");
+      toast.error("Please select a vehicle to sell.");
       return;
     }
     
-    // In Next.js Server Actions, form will execute action automatically.
-    // Close modal on submit.
-    setTimeout(() => setIsOpen(false), 50);
+    const res = await sellVehicle(formData);
+    if (res?.success) {
+      toast.success("Vehicle sold successfully!");
+      setIsOpen(false);
+    } else if (res?.error) {
+      toast.error(res.error);
+    }
   };
 
   return (
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all shadow-sm border border-emerald-700/50"
+        className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 w-full px-2 py-2.5 md:px-4 bg-emerald-50 text-emerald-700 font-bold rounded-lg hover:bg-emerald-100 transition-all border border-emerald-200 shadow-sm whitespace-nowrap text-xs md:text-sm"
       >
-        <HandCoins size={18} />
-        Sell Vehicle
+        <HandCoins size={18} className="mb-0.5 md:mb-0 md:w-[18px] md:h-[18px]" />
+        <span>Sell</span>
       </button>
 
       {mounted && isOpen && createPortal(
@@ -99,7 +134,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
               </button>
             </div>
 
-            <form action={sellVehicle} onSubmit={handleSubmit} className="flex-1 overflow-y-auto min-h-0 p-6 flex flex-col gap-6 text-sm" style={{ scrollbarWidth: 'thin' }}>
+            <form action={handleAction} className="flex-1 overflow-y-auto min-h-0 p-6 flex flex-col gap-6 text-sm" style={{ scrollbarWidth: 'thin' }}>
               
               {/* Vehicle Selection & Basic Details Block */}
               <div className="bg-slate-50/50 p-4 md:p-6 rounded-2xl border border-slate-100 flex flex-col gap-5">
@@ -116,7 +151,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
                         const car = inStock?.find(c => c.id === selectedVehicleId);
                         return car ? (
                           <div className="flex flex-col gap-0.5">
-                            <span className="font-bold text-[15px]">{car.make} {car.model}</span>
+                            <span className="font-bold text-[15px]">{car.make} {car.model} ({car.registration})</span>
                             <span className="text-xs text-slate-500 font-medium">Cost: ₹{car.totalCost.toLocaleString('en-IN')} {car.registration ? `• ${car.registration}` : ''}</span>
                           </div>
                         ) : <span className="text-slate-400 font-medium text-[15px]">-- Choose a Vehicle --</span>;
@@ -143,7 +178,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
                             className={`p-3 rounded-lg cursor-pointer flex flex-col gap-1.5 transition-colors ${selectedVehicleId === car.id ? 'bg-emerald-50 border border-emerald-100' : 'hover:bg-slate-50 border border-transparent'}`}
                           >
                             <div className="flex justify-between items-start gap-2">
-                              <span className={`font-bold text-sm ${selectedVehicleId === car.id ? 'text-emerald-900' : 'text-slate-900'}`}>{car.make} {car.model}</span>
+                              <span className={`font-bold text-sm ${selectedVehicleId === car.id ? 'text-emerald-900' : 'text-slate-900'}`}>{car.make} {car.model} ({car.registration})</span>
                               <span className="text-xs font-black text-emerald-600 shrink-0">₹{car.totalCost.toLocaleString('en-IN')}</span>
                             </div>
                             {car.registration && (
@@ -194,6 +229,28 @@ export default function SellVehicleModal({ inStock, accounts }) {
                       <input type="text" name="customerMobile" placeholder="Enter Mobile Number" maxLength={10} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
                     </div>
                   </div>
+
+                {selectedVehicle && selectedVehicle.tokens && selectedVehicle.tokens.filter(t => t.status === 'ACTIVE').length > 0 && (
+                  <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-slate-200">
+                    <label className="text-[11px] uppercase font-bold text-blue-600 tracking-wider">Apply Booking Token (Optional)</label>
+                    <div className="relative">
+                      <select 
+                        name="appliedTokenId"
+                        value={appliedTokenId}
+                        onChange={(e) => setAppliedTokenId(e.target.value)}
+                        className="w-full p-3.5 rounded-xl border border-blue-200 bg-blue-50/50 shadow-inner text-sm font-bold text-blue-900 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 transition-all appearance-none"
+                      >
+                        <option value="">No Token Applied</option>
+                        {selectedVehicle.tokens.filter(t => t.status === 'ACTIVE').map(token => (
+                          <option key={token.id} value={token.id}>
+                            {token.customerName} - ₹{Number(token.amount).toLocaleString('en-IN')}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="text-[10px] text-blue-500 font-medium ml-1">Applying a token will automatically deduct its amount from the pending balance.</p>
+                  </div>
+                )}
                 </div>
               
               <div className={`p-3 rounded-lg border flex flex-col md:flex-row md:items-center justify-between gap-3 ${pendingBalance !== 0 ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
@@ -208,9 +265,9 @@ export default function SellVehicleModal({ inStock, accounts }) {
                 
                 {pendingBalance !== 0 && (
                   <div className="flex-1 w-full md:w-auto">
-                     <label className="text-[10px] uppercase font-bold text-amber-700 mb-2 block tracking-wider">Select Agent Account (For Pending Baki/Advance)</label>
-                     <select name="receivableAccountId" required className="w-full p-3 rounded-xl border border-amber-200 bg-white shadow-inner text-sm font-bold outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 text-amber-900 transition-all">
-                      <option value="">Select Account</option>
+                     <label className="text-[10px] uppercase font-bold text-amber-700 mb-2 block tracking-wider">Select Agent Account (Optional for Direct Customer)</label>
+                     <select name="receivableAccountId" className="w-full p-3 rounded-xl border border-amber-200 bg-white shadow-inner text-sm font-bold outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 text-amber-900 transition-all">
+                      <option value="">-- Direct Customer Udhari --</option>
                       {accounts?.filter(a => a.type === 'DSA_AGENT').map(acc => (
                         <option key={acc.id} value={acc.id}>{acc.name}</option>
                       ))}

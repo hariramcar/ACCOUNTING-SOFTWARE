@@ -314,7 +314,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                             <span className={`text-[13px] font-bold leading-tight line-clamp-2 ${exp.status === 'REJECTED' ? 'line-through text-slate-400' : 'text-slate-900'}`}>{exp.description}</span>
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               {exp.vehicle && (
-                                <span className="text-[10px] font-semibold text-slate-500">Vehicle: <span className="text-slate-700">{exp.vehicle.make} {exp.vehicle.model}</span></span>
+                                <span className="text-[10px] font-semibold text-slate-500">Vehicle: <span className="text-slate-700">{exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration})</span></span>
                               )}
                               {exp.recipient && (
                                 <span className="text-[10px] font-semibold text-slate-500">To: <span className="text-slate-700 capitalize">{exp.recipient}</span></span>
@@ -365,7 +365,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                               <span className="text-blue-600 text-[10px] font-bold uppercase tracking-wider">{exp.transferDetails}</span>
                             )}
                             {exp.vehicle && (
-                              <span className="text-[11px] font-medium text-slate-500 mt-0.5">Linked to: <span className="font-bold text-slate-700">{exp.vehicle.make} {exp.vehicle.model}</span></span>
+                              <span className="text-[11px] font-medium text-slate-500 mt-0.5">Linked to: <span className="font-bold text-slate-700">{exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration})</span></span>
                             )}
                           </div>
                         </div>

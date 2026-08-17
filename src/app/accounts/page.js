@@ -295,7 +295,7 @@ function PartnerAccountCard({ account, colorClass }) {
               <AccountHistoryModal key={idx} account={account} filterVehicle={car}>
                 <div className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-teal-100 shadow-sm relative overflow-hidden cursor-pointer interactive-card group">
                   <div className="flex flex-col z-10">
-                    <span className="text-[13px] font-bold text-slate-800 leading-tight group-hover:text-teal-700 transition-colors">{car.make} {car.model}</span>
+                    <span className="text-[13px] font-bold text-slate-800 leading-tight group-hover:text-teal-700 transition-colors">{car.make} {car.model} ({car.registration})</span>
                     <span className="text-[10px] text-slate-500 font-medium mt-0.5">
                       {car.registration || 'Unregistered'} 
                       <span className="text-teal-600 font-bold ml-1">({car.profitSharePercentage}%)</span>

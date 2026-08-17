@@ -1,4 +1,8 @@
 'use client';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { PlusCircle, X, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 function getLocalDateString() {
   const d = new Date();
   const year = d.getFullYear();
@@ -6,11 +10,6 @@ function getLocalDateString() {
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
-
-
-import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { PlusCircle, X, AlertCircle } from 'lucide-react';
 
 export default function AddVehicleModal({ accounts, addVehicleAction }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -36,12 +35,30 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
   const [partnerPaymentMode, setPartnerPaymentMode] = useState('');
   
   const formatIndianNumber = (val) => {
-    let numericString = val.replace(/[^0-9.]/g, '');
-    const parts = numericString.split('.');
-    if (parts.length > 2) numericString = parts[0] + '.' + parts.slice(1).join('');
-    if (!numericString) return '';
-    if (parts.length === 2) return Number(parts[0]).toLocaleString('en-IN') + '.' + parts[1];
-    return Number(numericString).toLocaleString('en-IN');
+    if (!val) return '';
+    let lowerVal = val.toString().toLowerCase();
+    let multiplier = 1;
+    if (lowerVal.endsWith('k')) {
+      multiplier = 1000;
+      lowerVal = lowerVal.slice(0, -1);
+    } else if (lowerVal.endsWith('l')) {
+      multiplier = 100000;
+      lowerVal = lowerVal.slice(0, -1);
+    }
+    const rawValue = lowerVal.replace(/[^0-9.]/g, '');
+    if (!rawValue) return '';
+    let num = parseFloat(rawValue);
+    if (isNaN(num)) return '';
+    num = num * multiplier;
+    if (multiplier > 1) {
+       const parts = num.toString().split('.');
+       parts[0] = Number(parts[0]).toLocaleString('en-IN');
+       return parts.join('.');
+    } else {
+       const parts = rawValue.split('.');
+       parts[0] = Number(parts[0]).toLocaleString('en-IN');
+       return parts.join('.');
+    }
   };
 
   const handlePriceChange = (e) => setPurchasePrice(formatIndianNumber(e.target.value));
@@ -98,6 +115,17 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    const regNum = formData.get('registration');
+    if (regNum) {
+      const regRegex = /^[A-Za-z]{2}[ -]?[0-9]{2}[ -]?[A-Za-z]{0,3}[ -]?[0-9]{4}$/;
+      if (!regRegex.test(regNum.trim())) {
+        toast.error('Invalid Registration Number format.');
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     formData.append('purchasePrice', (purchasePrice || '0').replace(/,/g, ''));
     formData.append('payment1Amount', (payment1Amount || '0').replace(/,/g, ''));
     formData.append('payment2Amount', (payment2Amount || '0').replace(/,/g, ''));
@@ -109,19 +137,19 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
 
     if (partnerId || pInv > 0 || pShare > 0) {
       if (!partnerId) {
-        setError('Please select a Partner Account in the Partnership section.');
+        toast.error('Please select a Partner Account in the Partnership section.');
         isSubmittingRef.current = false;
         setIsSubmitting(false);
         return;
       }
       if (pInv <= 0) {
-        setError('Please enter a valid Partner Investment amount.');
+        toast.error('Please enter a valid Partner Investment amount.');
         isSubmittingRef.current = false;
         setIsSubmitting(false);
         return;
       }
       if (pShare <= 0) {
-        setError('Please enter a valid Profit Share Percentage.');
+        toast.error('Please enter a valid Profit Share Percentage.');
         isSubmittingRef.current = false;
         setIsSubmitting(false);
         return;
@@ -132,8 +160,9 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
       const result = await addVehicleAction(formData);
 
       if (result && !result.success) {
-        setError(result.error || 'Failed to add vehicle');
+        toast.error(result.error || 'Failed to add vehicle');
       } else {
+        toast.success('Vehicle added successfully!');
         setIsOpen(false);
         setPurchasePrice('');
         setPayment1Amount('');
@@ -157,12 +186,12 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
 
   return (
     <>
-      <button 
+      <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-4 rounded-lg font-bold shadow-sm transition-colors text-sm"
+        className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 w-full px-2 py-2.5 md:px-4 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 transition-all shadow-md whitespace-nowrap text-xs md:text-sm"
       >
-        <PlusCircle size={18} />
-        Add New Vehicle
+        <PlusCircle size={18} className="mb-0.5 md:mb-0 md:w-[18px] md:h-[18px]" />
+        <span>Add</span>
       </button>
 
       {mounted && isOpen && createPortal(
@@ -258,7 +287,7 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                     <option value="CASH">Cash</option>
                     <option value="BANK">Bank</option>
                   </select>
-                  <select name="payment1AccountId" className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                  <select name="payment1AccountId" required={!!payment1Amount || !!payment1Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
                     <option value="">Account...</option>
                     {accounts?.filter(acc => payment1Mode === '' || acc.type === payment1Mode).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
                   </select>
@@ -284,7 +313,7 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                     <option value="CASH">Cash</option>
                     <option value="BANK">Bank</option>
                   </select>
-                  <select name="payment2AccountId" className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                  <select name="payment2AccountId" required={!!payment2Amount || !!payment2Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
                     <option value="">Account...</option>
                     {accounts?.filter(acc => payment2Mode === '' || acc.type === payment2Mode).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
                   </select>

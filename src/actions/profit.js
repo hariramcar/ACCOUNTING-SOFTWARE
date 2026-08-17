@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { getAllExpenses, getAllIncome } from './history';
+import { checkSufficientBalance } from '@/lib/balanceCheck';
 
 export async function getMonthlyProfitData(year, monthIndex) {
   try {
@@ -245,7 +246,7 @@ export async function getPendingPayables() {
 export async function payPendingBalance(formData) {
   try {
     const vehicleId = formData.get('vehicleId');
-    const amount = parseFloat(formData.get('amount'));
+    const amount = parseFloat((formData.get('amount') || '0').toString().replace(/,/g, ''));
     const mode = formData.get('mode'); // 'CASH' or 'BANK'
     const paymentAccountId = formData.get('paymentAccountId');
     const paymentType = formData.get('paymentType') || 'PAYABLE';
@@ -296,6 +297,8 @@ export async function payPendingBalance(formData) {
         if (amount > currentPending) {
           throw new Error('Payment amount cannot exceed pending balance');
         }
+
+        await checkSufficientBalance(tx, paymentAccountId, amount);
 
         // Deduct from our cash/bank (DEBIT to the payment account because we are spending money)
         await tx.transaction.create({

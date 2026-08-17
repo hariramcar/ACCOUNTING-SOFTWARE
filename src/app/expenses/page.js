@@ -174,36 +174,36 @@ export default async function ExpensesPage({ searchParams }) {
                 {/* Mobile Cards */}
                 <div className="flex flex-col gap-3 md:hidden">
                   {exps.map(exp => (
-                    <div key={exp.id} className="bg-white rounded-xl p-4 flex flex-col shadow-sm border border-slate-200 interactive-card gap-3">
+                    <div key={exp.id} className="bg-white rounded-xl p-3 flex flex-col shadow-sm border border-slate-200 interactive-card gap-2 md:hidden">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-3">
-                          <div className={`mt-0.5 p-2 rounded-lg border flex-shrink-0 ${exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' :
+                        <div className="flex items-start gap-2.5">
+                          <div className={`mt-0.5 p-1.5 rounded-lg border flex-shrink-0 ${exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' :
                             exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-500 border-blue-100' :
                               exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
                             }`}>
-                            {exp.expenseType === 'INCOME' ? <Wallet size={16} /> :
-                              exp.expenseType === 'ADVANCE' ? <Wallet size={16} /> :
-                                exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={16} /> : <Car size={16} />}
+                            {exp.expenseType === 'INCOME' ? <Wallet size={14} /> :
+                              exp.expenseType === 'ADVANCE' ? <Wallet size={14} /> :
+                                exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={14} /> : <Car size={14} />}
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-[14px] font-bold text-slate-900 leading-tight">{exp.description}</span>
+                            <span className="text-[13px] font-bold text-slate-900 leading-tight">{exp.description}</span>
                             {exp.vehicle && (
-                              <span className="text-[11px] font-medium text-slate-500 mt-0.5">
-                                Linked to: <span className="font-bold text-slate-700">{exp.vehicle.make} {exp.vehicle.model}</span>
+                              <span className="text-[10px] font-medium text-slate-500 mt-0.5">
+                                Linked to: <span className="font-bold text-slate-700">{exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration})</span>
                               </span>
                             )}
                           </div>
                         </div>
-                        <div className={`font-black text-base whitespace-nowrap ${exp.expenseType === 'INCOME' ? 'text-emerald-600' :
+                        <div className={`font-black text-[15px] whitespace-nowrap ${exp.expenseType === 'INCOME' ? 'text-emerald-600' :
                           exp.expenseType === 'OFFICE_EXPENSE' ? 'text-red-600' : 'text-indigo-600'
                           }`}>
                           {exp.expenseType === 'INCOME' ? '+' : '-'}₹{Number(exp.amount).toLocaleString('en-IN')}
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
+                      <div className="border-t border-slate-100 pt-2 flex items-center justify-between gap-2 mt-0.5">
                         {exp.status && (
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-1">
                             <div>
                               Status: <span className={
                                 exp.status === 'APPROVED' ? 'text-emerald-600' :
@@ -216,14 +216,14 @@ export default async function ExpensesPage({ searchParams }) {
                                 {exp.recipient}
                               </div>
                             )}
-                            <div className="flex items-center gap-1 text-slate-500">
-                              <Wallet size={12} />
+                            <div className="flex items-center gap-0.5 text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                              <Wallet size={10} />
                               {exp.paymentSource}
                             </div>
                           </div>
                         )}
                         {isAdmin && (
-                          <div className="flex justify-end mt-1">
+                          <div className="flex justify-end shrink-0">
                             <TransactionActions
                               expense={exp}
                               deleteExpenseAction={deleteExpense}
@@ -259,7 +259,7 @@ export default async function ExpensesPage({ searchParams }) {
                                 <span className="text-[15px] font-bold text-slate-900">{exp.description}</span>
                                 {exp.vehicle && (
                                   <span className="text-[12px] font-medium text-slate-500">
-                                    Linked to: <span className="font-bold text-slate-700">{exp.vehicle.make} {exp.vehicle.model}</span> <span className="uppercase tracking-wider">({exp.vehicle.registration || 'UNREGISTERED'})</span>
+                                    Linked to: <span className="font-bold text-slate-700">{exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration})</span>
                                   </span>
                                 )}
                               </div>

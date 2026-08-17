@@ -15,43 +15,57 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
           <div 
             key={car.id} 
             onClick={() => setSelectedCar(car)}
-            className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 cursor-pointer interactive-card"
+            className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-2 cursor-pointer interactive-card"
           >
-            <div>
-              <h4 className="m-0 mb-1 font-bold text-slate-900 flex items-center justify-between gap-2">
-                <span>{car.make} {car.model}</span>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider px-2 py-0.5 bg-slate-100 border border-slate-200 rounded-sm">{car.registration}</span>
-              </h4>
-              <div className="text-[11px] font-medium text-slate-500 mt-1">
-                Cost: ₹{car.totalCost.toLocaleString('en-IN')} (Bought: ₹{car.purchasePrice.toLocaleString('en-IN')} + Repairs: ₹{car.totalExpenses.toLocaleString('en-IN')})
+            <div className="flex justify-between items-start">
+              <div className="pr-2">
+                <h4 className="m-0 font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+                  {car.make} {car.model}
+                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded-sm">
+                    {car.registration || 'UNREG'}
+                  </span>
+                </h4>
+                <div className="text-[10px] font-medium text-slate-500 mt-1 uppercase tracking-wider">
+                  {car.saleDate ? new Date(car.saleDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'}
+                  {car.customerName && <span className="ml-1 capitalize text-slate-400">• {car.customerName}</span>}
+                </div>
+              </div>
+              
+              <div className={`shrink-0 font-black text-lg flex flex-col items-end ${car.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                <div className="flex items-center gap-0.5">
+                  {car.profit >= 0 ? '+' : '-'} ₹{Math.abs(car.profit).toLocaleString('en-IN')}
+                </div>
+                <span className="text-[8px] uppercase tracking-wider font-bold opacity-70">Net Profit</span>
               </div>
             </div>
             
-            <div className="border-t border-slate-100 pt-3 mt-1 flex flex-col gap-2">
-              <div className="flex justify-between items-center text-[11px] font-medium text-slate-500 uppercase tracking-wider">
-                {car.saleDate ? new Date(car.saleDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'}
-                {car.customerName && <div className="text-slate-400 mt-0.5 lowercase capitalize-first">{car.customerName} {car.customerMobile && `- ${car.customerMobile}`}</div>}
-                <span className="font-bold text-slate-700">Sold: ₹{car.salePrice.toLocaleString('en-IN')}</span>
+            <div className="grid grid-cols-2 gap-y-2 pt-2 border-t border-slate-100 mt-1">
+              <div className="col-span-2 bg-slate-50 rounded-lg p-1.5 border border-slate-100">
+                <div className="flex justify-between items-end mb-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-500">Sale Amount</span>
+                  <span className="font-black text-slate-900 text-sm">₹{car.salePrice.toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-[9px] font-bold text-slate-400">Total Cost: ₹{car.totalCost.toLocaleString('en-IN')}</span>
+                </div>
               </div>
-              
-              <div className={`font-black text-xl flex items-center justify-end gap-1 ${car.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {car.profit >= 0 && <CheckCircle2 size={16} />} 
-                {car.profit >= 0 ? '+' : '-'} ₹{Math.abs(car.profit).toLocaleString('en-IN')}
-              </div>
-              
-              <div className="flex flex-col gap-2 w-full mt-1">
-                {car.salePendingBalance > 0 && car.receivableAccount && (
-                  <div className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200/50 px-2 py-1.5 rounded-md">
-                    Pending Receive: ₹{car.salePendingBalance.toLocaleString('en-IN')} ({car.receivableAccount.name})
-                  </div>
-                )}
-                {car.purchasePendingBalance > 0 && (
-                  <div className="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200/50 px-2 py-1.5 rounded-md">
-                    Pending Pay: ₹{car.purchasePendingBalance.toLocaleString('en-IN')}
-                    {car.payableAccount && ` (${car.payableAccount.name})`}
-                  </div>
-                )}
-              </div>
+
+              {(car.salePendingBalance > 0 || car.purchasePendingBalance > 0) && (
+                <div className="col-span-2 flex flex-col gap-1 mt-1">
+                  {car.salePendingBalance > 0 && car.receivableAccount && (
+                    <div className="text-[10px] font-bold text-amber-700 flex items-center justify-between bg-amber-50 px-2 py-1 rounded">
+                      <span>Pending Receive</span>
+                      <span>₹{car.salePendingBalance.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                  {car.purchasePendingBalance > 0 && (
+                    <div className="text-[10px] font-bold text-red-700 flex items-center justify-between bg-red-50 px-2 py-1 rounded">
+                      <span>Pending Pay</span>
+                      <span>₹{car.purchasePendingBalance.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -59,7 +73,7 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
       </div>
 
       {/* Desktop Table Layout */}
-      <div className="hidden md:block w-full overflow-x-auto bg-white border border-slate-200 rounded-xl shadow-sm mt-4 mx-6 mb-6" style={{ width: 'calc(100% - 48px)' }}>
+      <div className="hidden md:block w-full overflow-x-auto bg-white border border-slate-200 rounded-xl shadow-sm mt-4">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50/80 border-b border-slate-200">
@@ -78,7 +92,7 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
               >
                 <td className="py-4 px-6 align-top">
                   <h4 className="m-0 mb-1 font-bold text-slate-900 flex items-center gap-2">
-                    {car.make} {car.model} 
+                    {car.make} {car.model} ({car.registration})
                     <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider px-2 py-0.5 bg-white border border-slate-200 rounded-sm">{car.registration}</span>
                   </h4>
                   <div className="flex flex-col gap-1 mt-2">

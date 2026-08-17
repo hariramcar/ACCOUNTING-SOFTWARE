@@ -33,7 +33,8 @@ export async function getInventory(year, month) {
         expenses: true,
         partnerships: { include: { partnerAccount: true } },
         receivableAccount: true,
-        payableAccount: true
+        payableAccount: true,
+        tokens: true
       }
     });
 
@@ -45,8 +46,18 @@ export async function getInventory(year, month) {
         expenses: true,
         partnerships: { include: { partnerAccount: true } },
         receivableAccount: true,
-        payableAccount: true
+        payableAccount: true,
+        tokens: true
       }
+    });
+
+    const allVehicleIds = [...new Set([...vehicles.map(v => v.id), ...rawAllCurrentStock.map(v => v.id)])];
+    const saleTransactions = await prisma.transaction.findMany({
+      where: {
+        referenceId: { in: allVehicleIds },
+        category: 'VEHICLE_SALE'
+      },
+      include: { account: true }
     });
 
     const processVehicle = (v) => {
@@ -75,7 +86,17 @@ export async function getInventory(year, month) {
         })),
         salePendingBalance: Number(v.salePendingBalance || 0),
         receivableAccount: v.receivableAccount ? { ...v.receivableAccount, openingBalance: Number(v.receivableAccount.openingBalance) } : null,
-        payableAccount: v.payableAccount ? { ...v.payableAccount, openingBalance: Number(v.payableAccount.openingBalance) } : null
+        payableAccount: v.payableAccount ? { ...v.payableAccount, openingBalance: Number(v.payableAccount.openingBalance) } : null,
+        saleTransactions: saleTransactions.filter(t => t.referenceId === v.id).map(t => ({
+          ...t,
+          amount: Number(t.amount),
+          accountName: t.account ? t.account.name : null,
+          account: t.account ? { ...t.account, openingBalance: Number(t.account.openingBalance) } : null
+        })),
+        tokens: v.tokens ? v.tokens.map(t => ({
+          ...t,
+          amount: Number(t.amount)
+        })) : []
       };
     };
 
@@ -116,6 +137,13 @@ export async function addVehicle(formData) {
     const isLegacy = formData.get('isLegacy') === 'on';
     const legacyExpenses = isLegacy ? parseFloat(formData.get('legacyExpenses') || '0') : 0;
 
+    if (registration) {
+      const regRegex = /^[A-Za-z]{2}[ -]?[0-9]{2}[ -]?[A-Za-z]{0,3}[ -]?[0-9]{4}$/;
+      if (!regRegex.test(registration.trim())) {
+        return { success: false, error: 'Invalid Registration Number format. Must use 2-digit RTO and 4-digit number. Example: GJ 01 BS 8801 or GJ 05 0001' };
+      }
+    }
+
     // Split Payments
     const p1Amount = parseFloat((formData.get('payment1Amount') || '0').replace(/,/g, ''));
     const p1Mode = formData.get('payment1Mode') || null;
@@ -152,7 +180,30 @@ export async function addVehicle(formData) {
     const partnerPaymentAccountId = formData.get('partnerPaymentAccountId') || null;
 
     const payableAccountId = formData.get('payableAccountId');
-    const pendingAmount = Math.round((purchasePrice - (p1Amount + p2Amount + partnerInvestment)) * 100) / 100;
+    
+    const totalPaidOrInvested = p1Amount + p2Amount + partnerInvestment;
+    if (totalPaidOrInvested > purchasePrice) {
+      return { success: false, error: 'Your payment amount cannot be greater than your expense amount (purchase price).' };
+    }
+    
+    const pendingAmount = Math.round((purchasePrice - totalPaidOrInvested) * 100) / 100;
+
+    // Strict validation for missing accounts
+    if (p1Amount > 0 && !p1AccountId) {
+      return { success: false, error: 'Please select an account for Payment 1.' };
+    }
+    if (p2Amount > 0 && !p2AccountId) {
+      return { success: false, error: 'Please select an account for Payment 2.' };
+    }
+    if (partnerPaidAmount > 0 && !partnerPaymentAccountId) {
+      return { success: false, error: 'Please select an account for Partner Payment Received.' };
+    }
+
+    let partnerName = 'Partner';
+    if (partnerAccountId) {
+      const pAcc = await prisma.account.findUnique({ where: { id: partnerAccountId } });
+      if (pAcc) partnerName = pAcc.name;
+    }
 
     await prisma.$transaction(async (tx) => {
       const vehicle = await tx.vehicle.create({
@@ -182,7 +233,7 @@ export async function addVehicle(formData) {
             accountId: p1AccountId,
             category: 'VEHICLE_PURCHASE',
             referenceId: vehicle.id,
-            description: `Auto-Entry: Purchased ${make} ${model} (${registration || 'Unregistered'})`
+            description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - Firm Payment 1`
           }
         });
       }
@@ -199,7 +250,7 @@ export async function addVehicle(formData) {
             accountId: p2AccountId,
             category: 'VEHICLE_PURCHASE',
             referenceId: vehicle.id,
-            description: `Auto-Entry: Purchased ${make} ${model} (Split Payment 2)`
+            description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - Firm Payment 2`
           }
         });
       }
@@ -248,7 +299,7 @@ export async function addVehicle(formData) {
               accountId: partnerAccountId,
               category: 'GENERAL',
               referenceId: vehicle.id,
-              description: `Auto-Entry: Partnership Investment for ${make} ${model} (Car Value: ₹${Number(purchasePrice).toLocaleString('en-IN')}, Partner Share: ${profitSharePercentage}%)`
+              description: `Auto-Entry: Partnership Investment from ${partnerName} for car ${make} ${model} (Car Value: ₹${Number(purchasePrice).toLocaleString('en-IN')}, Share: ${profitSharePercentage}%)`
             }
           });
         }
@@ -264,7 +315,7 @@ export async function addVehicle(formData) {
               accountId: partnerPaymentAccountId,
               category: 'GENERAL',
               referenceId: vehicle.id,
-              description: `Auto-Entry: Capital Received from Partner for ${make} ${model}`
+              description: `Income: Received from ${partnerName} for car ${make} ${model} (${registration || 'Unregistered'})`
             }
           });
 
@@ -278,7 +329,7 @@ export async function addVehicle(formData) {
               accountId: partnerPaymentAccountId,
               category: 'VEHICLE_PURCHASE',
               referenceId: vehicle.id,
-              description: `Auto-Entry: Paid to Seller (from Partner Capital) for ${make} ${model}`
+              description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - ${partnerName} Payment`
             }
           });
         }
@@ -366,7 +417,7 @@ export async function payVehiclePendingBalance(formData) {
 export async function sellVehicle(formData) {
   try {
     const vehicleId = formData.get('vehicleId');
-    const salePrice = parseFloat(formData.get('salePrice'));
+    const salePrice = parseFloat((formData.get('salePrice') || '0').toString().replace(/,/g, ''));
     const saleDate = new Date(formData.get('saleDate') || Date.now());
     const customerName = formData.get('customerName');
     const customerMobile = formData.get('customerMobile');
@@ -382,12 +433,26 @@ export async function sellVehicle(formData) {
     for (let i = 0; i < paymentModes.length; i++) {
       const mode = paymentModes[i];
       const accountId = paymentAccountIds[i];
-      const amount = parseFloat(paymentAmounts[i] || '0');
+      const amount = parseFloat((paymentAmounts[i] || '0').toString().replace(/,/g, ''));
 
       if (mode && accountId && amount > 0) {
         totalPaid += amount;
         payments.push({ mode, accountId, amount });
       }
+    }
+
+    const appliedTokenId = formData.get('appliedTokenId');
+    let appliedToken = null;
+
+    if (appliedTokenId) {
+      appliedToken = await prisma.vehicleToken.findUnique({ where: { id: appliedTokenId } });
+      if (appliedToken && appliedToken.status === 'ACTIVE') {
+        totalPaid += Number(appliedToken.amount);
+      }
+    }
+
+    if (totalPaid > salePrice) {
+      return { success: false, error: 'Your payment amount (including applied tokens) cannot be greater than your income amount.' };
     }
 
     const receivableAccountId = formData.get('receivableAccountId');
@@ -399,7 +464,12 @@ export async function sellVehicle(formData) {
         where: { id: vehicleId },
         include: {
           expenses: true,
-          partnerships: true
+          partnerships: {
+            include: {
+              partnerAccount: true
+            }
+          },
+          tokens: true
         }
       });
 
@@ -410,6 +480,21 @@ export async function sellVehicle(formData) {
       const totalCost = Number(vehicle.purchasePrice) + totalExpenses + legacyExp;
       const profit = Math.round((salePrice - totalCost) * 100) / 100;
 
+      let finalReceivableAccountId = receivableAccountId;
+      
+      // Auto-create Customer Account if direct customer udhari is chosen
+      if (!finalReceivableAccountId && pendingReceivable !== 0) {
+        const newCustomerAccount = await tx.account.create({
+          data: {
+            name: `${customerName || 'Direct Customer'} (Customer)`,
+            type: 'UGHRANI',
+            openingBalance: 0,
+            currentAdvance: 0
+          }
+        });
+        finalReceivableAccountId = newCustomerAccount.id;
+      }
+
       await tx.vehicle.update({
         where: { id: vehicleId },
         data: {
@@ -417,8 +502,10 @@ export async function sellVehicle(formData) {
           salePrice,
           saleDate,
           profit,
+          customerName,
+          customerMobile,
           salePendingBalance: pendingReceivable,
-          receivableAccountId: (receivableAccountId && pendingReceivable !== 0) ? receivableAccountId : null
+          receivableAccountId: (finalReceivableAccountId && pendingReceivable !== 0) ? finalReceivableAccountId : null
         }
       });
 
@@ -433,61 +520,46 @@ export async function sellVehicle(formData) {
             amount: p.amount,
             accountId: p.accountId,
             category: 'VEHICLE_SALE',
+            referenceId: vehicleId,
             description: `Auto-Entry: Sold ${vehicle.make} ${vehicle.model} (${vehicle.registration || 'Unregistered'}) - Payment ${i + 1}`
           }
         });
       }
 
       // Handle Pending Receivable / Advance (Customer owes us OR We owe Customer)
-      if (receivableAccountId && pendingReceivable !== 0) {
+      if (finalReceivableAccountId && pendingReceivable !== 0) {
         await tx.transaction.create({
           data: {
             date: saleDate,
             transactionMode: 'CASH', // Internal ledger entry
             type: pendingReceivable > 0 ? 'DEBIT' : 'CREDIT', // DEBIT if they owe us more, CREDIT if they paid an advance
             amount: Math.abs(pendingReceivable),
-            accountId: receivableAccountId,
+            accountId: finalReceivableAccountId,
             category: 'VEHICLE_SALE',
+            referenceId: vehicleId,
             description: `Auto-Entry: ${pendingReceivable > 0 ? 'Pending Receivable' : 'Advance Received'} from sale of ${vehicle.make} ${vehicle.model} (${vehicle.registration || 'Unregistered'})`
           }
         });
       }
 
-      // Handle Partner Payout
-      if (vehicle.partnerships && vehicle.partnerships.length > 0) {
-        for (const partnership of vehicle.partnerships) {
-          const profitShare = Math.round((profit * (Number(partnership.profitSharePercentage) / 100)) * 100) / 100;
+      // Mark Token as Applied
+      if (appliedToken && appliedToken.status === 'ACTIVE') {
+        await tx.vehicleToken.update({
+          where: { id: appliedToken.id },
+          data: { status: 'APPLIED' }
+        });
+      }
 
-          if (profitShare > 0) {
-            await tx.transaction.create({
-              data: {
-                date: saleDate,
-                transactionMode: 'CASH', // Internal ledger entry usually doesn't need mode, default to CASH
-                type: 'CREDIT', // We owe the partner this money (their balance goes UP)
-                amount: profitShare,
-                accountId: partnership.partnerAccountId,
-                category: 'GENERAL',
-                description: `Auto-Entry: Profit Share (${partnership.profitSharePercentage}%) for ${vehicle.make} ${vehicle.model}`
-              }
-            });
-          } else if (profitShare < 0) {
-            await tx.transaction.create({
-              data: {
-                date: saleDate,
-                transactionMode: 'CASH',
-                type: 'DEBIT', // They owe us this money for the loss (balance goes DOWN)
-                amount: Math.abs(profitShare),
-                accountId: partnership.partnerAccountId,
-                category: 'GENERAL',
-                description: `Auto-Entry: Loss Share (${partnership.profitSharePercentage}%) for ${vehicle.make} ${vehicle.model}`
-              }
-            });
-          }
-        }
+      // Record Profit/Loss Distribution
+
+      // (Removed as per user request: The user prefers to manually log profit payments via the Vehicle Details modal instead of auto-generating them on sale)
+      if (vehicle.partnerships && vehicle.partnerships.length > 0) {
+        // No auto-ledger entries are created here.
       }
     });
-
     revalidatePath('/inventory');
+    revalidatePath('/history');
+    revalidatePath('/dashboard');
     revalidatePath('/rojmel');
     return { success: true };
   } catch (error) {
@@ -499,16 +571,20 @@ export async function sellVehicle(formData) {
 export async function addRepairExpense(formData) {
   try {
     const vehicleId = formData.get('vehicleId');
-    const amount = parseFloat(formData.get('amount'));
+    const amount = parseFloat((formData.get('amount') || '0').toString().replace(/,/g, ''));
     const description = formData.get('description');
 
     // Auto-ledger parameters
     const accountId = formData.get('accountId');
     const mode = formData.get('mode');
 
+    if (amount > 0 && !accountId) {
+      return { success: false, error: 'Please select a Cash or Bank account for the repair expense.' };
+    }
+
     await prisma.$transaction(async (tx) => {
-      if (paymentMode && paymentSourceId && amount > 0) {
-        await checkSufficientBalance(tx, paymentSourceId, amount);
+      if (mode && accountId && amount > 0) {
+        await checkSufficientBalance(tx, accountId, amount);
       }
       const expense = await tx.expense.create({
         data: {
@@ -671,7 +747,7 @@ export async function payPartnerProfit(formData) {
           accountId: sourceAccountId,
           category: 'GENERAL',
           referenceId: partnership.vehicleId, // Link to vehicle so we can detect it
-          description: `Auto-Entry: Paid Profit Share (${partnership.profitSharePercentage}%) to ${partnership.partnerAccount.name} for ${partnership.vehicle.make} ${partnership.vehicle.model}`
+          description: `Auto-Entry: Paid Full Settlement (Capital + Profit Share) to ${partnership.partnerAccount.name} for ${partnership.vehicle.make} ${partnership.vehicle.model}`
         }
       });
     });

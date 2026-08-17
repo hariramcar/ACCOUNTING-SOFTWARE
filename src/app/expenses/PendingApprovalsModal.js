@@ -113,7 +113,7 @@ export default function PendingApprovalsModal({ pendingExpenses }) {
                       {exp.vehicle && (
                         <div className="mt-2 pt-2 border-t border-slate-200">
                           <span className="text-slate-400 uppercase tracking-wider text-[9px] font-bold block mb-0.5">Linked Vehicle</span>
-                          {exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration || 'UNREG'})
+                          {exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration})
                         </div>
                       )}
                     </div>

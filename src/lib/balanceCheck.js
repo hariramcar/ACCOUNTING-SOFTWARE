@@ -23,11 +23,12 @@ export async function checkSufficientBalance(tx, accountId, requiredAmount, excl
   let totalDebit = 0;
   
   aggregates.forEach(agg => {
-    if (agg.type === 'CREDIT') totalCredit = Number(agg._sum.amount || 0);
-    if (agg.type === 'DEBIT') totalDebit = Number(agg._sum.amount || 0);
+    if (agg.type === 'CREDIT') totalCredit = Number(agg._sum.amount ? agg._sum.amount.toString() : 0);
+    if (agg.type === 'DEBIT') totalDebit = Number(agg._sum.amount ? agg._sum.amount.toString() : 0);
   });
 
-  const currentBalance = Number(account.openingBalance || 0) + totalCredit - totalDebit;
+  const openingBalance = account.openingBalance ? Number(account.openingBalance.toString()) : 0;
+  const currentBalance = openingBalance + totalCredit - totalDebit;
   const amountToDeduct = Number(requiredAmount || 0);
 
   // 4. Validate if there's enough money

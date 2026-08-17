@@ -10,10 +10,16 @@ export async function GET() {
     await prisma.vehicle.deleteMany({});
     await prisma.account.deleteMany({});
     
-    // NOT deleting users so the admin stays logged in
-    // await prisma.user.deleteMany({});
+    // Delete all users EXCEPT the admin
+    await prisma.user.deleteMany({
+      where: {
+        username: {
+          not: 'admin@hariramcars.com'
+        }
+      }
+    });
     
-    return NextResponse.json({ success: true, message: 'All transactional data wiped.' });
+    return NextResponse.json({ success: true, message: 'All transactional data and other users wiped.' });
   } catch (error) {
     console.error('Wipe failed:', error);
     return NextResponse.json({ success: false, error: error.message });

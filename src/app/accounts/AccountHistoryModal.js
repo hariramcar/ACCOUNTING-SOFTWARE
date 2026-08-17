@@ -37,7 +37,7 @@ export default function AccountHistoryModal({ account, filterVehicle, children }
             <div className="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 m-0">
-                  {account.name} {filterVehicle ? `(${filterVehicle.make} ${filterVehicle.model})` : 'Ledger'}
+                  {account.name} {filterVehicle ? `(${filterVehicle.make} ${filterVehicle.model} - ${filterVehicle.registration})` : 'Ledger'}
                 </h2>
                 {!filterVehicle && (
                   <p className="text-sm font-medium text-slate-500 m-0 mt-1">
@@ -92,7 +92,7 @@ export default function AccountHistoryModal({ account, filterVehicle, children }
                             <FileText size={24} />
                           </div>
                           <h3 className="text-lg font-bold text-slate-700 m-0">No Transactions Found</h3>
-                          <p className="text-slate-500 font-medium text-sm max-w-sm m-0">There are no ledger entries explicitly linked to {filterVehicle.make} {filterVehicle.model}.</p>
+                          <p className="text-slate-500 font-medium text-sm max-w-sm m-0">There are no ledger entries explicitly linked to {filterVehicle.make} {filterVehicle.model} ({filterVehicle.registration}).</p>
                         </div>
                       );
                     }
@@ -136,8 +136,8 @@ export default function AccountHistoryModal({ account, filterVehicle, children }
                           <div key={g.vehicle.id} className="border border-teal-100 rounded-xl overflow-hidden shadow-sm">
                             <div className="bg-teal-50/50 px-4 py-3 border-b border-teal-100 flex justify-between items-center">
                               <div>
-                                <h4 className="m-0 text-[15px] font-bold text-slate-800">{g.vehicle.make} {g.vehicle.model}</h4>
-                                <p className="m-0 text-xs font-medium text-teal-600 mt-0.5">{g.vehicle.registration || 'Unregistered'} ({g.vehicle.profitSharePercentage}%)</p>
+                                <h4 className="m-0 text-[15px] font-bold text-slate-800">{g.vehicle.make} {g.vehicle.model} ({g.vehicle.registration})</h4>
+                                <p className="m-0 text-xs font-medium text-teal-600 mt-0.5">Share: {g.vehicle.profitSharePercentage}%</p>
                               </div>
                             </div>
                             <div className="flex flex-col">

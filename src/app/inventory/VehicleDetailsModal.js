@@ -1,10 +1,14 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { X, Calendar, Wrench, Handshake, IndianRupee, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { X, User, IndianRupee, MapPin, Wrench, Calendar, Banknote, ShieldCheck, PenSquare, Trash2, CheckCircle2, FileText, BadgeCent, Handshake, AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { payVehiclePendingBalance, payPartnerPendingInvestment, payPartnerProfit } from '@/actions/inventory';
+import { forfeitToken } from '@/actions/tokens';
 
-export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [] }) {
+export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [], onReceiveToken }) {
+  const router = useRouter();
   const [isPaying, setIsPaying] = useState(false);
   const [payingPartnerId, setPayingPartnerId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,8 +30,13 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
   const [partnerError, setPartnerError] = useState(null);
   const [profitError, setProfitError] = useState(null);
   const isSubmittingRef = useRef(false);
+  const [mounted, setMounted] = useState(false);
 
-  if (!isOpen || !car) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !car || !mounted) return null;
 
   const handlePayPending = async (e) => {
     e.preventDefault();
@@ -122,8 +131,8 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
   const partnerTotalProfit = (car.partnerships || []).reduce((sum, p) => sum + (Math.round((Number(car.profit || 0) * (Number(p.profitSharePercentage) / 100)) * 100) / 100), 0);
   const netOurProfit = Number(car.profit || 0) - partnerTotalProfit;
 
-  return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-end z-50 transition-all">
+  return createPortal(
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-end z-[9999] transition-all">
       <div 
         className="bg-slate-50 w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 border-l border-slate-200"
       >
@@ -131,13 +140,21 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
         <div className="px-6 py-5 border-b border-slate-200 bg-white flex justify-between items-start shrink-0">
           <div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight m-0 mb-1">
-              {car.make} {car.model}
+              {car.make} {car.model} ({car.registration})
             </h2>
             <div className="flex gap-2 items-center">
               <span className="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-bold text-slate-500 uppercase tracking-widest">
                 {car.registration || 'UNREGISTERED'}
               </span>
               {car.isLegacy && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold">Legacy</span>}
+              {car.status === 'IN_STOCK' && onReceiveToken && (
+                <button
+                  onClick={onReceiveToken}
+                  className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold border border-blue-200 transition-colors flex items-center gap-1"
+                >
+                  <BadgeCent size={12} /> Receive Token
+                </button>
+              )}
             </div>
           </div>
           <button 
@@ -188,6 +205,23 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                     )}
                   </div>
                 )}
+                
+                {car.saleTransactions && car.saleTransactions.filter(tx => tx.type === 'CREDIT').length > 0 && (
+                  <div className="col-span-2 mt-1 pt-3 border-t border-indigo-800/50">
+                    <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider mb-2">Payment Breakdown</div>
+                    <div className="flex flex-col gap-1.5">
+                      {car.saleTransactions.filter(tx => tx.type === 'CREDIT').map((tx, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-xs">
+                          <span className="text-indigo-200 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/50"></span>
+                            {tx.accountName || tx.transactionMode} Payment
+                          </span>
+                          <span className="font-medium text-emerald-300 font-mono">₹{tx.amount.toLocaleString('en-IN')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               
               <div className="bg-indigo-950/70 p-4 grid grid-cols-2 gap-4">
@@ -208,37 +242,47 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                     <div className="flex flex-col gap-2">
                       {car.partnerships.map((p, i) => {
                         const partnerProfit = Math.round((Number(car.profit || 0) * (Number(p.profitSharePercentage) / 100)) * 100) / 100;
+                        const capitalInvested = Number(p.paidAmount || 0);
+                        const totalPayout = partnerProfit + capitalInvested;
+                        
+                        // We check if it's paid based on the description containing the partner's name.
+                        // (If multiple partial payments were allowed, we'd check sum. Here we assume it's one full settlement)
                         const isPaid = car.profitPayouts?.some(t => t.description.includes(p.partnerAccount?.name));
                         const isPayingThis = payingProfitId === p.id;
                         
                         return (
                           <div key={i} className="flex flex-col gap-2 bg-indigo-900/50 p-2 rounded-lg border border-indigo-800/30">
-                            <div className="flex justify-between items-center text-xs">
+                            <div className="flex justify-between items-start text-xs">
                               <div>
                                 <span className="font-bold text-indigo-200">{p.partnerAccount?.name}</span>
                                 <span className="text-indigo-400 ml-1">({p.profitSharePercentage}%)</span>
                               </div>
-                              <div className="text-right flex items-center gap-2">
-                                <span className="font-bold text-purple-300">₹{partnerProfit.toLocaleString('en-IN')}</span>
-                                {isPaid ? (
-                                  <span className="text-[9px] font-bold text-emerald-400/90 bg-emerald-400/10 px-1.5 py-0.5 rounded-sm uppercase tracking-widest flex items-center gap-1">
-                                    <CheckCircle2 size={10} /> Paid
-                                  </span>
-                                ) : (
-                                  !isPayingThis && partnerProfit > 0 && (
-                                    <button 
-                                      onClick={() => setPayingProfitId(p.id)}
-                                      className="text-[9px] font-bold text-white bg-emerald-500/80 hover:bg-emerald-500 px-2 py-1 rounded-sm uppercase tracking-widest transition-colors"
-                                    >
-                                      Pay Profit
-                                    </button>
-                                  )
-                                )}
+                              <div className="text-right flex flex-col items-end gap-1">
+                                <span className="font-bold text-purple-300 text-sm">₹{totalPayout.toLocaleString('en-IN')}</span>
+                                <span className="text-[9px] text-indigo-400 font-medium">
+                                  (₹{capitalInvested.toLocaleString('en-IN')} Capital + ₹{partnerProfit.toLocaleString('en-IN')} Profit)
+                                </span>
+                                <div className="mt-1">
+                                  {isPaid ? (
+                                    <span className="text-[9px] font-bold text-emerald-400/90 bg-emerald-400/10 px-1.5 py-0.5 rounded-sm uppercase tracking-widest flex items-center gap-1">
+                                      <CheckCircle2 size={10} /> Paid
+                                    </span>
+                                  ) : (
+                                    !isPayingThis && totalPayout > 0 && (
+                                      <button 
+                                        onClick={() => setPayingProfitId(p.id)}
+                                        className="text-[9px] font-bold text-white bg-emerald-500/80 hover:bg-emerald-500 px-2 py-1 rounded-sm uppercase tracking-widest transition-colors"
+                                      >
+                                        Pay Settlement
+                                      </button>
+                                    )
+                                  )}
+                                </div>
                               </div>
                             </div>
                             
                             {isPayingThis && !isPaid && (
-                              <form onSubmit={(e) => handlePayPartnerProfit(e, p.id, partnerProfit)} className="mt-1 pt-2 border-t border-indigo-800/50 flex flex-col gap-2">
+                              <form onSubmit={(e) => handlePayPartnerProfit(e, p.id, totalPayout)} className="mt-1 pt-2 border-t border-indigo-800/50 flex flex-col gap-2">
                                 {profitError && <div className="text-[10px] text-red-400 bg-red-400/10 p-1.5 rounded-md">{profitError}</div>}
                                 <select 
                                   required
@@ -438,6 +482,61 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
             </div>
           )}
 
+          {/* Tokens & Bookings */}
+          {car.tokens && car.tokens.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-xs font-bold text-blue-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <FileText size={14} /> Tokens & Bookings
+              </h3>
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100 overflow-hidden">
+                {car.tokens.map(token => (
+                  <div key={token.id} className={`p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3 ${token.status === 'FORFEITED' ? 'bg-red-50/30' : token.status === 'APPLIED' ? 'bg-emerald-50/30' : 'bg-blue-50/30'}`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-lg mt-0.5 ${token.status === 'FORFEITED' ? 'bg-red-100 text-red-600' : token.status === 'APPLIED' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
+                        <FileText size={16} />
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm text-slate-800">{token.customerName}</div>
+                        <div className="text-xs font-medium text-slate-500 mt-0.5">
+                          {new Date(token.date).toLocaleDateString('en-GB')} {token.customerMobile ? `• ${token.customerMobile}` : ''}
+                        </div>
+                        <div className="mt-1">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${token.status === 'FORFEITED' ? 'bg-red-100 text-red-700 border-red-200' : token.status === 'APPLIED' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-blue-100 text-blue-700 border-blue-200'} border`}>
+                            {token.status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:items-end gap-2 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-200/60">
+                      <div className="font-black text-lg text-slate-800">
+                        ₹{Number(token.amount).toLocaleString('en-IN')}
+                      </div>
+                      {token.status === 'ACTIVE' && (
+                        <button 
+                          onClick={async () => {
+                            if(confirm(`Are you sure you want to FORFEIT ${token.customerName}'s token? This will permanently mark ₹${Number(token.amount).toLocaleString('en-IN')} as firm income.`)) {
+                              const res = await forfeitToken(token.id);
+                              if (res.success) {
+                                alert('Token forfeited successfully!');
+                                router.refresh();
+                                onClose();
+                              } else {
+                                alert(res.error || 'Failed to forfeit token');
+                              }
+                            }
+                          }}
+                          className="text-[10px] font-bold bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded transition-colors uppercase tracking-wider"
+                        >
+                          Forfeit (Income)
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Repair Details */}
           <div>
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -491,6 +590,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
 
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

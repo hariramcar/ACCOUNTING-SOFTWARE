@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function TransactionActions({ expense, deleteExpenseAction, updateExpenseAction, isRawTx, hideDelete = false, accounts = [], vehicles = [] }) {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -30,7 +31,9 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
     amount: handleAmountFormat(expense.amount),
     date: getLocalDateString(expense.date),
     accountId: expense.accountId || '',
-    vehicleId: expense.vehicle?.id || expense.referenceId || ''
+    vehicleId: expense.vehicle?.id || expense.referenceId || '',
+    customerName: expense.customerName || '',
+    customerMobile: expense.customerMobile || ''
   });
 
   
@@ -90,16 +93,28 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
 
 
   const handleDelete = async () => {
-    if (confirm('Are you sure you want to delete this transaction? This will refund any cash deducted in the ledger.')) {
-      if (isSubmittingRef.current) return;
-      isSubmittingRef.current = true;
-      setIsDeleting(true);
-      try {
-        await deleteExpenseAction(expense.id, isRawTx);
-      } finally {
-        isSubmittingRef.current = false;
-        setIsDeleting(false);
-      }
+    const confirmText = prompt(`Are you sure you want to delete this ${expense.amount}? This will affect your bank balance! Type "DELETE" to confirm:`);
+    if (confirmText !== 'DELETE') {
+      toast.error('Deletion cancelled. You must type DELETE precisely.');
+      return;
+    }
+    
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsDeleting(true);
+    const res = await deleteExpenseAction(expense.id, isRawTx);
+    if (!res?.success) {
+      toast.error(res?.error || 'Failed to delete');
+    } else {
+      toast.success('Successfully deleted!');
+    }
+    setIsDeleting(false);
+    isSubmittingRef.current = false;
+  };
+
+  const handleEditClick = () => {
+    if (confirm('WARNING: Editing a transaction is a very powerful action that can alter your ledger and balances across the software. Are you sure you want to edit this?')) {
+      setIsEditing(true);
     }
   };
 
@@ -110,8 +125,13 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
     setIsDeleting(true); // Reusing this for loading state
     
     try {
-      await updateExpenseAction(expense.id, editData, isRawTx);
-      setIsEditing(false);
+      const res = await updateExpenseAction(expense.id, editData, isRawTx);
+      if (res?.success) {
+        toast.success('Successfully updated!');
+        setIsEditing(false);
+      } else {
+        toast.error(res?.error || 'Failed to update');
+      }
     } finally {
       isSubmittingRef.current = false;
       setIsDeleting(false);
@@ -122,7 +142,7 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
     <>
       <div className="flex items-center gap-1.5 opacity-100 md:opacity-50 md:group-hover:opacity-100 transition-all duration-300">
         <button 
-          onClick={() => setIsEditing(true)}
+          onClick={handleEditClick}
           disabled={isDeleting}
           className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-200 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-sm transition-all focus:ring-2 focus:ring-indigo-100 outline-none"
           title="Edit Transaction"
@@ -213,6 +233,32 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
                         </option>
                       ))}
                     </select>
+                  </div>
+                </div>
+              )}
+
+              {isIncome && editData.vehicleId && (
+                <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
+                  <div className="flex-1 w-full">
+                    <label className={`text-xs uppercase font-bold ${theme.text} mb-1.5 block tracking-wider`}>Customer Name</label>
+                    <input 
+                      type="text" 
+                      value={editData.customerName}
+                      onChange={e => setEditData({...editData, customerName: e.target.value})}
+                      placeholder="Name..."
+                      required 
+                      className={`w-full p-2.5 rounded-lg border ${theme.border} bg-white text-sm font-medium outline-none ${theme.focusBorder} focus:ring-1 ${theme.focusRing} text-slate-700 transition-all shadow-sm`}
+                    />
+                  </div>
+                  <div className="flex-1 w-full">
+                    <label className={`text-xs uppercase font-bold ${theme.text} mb-1.5 block tracking-wider`}>Customer Mobile</label>
+                    <input 
+                      type="tel" 
+                      value={editData.customerMobile}
+                      onChange={e => setEditData({...editData, customerMobile: e.target.value})}
+                      placeholder="Optional"
+                      className={`w-full p-2.5 rounded-lg border ${theme.border} bg-white text-sm font-medium outline-none ${theme.focusBorder} focus:ring-1 ${theme.focusRing} text-slate-700 transition-all shadow-sm`}
+                    />
                   </div>
                 </div>
               )}

@@ -107,7 +107,7 @@ export default async function Home() {
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="font-bold text-primary flex items-center gap-2">
-                        {car.make} {car.model}
+                        {car.make} {car.model} ({car.registration})
                       </div>
                       <div className="text-xs text-slate-500 mt-1">
                         Sold: {car.saleDate ? new Date(car.saleDate).toLocaleDateString('en-GB') : '-'}
@@ -185,7 +185,7 @@ export default async function Home() {
                       </td>
                       <td className="py-4 px-6">
                         <div className="font-bold text-primary flex items-center gap-2">
-                          {car.make} {car.model}
+                          {car.make} {car.model} ({car.registration})
                           <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 rounded-sm">
                             {car.registration || 'UNREG'}
                           </span>

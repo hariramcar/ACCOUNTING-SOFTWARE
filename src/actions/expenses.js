@@ -46,7 +46,7 @@ export async function getRecentExpenses(dateString = null) {
         ...(dateString ? { date: dateFilter } : {})
       },
       take: 100,
-      orderBy: { date: 'desc' },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       include: {
         vehicle: true
       }
@@ -70,7 +70,7 @@ export async function getRecentExpenses(dateString = null) {
           ...(dateString ? { date: dateFilter } : {})
         },
         take: 100,
-        orderBy: { date: 'desc' },
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         include: { account: true }
       });
     }
@@ -220,10 +220,12 @@ export async function addExpense(formData) {
 
     const expenseType = formData.get('expenseType'); // 'CAR_EXPENSE' or 'OFFICE_EXPENSE'
     const description = formData.get('description');
-    const amount = Math.round(parseFloat(formData.get('amount')) * 100) / 100 || 0;
+    const amount = Math.round(parseFloat((formData.get('amount') || '0').toString().replace(/,/g, '')) * 100) / 100 || 0;
     const date = new Date(formData.get('date') || Date.now());
     
     const vehicleId = formData.get('vehicleId'); // Optional, only if CAR_EXPENSE
+    const customerName = formData.get('customerName') || null;
+    const customerMobile = formData.get('customerMobile') || null;
     
     // Auto-ledger parameters (Expense)
     let accountId = formData.get('accountId') || null;
@@ -250,7 +252,7 @@ export async function addExpense(formData) {
       const payments = [];
       let totalPaid = 0;
       for (let i = 0; i < paymentModes.length; i++) {
-        const amt = Math.round(parseFloat(paymentAmounts[i]) * 100) / 100 || 0;
+        const amt = Math.round(parseFloat((paymentAmounts[i] || '0').toString().replace(/,/g, '')) * 100) / 100 || 0;
         if (paymentModes[i] && paymentAccountIds[i] && amt > 0) {
           payments.push({
             mode: paymentModes[i],
@@ -260,6 +262,11 @@ export async function addExpense(formData) {
           totalPaid += amt;
         }
       }
+
+      if (totalPaid > amount) {
+        return { success: false, error: 'Your payment amount cannot be greater than your income amount.' };
+      }
+
       incomeDataStr = JSON.stringify({
         payments,
         receivableAccountId,
@@ -270,9 +277,6 @@ export async function addExpense(formData) {
     const status = isStaff ? 'PENDING' : 'APPROVED';
 
     await prisma.$transaction(async (tx) => {
-      if (paymentSourceId && paymentSource !== 'PENDING') {
-        await checkSufficientBalance(tx, paymentSourceId, amount);
-      }
       // 1. Create the Expense Record
       const expense = await tx.expense.create({
         data: {
@@ -281,6 +285,8 @@ export async function addExpense(formData) {
           amount,
           date,
           vehicleId: vehicleId ? vehicleId : null,
+          customerName,
+          customerMobile,
           status,
           requestedAccountId: expenseType === 'INCOME' ? null : accountId,
           requestedMode: expenseType === 'INCOME' ? incomeDataStr : mode,
@@ -323,6 +329,9 @@ export async function addExpense(formData) {
             }
           }
         } else if (accountId && mode) {
+          if (mode !== 'UGHRANI') {
+            await checkSufficientBalance(tx, accountId, amount);
+          }
           await tx.transaction.create({
             data: {
               date,
@@ -423,6 +432,9 @@ export async function approveExpense(formData) {
           }
         }
       } else if (expense.requestedAccountId && expense.requestedMode) {
+        if (expense.requestedMode !== 'UGHRANI') {
+          await checkSufficientBalance(tx, expense.requestedAccountId, expense.amount);
+        }
         await tx.transaction.create({
           data: {
             date: expense.date,
@@ -510,6 +522,8 @@ export async function addTransfer(formData) {
     
     await prisma.$transaction(async (tx) => {
       // 1. DEBIT from the source account (Money OUT)
+      await checkSufficientBalance(tx, fromAccountId, amount);
+      
       await tx.transaction.create({
         data: {
           date,
@@ -585,68 +599,63 @@ export async function deleteExpense(expenseId, isRawTx = false) {
             if (txToDelete.referenceId) {
               const vehicle = await tx.vehicle.findUnique({ where: { id: txToDelete.referenceId }});
               if (vehicle) {
-                // If it's a vehicle purchase payment, deleting it means we didn't pay the seller!
-                // So the amount we owe the seller (pending balance) increases!
-                if (txToDelete.category === 'VEHICLE_PURCHASE' && txToDelete.type === 'DEBIT') {
-                  await tx.vehicle.update({
-                    where: { id: vehicle.id },
-                    data: { purchasePendingBalance: Number(vehicle.purchasePendingBalance) + Number(txToDelete.amount) }
-                  });
+                // Smart Cascade for Partner Investment Delete
+                const possibleLegs = await tx.transaction.findMany({
+                    where: { referenceId: vehicle.id, amount: txToDelete.amount }
+                });
+                
+                const leg1 = possibleLegs.find(t => t.category === 'GENERAL' && (t.description.includes('Partnership Investment') || t.description.includes('Paid Pending Investment Share')));
+                const leg2 = possibleLegs.find(t => t.category === 'GENERAL' && (t.description.includes('Income: Received from') || t.description.includes('Received Pending Capital')));
+                const leg3 = possibleLegs.find(t => t.category === 'VEHICLE_PURCHASE' && (t.description.includes('from Partner Capital') || (t.description.includes('Purchased car') && t.description.includes('Payment'))));
+
+                if (leg1 && leg2 && leg3 && (txToDelete.id === leg1.id || txToDelete.id === leg2.id || txToDelete.id === leg3.id)) {
+                    // Delete all 3 legs
+                    await tx.transaction.deleteMany({
+                        where: { id: { in: [leg1.id, leg2.id, leg3.id] } }
+                    });
+
+                    // Update Partnership table
+                    const partnership = await tx.partnership.findFirst({
+                        where: { vehicleId: vehicle.id, partnerAccountId: leg1.accountId }
+                    });
+                    if (partnership) {
+                        const newPaidAmount = Math.max(0, Number(partnership.paidAmount) - Number(txToDelete.amount));
+                        const isInitial = leg1.description.includes('Partnership Investment');
+                        const newInvestmentAmount = isInitial ? Math.max(0, Number(partnership.investmentAmount) - Number(txToDelete.amount)) : partnership.investmentAmount;
+                        
+                        await tx.partnership.update({
+                            where: { id: partnership.id },
+                            data: {
+                                paidAmount: newPaidAmount,
+                                investmentAmount: newInvestmentAmount,
+                                isInvestmentPaid: newPaidAmount >= newInvestmentAmount
+                            }
+                        });
+                    }
+                } else {
+                    await tx.transaction.delete({ where: { id: expenseId } });
                 }
                 
-                // If it's a partner capital payment to the firm, deleting it means they haven't paid!
-                // So the paidAmount in the Partnership decreases!
-                if (txToDelete.category === 'GENERAL' && txToDelete.type === 'CREDIT' && 
-                   (txToDelete.description.includes('Capital Received from Partner') || 
-                    txToDelete.description.includes('Paid Pending Investment Share'))) {
-                  
-                  const partnership = await tx.partnership.findFirst({
-                    where: { vehicleId: vehicle.id, partnerAccountId: txToDelete.accountId }
-                  });
-                  
-                  if (partnership) {
-                    const newPaidAmount = Math.max(0, Number(partnership.paidAmount) - Number(txToDelete.amount));
-                    await tx.partnership.update({
-                      where: { id: partnership.id },
-                      data: { 
-                        paidAmount: newPaidAmount,
-                        isInvestmentPaid: newPaidAmount >= Number(partnership.investmentAmount)
-                      }
-                    });
-                  }
-                  
-                  // Also, if there's a matching pass-through DEBIT (Paid to Seller from Partner Capital), delete it too
-                  if (txToDelete.description.includes('Capital Received from Partner') || txToDelete.description.includes('Received Pending Capital from')) {
-                     await tx.transaction.deleteMany({
-                       where: {
-                         referenceId: vehicle.id,
-                         category: 'VEHICLE_PURCHASE',
-                         type: 'DEBIT',
-                         amount: txToDelete.amount,
-                         description: { contains: 'Paid to Seller (from Partner Capital)' }
-                       }
-                     });
-                     // And since we deleted a pass-through DEBIT (payment to seller), we must ALSO increase pending balance
-                     await tx.vehicle.update({
-                       where: { id: vehicle.id },
-                       data: { purchasePendingBalance: Number(vehicle.purchasePendingBalance) + Number(txToDelete.amount) }
-                     });
-                  }
-                }
+                await syncVehicleState(tx, vehicle.id);
               }
+            } else {
+              await tx.transaction.delete({ where: { id: expenseId } });
             }
-            
-            await tx.transaction.delete({ where: { id: expenseId } });
           }
         }
       } else {
         // Standard expense deletion
+        const expToDelete = await tx.expense.findUnique({ where: { id: expenseId } });
         await tx.transaction.deleteMany({
           where: { referenceId: expenseId }
         });
         await tx.expense.delete({
           where: { id: expenseId }
         });
+        
+        if (expToDelete && expToDelete.vehicleId) {
+            await syncVehicleState(tx, expToDelete.vehicleId);
+        }
       }
     }, { maxWait: 15000, timeout: 30000 });
 
@@ -695,6 +704,7 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
               }
             });
             if (matchingCredit) {
+              await checkSufficientBalance(tx, txToUpdate.accountId, Math.round(parseFloat(String(data.amount || '0').replace(/,/g, '')) * 100) / 100, txToUpdate.id);
               await tx.transaction.update({
                 where: { id: matchingCredit.id },
                 data: {
@@ -711,6 +721,12 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
               date: new Date(data.date),
               description: data.description
             };
+            if (txToUpdate.type === 'DEBIT') {
+              const checkAccountId = data.accountId || txToUpdate.accountId;
+              if (checkAccountId) {
+                await checkSufficientBalance(tx, checkAccountId, updateData.amount, txToUpdate.id);
+              }
+            }
             if (data.accountId && data.accountId !== txToUpdate.accountId) {
               const newAcc = await tx.account.findUnique({ where: { id: data.accountId }});
               if (newAcc) {
@@ -718,23 +734,154 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
                 updateData.transactionMode = newAcc.type === 'BANK' ? 'BANK' : 'CASH';
               }
             }
-            await tx.transaction.update({
-                where: { id: expenseId },
-                data: updateData
-              });
+            
+            let isPartnerInvestment = false;
+            let partnerLegs = [];
+            
+            if (txToUpdate.referenceId) {
+                const possibleLegs = await tx.transaction.findMany({
+                    where: { referenceId: txToUpdate.referenceId, amount: txToUpdate.amount }
+                });
+                
+                const leg1 = possibleLegs.find(t => t.category === 'GENERAL' && (t.description.includes('Partnership Investment') || t.description.includes('Paid Pending Investment Share')));
+                const leg2 = possibleLegs.find(t => t.category === 'GENERAL' && (t.description.includes('Income: Received from') || t.description.includes('Received Pending Capital')));
+                const leg3 = possibleLegs.find(t => t.category === 'VEHICLE_PURCHASE' && (t.description.includes('from Partner Capital') || (t.description.includes('Purchased car') && t.description.includes('Payment'))));
+                
+                if (leg1 && leg2 && leg3 && (txToUpdate.id === leg1.id || txToUpdate.id === leg2.id || txToUpdate.id === leg3.id)) {
+                    isPartnerInvestment = true;
+                    partnerLegs = [leg1, leg2, leg3];
+                }
+            }
+
+            if (isPartnerInvestment) {
+                for (const leg of partnerLegs) {
+                    await tx.transaction.update({
+                        where: { id: leg.id },
+                        data: { amount: updateData.amount, date: updateData.date }
+                    });
+                }
+                
+                await tx.transaction.update({
+                    where: { id: expenseId },
+                    data: updateData
+                });
+                
+                const leg1 = partnerLegs.find(t => t.category === 'GENERAL' && (t.description.includes('Partnership Investment') || t.description.includes('Paid Pending Investment Share')));
+                const partnership = await tx.partnership.findFirst({
+                    where: { vehicleId: txToUpdate.referenceId, partnerAccountId: leg1.accountId }
+                });
+                
+                if (partnership) {
+                    const diff = Number(updateData.amount) - Number(txToUpdate.amount);
+                    const isInitial = leg1.description.includes('Partnership Investment');
+                    const newPaid = Number(partnership.paidAmount) + diff;
+                    const newInvestment = isInitial ? Number(partnership.investmentAmount) + diff : partnership.investmentAmount;
+                    
+                    await tx.partnership.update({
+                        where: { id: partnership.id },
+                        data: {
+                            paidAmount: newPaid,
+                            investmentAmount: newInvestment,
+                            isInvestmentPaid: newPaid >= newInvestment
+                        }
+                    });
+                }
+            } else {
+                await tx.transaction.update({
+                    where: { id: expenseId },
+                    data: updateData
+                });
+            }
               
-              if (txToUpdate.referenceId) {
+            if (txToUpdate.referenceId) {
                 await syncVehicleState(tx, txToUpdate.referenceId);
-              }
+            }
           }
         }
       } else {
         // Standard expense update
         const expToUpdate = await tx.expense.findUnique({ where: { id: expenseId }});
+        
+        console.log("UPDATE_EXPENSE DEBUG - Checking token logic");
+                if (expToUpdate.description && expToUpdate.description.startsWith('Forfeited Token Income:')) {
+          console.log("UPDATE_EXPENSE DEBUG - Inside token if block");
+          const tokens = await tx.vehicleToken.findMany({
+             where: { status: 'FORFEITED' },
+             include: { vehicle: true }
+          });
+          console.log("UPDATE_EXPENSE DEBUG - Tokens found:", tokens.length);
+          
+          const matchedToken = tokens.find(t => 
+            expToUpdate.description.includes(t.customerName) &&
+            expToUpdate.description.includes(`(Ref: ${t.vehicle.make} ${t.vehicle.registration})`)
+          );
+          
+          console.log("UPDATE_EXPENSE DEBUG - Matched Token:", matchedToken ? matchedToken.id : 'null');
+
+          if (matchedToken) {
+            const newAmount = Math.round(parseFloat(String(data.amount || '0').replace(/,/g, '')) * 100) / 100;
+            const newCustomerName = data.customerName || matchedToken.customerName;
+            
+            // 1. Update the VehicleToken
+            await tx.vehicleToken.update({
+               where: { id: matchedToken.id },
+               data: { 
+                 amount: newAmount, 
+                 customerName: newCustomerName,
+                 customerMobile: data.customerMobile || matchedToken.customerMobile
+               }
+            });
+
+            // 2. Update the Expense record
+            const updateData = {
+              amount: newAmount,
+              date: new Date(data.date),
+              description: `Forfeited Token Income: ${newCustomerName} (Ref: ${matchedToken.vehicle.make} ${matchedToken.vehicle.registration})`,
+              customerName: newCustomerName,
+              customerMobile: data.customerMobile || null
+            };
+
+            if (data.accountId && data.accountId !== expToUpdate.requestedAccountId) {
+              const newAcc = await tx.account.findUnique({ where: { id: data.accountId }});
+              if (newAcc) {
+                updateData.requestedAccountId = data.accountId;
+                updateData.requestedMode = newAcc.type === 'BANK' ? 'BANK' : 'CASH';
+              }
+            }
+
+            await tx.expense.update({
+              where: { id: expenseId },
+              data: updateData
+            });
+
+            // 3. Update the Transaction linked to the Token
+            const tokenTxs = await tx.transaction.findMany({ where: { referenceId: matchedToken.id } });
+            if (tokenTxs.length === 1) {
+              const txUpdateData = {
+                amount: newAmount,
+                date: new Date(data.date),
+                description: `Token Received: ${newCustomerName} for ${matchedToken.vehicle.make} ${matchedToken.vehicle.model} (${matchedToken.vehicle.registration || 'UNREG'})`
+              };
+              if (updateData.requestedAccountId) {
+                txUpdateData.accountId = updateData.requestedAccountId;
+                txUpdateData.transactionMode = updateData.requestedMode;
+              }
+              await tx.transaction.update({
+                where: { id: tokenTxs[0].id },
+                data: txUpdateData
+              });
+            }
+            return; // Finished token sync
+          }
+        }
+
         const updateData = {
           amount: Math.round(parseFloat(String(data.amount || '0').replace(/,/g, '')) * 100) / 100,
           date: new Date(data.date),
-          description: data.description
+          description: data.description,
+          vehicleId: data.vehicleId || null,
+          customerName: data.customerName || null,
+          customerMobile: data.customerMobile || null
         };
         
         if (data.accountId && data.accountId !== expToUpdate.requestedAccountId) {
@@ -764,6 +911,9 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
           if (updateData.requestedAccountId) {
             txUpdateData.accountId = updateData.requestedAccountId;
             txUpdateData.transactionMode = updateData.requestedMode;
+          }
+          if (txs[0].type === 'DEBIT') {
+             await checkSufficientBalance(tx, txUpdateData.accountId || txs[0].accountId, txUpdateData.amount, txs[0].id);
           }
           await tx.transaction.update({
             where: { id: txs[0].id },

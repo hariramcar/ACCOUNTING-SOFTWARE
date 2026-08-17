@@ -78,8 +78,8 @@ export async function settleBill(formData) {
     if (!sourceAcc) throw new Error('Source account not found');
 
     await prisma.$transaction(async (tx) => {
-      if (amount > 0 && paymentSourceId && paymentSourceMode) {
-        await checkSufficientBalance(tx, paymentSourceId, amount);
+      if (amount > 0 && sourceAccountId) {
+        await checkSufficientBalance(tx, sourceAccountId, amount);
       }
       // 1. DEBIT UPAD Account (We owe them less / they owe us more)
       await tx.transaction.create({

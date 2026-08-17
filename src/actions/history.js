@@ -19,7 +19,7 @@ export async function getAllExpenses(year, month) {
           lte: endDate
         }
       },
-      orderBy: { date: 'desc' },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       include: {
         vehicle: true,
         submittedBy: true
@@ -91,7 +91,7 @@ export async function getAllExpenses(year, month) {
           lte: endDate
         }
       },
-      orderBy: { date: 'desc' },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       include: {
         account: true
       }
@@ -194,7 +194,7 @@ export async function getAllIncome(year, month) {
           { category: 'UPAD_REPAYMENT' } // Exclude vendor payments from income
         ]
       },
-      orderBy: { date: 'desc' },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       include: {
         account: true
       }

@@ -71,7 +71,7 @@ export default async function StorePage() {
                   )}
                 </div>
                 <div className="p-5 flex-1 flex flex-col">
-                  <h3 className="text-xl font-bold text-slate-900 mb-1 line-clamp-1">{car.make} {car.model}</h3>
+                  <h3 className="text-xl font-bold text-slate-900 mb-1 line-clamp-1">{car.make} {car.model} ({car.registration})</h3>
                   <div className="text-sm font-medium text-slate-500 mb-4 bg-slate-100 w-fit px-2 py-0.5 rounded-md border border-slate-200">
                     {car.registration || 'UNREGISTERED'}
                   </div>

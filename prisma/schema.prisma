@@ -44,6 +44,7 @@ model Vehicle {
   updatedAt              DateTime      @updatedAt
   expenses               Expense[]
   partnerships           Partnership[]
+  tokens                 VehicleToken[]
   payableAccount         Account?      @relation("VehiclePayableAccount", fields: [payableAccountId], references: [id])
   receivableAccount      Account?      @relation("VehicleReceivableAccount", fields: [receivableAccountId], references: [id])
 }
@@ -58,6 +59,8 @@ model Expense {
   status             ExpenseStatus @default(PENDING)
   requestedAccountId String?
   requestedMode      String?
+  customerName       String?
+  customerMobile     String?
   submittedById      String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
@@ -159,4 +162,26 @@ enum TransactionCategory {
   CAPITAL_INJECTION
   GENERAL
   INTERNAL_TRANSFER
+}
+
+model VehicleToken {
+  id               String      @id @default(uuid())
+  vehicleId        String
+  customerName     String
+  customerMobile   String?
+  amount           Decimal
+  date             DateTime
+  paymentAccountId String      // Which bank/cash received the token
+  paymentMode      String
+  status           TokenStatus @default(ACTIVE)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  vehicle          Vehicle     @relation(fields: [vehicleId], references: [id])
+}
+
+enum TokenStatus {
+  ACTIVE       // Customer paid, waiting to see who buys the car
+  APPLIED      // Customer bought the car, token deducted from sale price
+  FORFEITED    // 100% Firm Income
+  REFUNDED     // Money returned to customer (Future feature)
 }

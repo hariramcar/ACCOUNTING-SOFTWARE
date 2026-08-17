@@ -11,6 +11,7 @@ function getLocalDateString() {
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeftRight, Building2, Car, PlusCircle, Trash2 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
+import toast from 'react-hot-toast';
 
 function ExpenseSubmitButton({ txType, expenseSubType }) {
   const { pending } = useFormStatus();
@@ -39,6 +40,10 @@ function TransferSubmitButton() {
 export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addTransferAction, sellVehicleAction, isAdmin, onSuccess }) {
   const [txType, setTxType] = useState('EXPENSE'); // INCOME, EXPENSE, or TRANSFER
   const [expenseSubType, setExpenseSubType] = useState('OFFICE_EXPENSE'); // OFFICE_EXPENSE or CAR_EXPENSE
+  
+  const [incomeVehicleId, setIncomeVehicleId] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerMobile, setCustomerMobile] = useState('');
 
   // Expenses State
   const [mode, setMode] = useState('');
@@ -46,11 +51,34 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
   // Income State (Mirrors Sell Vehicle)
   const [amount, setAmount] = useState('');
   const handleAmountFormat = (val) => {
-    const rawValue = val.replace(/[^0-9.]/g, '');
+    if (!val) return '';
+    let lowerVal = val.toString().toLowerCase();
+    let multiplier = 1;
+    if (lowerVal.endsWith('k')) {
+      multiplier = 1000;
+      lowerVal = lowerVal.slice(0, -1);
+    } else if (lowerVal.endsWith('l')) {
+      multiplier = 100000;
+      lowerVal = lowerVal.slice(0, -1);
+    }
+
+    const rawValue = lowerVal.replace(/[^0-9.]/g, '');
     if (!rawValue) return '';
-    const parts = rawValue.split('.');
-    parts[0] = Number(parts[0]).toLocaleString('en-IN');
-    return parts.join('.');
+    
+    let num = parseFloat(rawValue);
+    if (isNaN(num)) return '';
+    
+    num = num * multiplier;
+    
+    if (multiplier > 1) {
+       const parts = num.toString().split('.');
+       parts[0] = Number(parts[0]).toLocaleString('en-IN');
+       return parts.join('.');
+    } else {
+       const parts = rawValue.split('.');
+       parts[0] = Number(parts[0]).toLocaleString('en-IN');
+       return parts.join('.');
+    }
   };
 
   const [payments, setPayments] = useState([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
@@ -83,6 +111,40 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
 
   const finalExpenseType = txType === 'INCOME' ? 'INCOME' : expenseSubType;
   const handleExpenseSubmit = async (formData) => {
+    // 1. Validation: Amount must be > 0
+    const rawAmount = formData.get('amount') || '0';
+    const numAmount = parseFloat(rawAmount.toString().replace(/,/g, ''));
+    if (isNaN(numAmount) || numAmount <= 0) {
+      toast.error('Amount must be greater than 0.');
+      return;
+    }
+
+    // 2. Validation: Description minimum 3 chars
+    const description = (formData.get('description') || '').toString().trim();
+    if (description.length < 3) {
+      toast.error('Please provide a clear description (min 3 characters).');
+      return;
+    }
+
+    // 3. Validation: No future dates
+    const inputDate = new Date(formData.get('date') || Date.now());
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (inputDate > today) {
+      toast.error('You cannot add transactions for future dates.');
+      return;
+    }
+
+    // 4. Validation: Account Selection Guard
+    if (finalExpenseType !== 'INCOME') {
+      const mode = formData.get('mode');
+      const accountId = formData.get('accountId');
+      if (mode && mode !== 'PENDING' && !accountId) {
+        toast.error('Please select an account for this expense payment.');
+        return;
+      }
+    }
+
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     
@@ -94,22 +156,30 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
         
         const result = await sellVehicleAction(formData);
         if (result && !result.success) {
-          alert(`Error: ${result.error}`);
+          toast.error(`Error: ${result.error}`);
         } else {
+          toast.success('Income added successfully!');
           setAmount('');
           setMode('');
           setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
+          setIncomeVehicleId('');
+          setCustomerName('');
+          setCustomerMobile('');
           document.getElementById('expense-form').reset();
           if (onSuccess) onSuccess();
         }
       } else {
         const result = await addExpenseAction(formData);
         if (result && !result.success) {
-          alert(`Error: ${result.error}`);
+          toast.error(`Error: ${result.error}`);
         } else {
+          toast.success('Added successfully!');
           setAmount('');
           setMode('');
           setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
+          setIncomeVehicleId('');
+          setCustomerName('');
+          setCustomerMobile('');
           document.getElementById('expense-form').reset();
           if (onSuccess) onSuccess();
         }
@@ -120,14 +190,47 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
   };
 
   const handleTransferSubmit = async (formData) => {
+    // 1. Validation: Amount > 0
+    const rawAmount = formData.get('amount') || '0';
+    const numAmount = parseFloat(rawAmount.toString().replace(/,/g, ''));
+    if (isNaN(numAmount) || numAmount <= 0) {
+      toast.error('Transfer amount must be greater than 0.');
+      return;
+    }
+
+    // 2. Validation: Description length
+    const description = (formData.get('description') || '').toString().trim();
+    if (description.length < 3) {
+      toast.error('Please provide a transfer description (min 3 characters).');
+      return;
+    }
+
+    // 3. Validation: No future dates
+    const inputDate = new Date(formData.get('date') || Date.now());
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (inputDate > today) {
+      toast.error('You cannot schedule future transfers here.');
+      return;
+    }
+
+    // 5. Transfer Loop Validation
+    const fromAccountId = formData.get('fromAccountId');
+    const toAccountId = formData.get('toAccountId');
+    if (fromAccountId === toAccountId) {
+      toast.error('Cannot transfer money to the same account.');
+      return;
+    }
+
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     
     try {
       const result = await addTransferAction(formData);
       if (result && !result.success) {
-        alert(`Error: ${result.error}`);
+        toast.error(`Error: ${result.error}`);
       } else {
+        toast.success('Transfer complete!');
         document.getElementById('transfer-form').reset();
         if (onSuccess) onSuccess();
       }
@@ -215,7 +318,12 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
               {/* Income Specific Layout (Mirrors Sell Vehicle exactly) */}
               <div className="mb-2">
                 <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Select Vehicle (Optional)</label>
-                <select name="vehicleId" className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm text-slate-700">
+                <select 
+                  name="vehicleId" 
+                  value={incomeVehicleId}
+                  onChange={(e) => setIncomeVehicleId(e.target.value)}
+                  className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm text-slate-700"
+                >
                   <option value="">-- No Specific Vehicle --</option>
                   {vehicles.filter(v => v.status !== 'SOLD').map(v => (
                     <option key={v.id} value={v.id}>
@@ -224,6 +332,19 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                   ))}
                 </select>
               </div>
+
+              {incomeVehicleId && (
+                <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
+                  <div className="flex-1 w-full">
+                    <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Customer Name</label>
+                    <input type="text" name="customerName" required placeholder="Name..." value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm" />
+                  </div>
+                  <div className="flex-1 w-full">
+                    <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Customer Mobile</label>
+                    <input type="tel" name="customerMobile" placeholder="Optional" value={customerMobile} onChange={(e) => setCustomerMobile(e.target.value)} className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm" />
+                  </div>
+                </div>
+              )}
 
               <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
                 <div className="flex-1 w-full">
@@ -248,7 +369,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                 </div>
                 <div className="flex-1 w-full">
                   <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Date</label>
-                  <input type="date" name="date" required defaultValue={getLocalDateString()} className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 text-slate-700 shadow-sm" />
+                  <input type="date" name="date" required max={getLocalDateString()} defaultValue={getLocalDateString()} className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 text-slate-700 shadow-sm" />
                 </div>
               </div>
 
@@ -366,7 +487,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                 </div>
                 <div className="flex flex-col gap-1.5 flex-1">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Date</label>
-                  <input type="date" name="date" required defaultValue={getLocalDateString()} className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium" />
+                  <input type="date" name="date" required max={getLocalDateString()} defaultValue={getLocalDateString()} className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium" />
                 </div>
               </div>
 
@@ -458,7 +579,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
             </div>
             <div className="flex flex-col gap-1.5 flex-1">
               <label className="text-[11px] font-bold uppercase tracking-wider text-blue-700">Date</label>
-              <input type="date" name="date" required defaultValue={getLocalDateString()} className="p-2.5 rounded-lg border border-blue-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm font-medium shadow-sm" />
+              <input type="date" name="date" required max={getLocalDateString()} defaultValue={getLocalDateString()} className="p-2.5 rounded-lg border border-blue-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm font-medium shadow-sm" />
             </div>
           </div>
 

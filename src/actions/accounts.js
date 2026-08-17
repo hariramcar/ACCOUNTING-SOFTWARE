@@ -231,7 +231,7 @@ export async function getAccountTransactions(accountId) {
   try {
     const transactions = await prisma.transaction.findMany({
       where: { accountId },
-      orderBy: { date: 'desc' }
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }]
     });
 
     const processed = transactions.map(t => ({
