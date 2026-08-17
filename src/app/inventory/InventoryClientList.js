@@ -57,43 +57,43 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
           </div>
         )}
 
-        <div className="p-0 md:p-6 flex flex-col gap-4">
+        <div className="p-0 md:p-6 flex flex-col gap-3 md:gap-4">
           {/* Search & Filters */}
-          <div className="flex flex-col md:flex-row gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex flex-col md:flex-row gap-2 md:gap-3 bg-white p-2 md:p-3 rounded-xl border border-slate-200 shadow-sm">
         <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={16} className="text-slate-400" />
+          <div className="absolute inset-y-0 left-0 pl-2.5 md:pl-3 flex items-center pointer-events-none">
+            <Search size={14} className="text-slate-400 md:w-4 md:h-4" />
           </div>
           <input
             type="text"
             placeholder="Search by Make, Model, or Reg (e.g. Swift, GJ-05)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+            className="w-full pl-8 md:pl-9 pr-3 py-1.5 md:py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
           />
         </div>
-        <div className="flex gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200 shrink-0">
+        <div className="flex gap-0.5 md:gap-2 bg-slate-50 p-0.5 md:p-1 rounded-lg border border-slate-200 shrink-0 w-full md:w-auto">
           <button
             onClick={() => setStatusFilter('ALL')}
-            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${statusFilter === 'ALL' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex-1 md:flex-none px-0 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition-colors text-center ${statusFilter === 'ALL' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
           >
             All
           </button>
           <button
             onClick={() => setStatusFilter('AVAILABLE')}
-            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${statusFilter === 'AVAILABLE' ? 'bg-white shadow-sm text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex-1 md:flex-none px-0 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition-colors text-center ${statusFilter === 'AVAILABLE' ? 'bg-white shadow-sm text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}
           >
             Available
           </button>
           <button
             onClick={() => setStatusFilter('BOOKED')}
-            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${statusFilter === 'BOOKED' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex-1 md:flex-none px-0 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition-colors text-center ${statusFilter === 'BOOKED' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}
           >
             Booked
           </button>
           <button
             onClick={() => setStatusFilter('SOLD')}
-            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${statusFilter === 'SOLD' ? 'bg-white shadow-sm text-red-700' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex-1 md:flex-none px-0 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition-colors text-center ${statusFilter === 'SOLD' ? 'bg-white shadow-sm text-red-700' : 'text-slate-500 hover:text-slate-700'}`}
           >
             Sold
           </button>
@@ -109,7 +109,7 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
       ) : (
         <>
           {/* Mobile Card Layout */}
-          <div className="flex flex-col gap-4 md:hidden">
+          <div className="flex flex-col gap-2.5 md:hidden">
             {filteredStock.map(car => {
               const partnerPending = (car.partnerships || []).reduce((sum, p) => sum + (Number(p.investmentAmount) - Number(p.paidAmount || 0)), 0);
               const hasFirmPending = car.purchasePendingBalance > 0;
@@ -125,60 +125,62 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
               return (
                   <div 
                     key={car.id} 
-                    className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-2 interactive-card relative overflow-hidden"
+                    className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm flex flex-col gap-1.5 interactive-card relative overflow-hidden"
                   >
                   <div className="flex justify-between items-start" onClick={() => setSelectedCar(car)}>
-                    <div>
-                      <h3 className="m-0 text-slate-900 font-extrabold text-base tracking-tight flex items-center gap-2 flex-wrap">
-                        {car.make} {car.model}
-                        {car.isLegacy && <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold border border-amber-200">OLD</span>}
-                        {isBooked && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold border border-blue-200">BOOKED</span>}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 rounded-sm">
+                    <div className="w-full">
+                      <div className="flex items-start justify-between">
+                        <h3 className="m-0 text-slate-900 font-extrabold text-[15px] tracking-tight flex items-center gap-1.5 flex-wrap leading-tight">
+                          {car.make} {car.model}
+                          {car.isLegacy && <span className="bg-amber-100 text-amber-700 px-1 py-0.5 rounded text-[8px] uppercase tracking-wider font-bold border border-amber-200">OLD</span>}
+                          {isBooked && <span className="bg-blue-100 text-blue-700 px-1 py-0.5 rounded text-[8px] uppercase tracking-wider font-bold border border-blue-200">BOOKED</span>}
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 rounded-sm">
                           {car.registration || 'UNREG'}
                         </span>
-                        {car.partnerships && car.partnerships.length > 0 && <span className="text-[9px] uppercase tracking-wider bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">Partnered</span>}
+                        {car.partnerships && car.partnerships.length > 0 && <span className="text-[8px] uppercase tracking-wider bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-bold">Partnered</span>}
                         {!car.isLegacy && daysInStock !== null && (
-                          <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                          <div className={`flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded ${
                             daysInStock > 60 ? 'bg-red-100 text-red-700' : daysInStock > 30 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
                           }`}>
-                            <Clock size={10} /> {daysInStock} Days
+                            <Clock size={8} /> {daysInStock}D
                           </div>
                         )}
                       </div>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-y-2 pt-2 border-t border-slate-100 mt-0.5" onClick={() => setSelectedCar(car)}>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 pt-1.5 border-t border-slate-100 mt-0.5" onClick={() => setSelectedCar(car)}>
                     <div className="col-span-2 bg-slate-50 rounded-lg p-1.5 border border-slate-100">
                       <div className="flex justify-between items-end mb-1">
-                        <span className="text-[10px] uppercase font-bold text-slate-500">Total Cost Breakdown</span>
-                        <span className="font-black text-slate-900 text-sm">₹{car.totalCost.toLocaleString('en-IN')}</span>
+                        <span className="text-[9px] uppercase font-bold text-slate-500">Cost Breakdown</span>
+                        <span className="font-black text-slate-900 text-[13px]">₹{car.totalCost.toLocaleString('en-IN')}</span>
                       </div>
-                      <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden flex">
+                      <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden flex">
                         <div className="h-full bg-slate-400" style={{ width: `${purchPct}%` }}></div>
                         <div className="h-full bg-red-400" style={{ width: `${repairPct}%` }}></div>
                       </div>
                       <div className="flex justify-between mt-1">
-                        <span className="text-[9px] font-bold text-slate-400">Purch: ₹{car.purchasePrice.toLocaleString('en-IN')}</span>
-                        {car.totalExpenses > 0 && <span className="text-[9px] font-bold text-red-400">Repairs: +₹{car.totalExpenses.toLocaleString('en-IN')}</span>}
+                        <span className="text-[8px] font-bold text-slate-400">Purch: ₹{car.purchasePrice.toLocaleString('en-IN')}</span>
+                        {car.totalExpenses > 0 && <span className="text-[8px] font-bold text-red-400">Repairs: +₹{car.totalExpenses.toLocaleString('en-IN')}</span>}
                       </div>
                     </div>
 
                     {(hasFirmPending || hasPartnerPending) && (
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Pending</span>
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Pending</span>
                         {hasFirmPending && (
-                          <div className="font-bold text-amber-600 text-xs flex items-center justify-start gap-1">
+                          <div className="font-bold text-amber-600 text-[11px] flex items-center justify-start gap-1 leading-tight">
                             ₹{car.purchasePendingBalance.toLocaleString('en-IN')}
-                            <span className="text-[9px] text-amber-600/70 uppercase">Firm</span>
+                            <span className="text-[8px] text-amber-600/70 uppercase">Firm</span>
                           </div>
                         )}
                         {hasPartnerPending && (
-                          <div className="font-bold text-purple-600 text-xs flex items-center justify-start gap-1">
+                          <div className="font-bold text-purple-600 text-[11px] flex items-center justify-start gap-1 leading-tight mt-0.5">
                             ₹{partnerPending.toLocaleString('en-IN')}
-                            <span className="text-[9px] text-purple-600/70 uppercase">Ptr</span>
+                            <span className="text-[8px] text-purple-600/70 uppercase">Ptr</span>
                           </div>
                         )}
                       </div>

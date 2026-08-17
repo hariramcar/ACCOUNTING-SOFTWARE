@@ -227,8 +227,13 @@ export default function Sidebar({ session }) {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-600/20 border border-indigo-400/30 flex-shrink-0">
                 <Car size={20} className="text-white" />
               </div>
-              <div className="font-black text-[1.1rem] tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400">
-                Hariram Cars
+              <div className="flex flex-col justify-center mt-1">
+                <span className="font-black text-[1.15rem] leading-none tracking-tight text-white uppercase">
+                  Hariram<span className="text-indigo-400 ml-0.5">Cars</span>
+                </span>
+                <span className="font-bold text-[0.55rem] leading-none tracking-[0.2em] text-slate-500 uppercase mt-1">
+                  Inventory System
+                </span>
               </div>
             </div>
           ) : (

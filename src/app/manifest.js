@@ -10,15 +10,21 @@ export default function manifest() {
     orientation: 'portrait-primary', // Lock to portrait for best mobile data entry experience
     icons: [
       {
-        src: '/3.png',
+        src: '/icon.svg',
         sizes: '192x192',
-        type: 'image/png',
+        type: 'image/svg+xml',
         purpose: 'any maskable'
       },
       {
-        src: '/3.png',
+        src: '/icon.svg',
         sizes: '512x512',
-        type: 'image/png',
+        type: 'image/svg+xml',
+        purpose: 'any maskable'
+      },
+      {
+        src: '/icon.svg',
+        sizes: 'any',
+        type: 'image/svg+xml',
         purpose: 'any maskable'
       }
     ],
