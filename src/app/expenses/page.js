@@ -67,7 +67,11 @@ export default async function ExpensesPage({ searchParams }) {
       status: true,
       purchasePrice: true,
       legacyExpenses: true,
-      expenses: { select: { amount: true } }
+      expenses: { select: { amount: true } },
+      tokens: { 
+        where: { status: 'ACTIVE' },
+        select: { id: true, amount: true, customerName: true }
+      }
     }
   });
 
@@ -81,13 +85,18 @@ export default async function ExpensesPage({ searchParams }) {
       model: v.model,
       registration: v.registration,
       status: v.status,
-      totalCost
+      totalCost,
+      tokens: v.tokens.map(t => ({
+        id: t.id,
+        amount: Number(t.amount),
+        customerName: t.customerName
+      }))
     };
   });
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 md:p-8 flex flex-col gap-4 md:gap-8 text-slate-900 pb-24 md:pb-8">
-      <div className="flex flex-col lg:flex-row lg:justify-between items-start lg:items-end gap-3 md:gap-4 border-b border-slate-200 pb-3 md:pb-5 mb-1 md:mb-6 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-4 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
+    <div className="w-full max-w-7xl mx-auto px-4 pt-1 md:p-8 flex flex-col gap-4 md:gap-8 text-slate-900 pb-24 md:pb-8">
+      <div className="flex flex-col lg:flex-row lg:justify-between items-start lg:items-end gap-3 md:gap-4 border-b border-slate-200 pb-3 md:pb-5 mb-1 md:mb-6 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-1 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-8 h-8 md:w-10 md:h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100">

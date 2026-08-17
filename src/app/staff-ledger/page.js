@@ -113,7 +113,7 @@ export default async function StaffLedgerPage() {
   const monthName = new Date(year, month).toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
   return (
-    <div className="w-full max-w-5xl mx-auto p-4 md:p-8 flex flex-col gap-6 text-slate-900">
+    <div className="w-full max-w-5xl mx-auto px-4 pt-1 pb-4 md:p-8 flex flex-col gap-6 text-slate-900">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-5">
         <div>
           <div className="flex items-center gap-3 mb-1">

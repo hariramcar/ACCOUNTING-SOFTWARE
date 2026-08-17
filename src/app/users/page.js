@@ -18,7 +18,7 @@ export default async function UsersPage() {
   });
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 max-w-6xl mx-auto text-slate-900">
+    <div className="px-4 pt-1 pb-4 sm:p-6 md:p-8 max-w-6xl mx-auto text-slate-900">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-5 mb-6 sm:mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold mb-1 tracking-tight text-slate-900">Users & Staff</h1>

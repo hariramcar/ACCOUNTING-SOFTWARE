@@ -90,7 +90,6 @@ input, textarea, select {
   }
 
   button {
-    min-height: 44px;
     user-select: none;
     -webkit-user-select: none;
   }
@@ -111,8 +110,14 @@ input, textarea, select {
   }
 }
 
-/* Desktop Scrollbar Styling */
+/* Desktop Styling */
 @media (min-width: 769px) {
+  /* Re-enable text selection for desktop web users */
+  body, * {
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;

@@ -48,10 +48,10 @@ export default async function ProfitDashboard() {
   if (!data) return null;
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 sm:p-8 flex flex-col gap-6 sm:gap-8 text-slate-900 bg-slate-50 min-h-screen font-sans pb-24 md:pb-8">
+    <div className="w-full max-w-7xl mx-auto px-4 pt-1 sm:p-8 flex flex-col gap-6 sm:gap-8 text-slate-900 bg-slate-50 min-h-screen font-sans pb-24 md:pb-8">
 
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-3 md:gap-4 border-b border-slate-200 pb-3 md:pb-5 mb-1 md:mb-6 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-4 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-3 md:gap-4 border-b border-slate-200 pb-3 md:pb-5 mb-1 md:mb-6 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-1 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-8 h-8 md:w-10 md:h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100 shadow-sm">
