@@ -1,58 +1,33 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 
-export default function GlobalMonthSelector({ isExpanded }) {
+export default function GlobalMonthSelector({ isExpanded, currentDate, onChangeMonth }) {
   const router = useRouter();
-  const [currentDate, setCurrentDate] = useState(() => {
-    if (typeof document !== 'undefined') {
-      const match = document.cookie.match(/(^| )global_month=([^;]+)/);
-      if (match) {
-        const [yearStr, monthStr] = match[2].split('-');
-        const year = Number(yearStr);
-        const month = Number(monthStr);
-        if (!isNaN(year) && !isNaN(month)) {
-          return new Date(year, month, 1);
-        }
-      }
-    }
-    return new Date();
-  });
 
-  useEffect(() => {
-    // Set cookie on load if not present, or just ensure it's synced
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth()).padStart(2, '0');
-    document.cookie = `global_month=${year}-${month}; path=/; max-age=31536000`; // 1 year
-  }, [currentDate]);
+  // If no date is provided yet (e.g., during some hydration phase), fallback to current date
+  const dateToUse = currentDate || new Date();
 
   const handlePrevMonth = () => {
-    const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
-    setCurrentDate(newDate);
-    const year = newDate.getFullYear();
-    const month = String(newDate.getMonth()).padStart(2, '0');
-    document.cookie = `global_month=${year}-${month}; path=/; max-age=31536000`;
+    const newDate = new Date(dateToUse.getFullYear(), dateToUse.getMonth() - 1, 1);
+    onChangeMonth(newDate);
     router.refresh(); // Refresh Server Components
   };
 
   const handleNextMonth = () => {
-    const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-    setCurrentDate(newDate);
-    const year = newDate.getFullYear();
-    const month = String(newDate.getMonth()).padStart(2, '0');
-    document.cookie = `global_month=${year}-${month}; path=/; max-age=31536000`;
+    const newDate = new Date(dateToUse.getFullYear(), dateToUse.getMonth() + 1, 1);
+    onChangeMonth(newDate);
     router.refresh();
   };
 
-  const monthName = currentDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+  const monthName = dateToUse.toLocaleString('en-US', { month: 'short', year: 'numeric' });
 
   if (!isExpanded) {
     return (
       <div className="flex flex-col items-center justify-center p-2 mt-4 border-t border-slate-800 cursor-default" title={monthName}>
         <Calendar size={18} className="text-slate-500 mb-1" />
-        <span suppressHydrationWarning className="text-[9px] font-bold text-slate-400 uppercase">{currentDate.toLocaleString('en-US', { month: 'short' })}</span>
+        <span suppressHydrationWarning className="text-[9px] font-bold text-slate-400 uppercase">{dateToUse.toLocaleString('en-US', { month: 'short' })}</span>
       </div>
     );
   }

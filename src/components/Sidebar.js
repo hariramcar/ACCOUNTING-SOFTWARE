@@ -26,6 +26,27 @@ export default function Sidebar({ session }) {
   const sidebarRef = useRef(null);
   const mobileSheetRef = useRef(null);
 
+  const [globalMonth, setGlobalMonth] = useState(() => {
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(^| )global_month=([^;]+)/);
+      if (match) {
+        const [yearStr, monthStr] = match[2].split('-');
+        const year = Number(yearStr);
+        const month = Number(monthStr);
+        if (!isNaN(year) && !isNaN(month)) {
+          return new Date(year, month, 1);
+        }
+      }
+    }
+    return new Date();
+  });
+
+  useEffect(() => {
+    const year = globalMonth.getFullYear();
+    const month = String(globalMonth.getMonth()).padStart(2, '0');
+    document.cookie = `global_month=${year}-${month}; path=/; max-age=31536000`;
+  }, [globalMonth]);
+
   const navItems = [
     { name: 'Daily Expenses', path: '/expenses', icon: <Receipt size={20} /> },
     { name: 'Vehicle Khata', path: '/inventory', icon: <Car size={20} />, role: 'ADMIN' },
@@ -195,7 +216,7 @@ export default function Sidebar({ session }) {
 
               <div className="h-px bg-slate-800 my-3 mx-2"></div>
 
-              <GlobalMonthSelector isExpanded={true} />
+              <GlobalMonthSelector isExpanded={true} currentDate={globalMonth} onChangeMonth={setGlobalMonth} />
 
               <form action={logout} className="mt-2">
                 <button type="submit" className="w-full flex items-center gap-4 p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold transition-all active:scale-95 border border-red-500/20">
@@ -272,7 +293,7 @@ export default function Sidebar({ session }) {
         </nav>
 
           <div className="mt-2 mb-3">
-            <GlobalMonthSelector isExpanded={isExpanded} />
+            <GlobalMonthSelector isExpanded={isExpanded} currentDate={globalMonth} onChangeMonth={setGlobalMonth} />
           </div>
 
           {/* User Info / Settings Footer */}
