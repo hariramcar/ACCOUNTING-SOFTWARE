@@ -175,9 +175,15 @@ export async function addVehicle(formData) {
     const partnerInvestment = parseFloat((formData.get('partnerInvestment') || '0').replace(/,/g, ''));
     const profitSharePercentage = parseFloat(formData.get('profitSharePercentage') || '0');
 
-    const partnerPaidAmount = parseFloat((formData.get('partnerPaidAmount') || '0').replace(/,/g, ''));
-    const partnerPaymentMode = formData.get('partnerPaymentMode') || null;
-    const partnerPaymentAccountId = formData.get('partnerPaymentAccountId') || null;
+    const partnerPaid1Amount = parseFloat((formData.get('partnerPaid1Amount') || '0').replace(/,/g, ''));
+    const partnerPayment1Mode = formData.get('partnerPayment1Mode') || null;
+    const partnerPayment1AccountId = formData.get('partnerPayment1AccountId') || null;
+
+    const partnerPaid2Amount = parseFloat((formData.get('partnerPaid2Amount') || '0').replace(/,/g, ''));
+    const partnerPayment2Mode = formData.get('partnerPayment2Mode') || null;
+    const partnerPayment2AccountId = formData.get('partnerPayment2AccountId') || null;
+    
+    const partnerTotalPaid = partnerPaid1Amount + partnerPaid2Amount;
 
     const payableAccountId = formData.get('payableAccountId');
     
@@ -195,8 +201,11 @@ export async function addVehicle(formData) {
     if (p2Amount > 0 && !p2AccountId) {
       return { success: false, error: 'Please select an account for Payment 2.' };
     }
-    if (partnerPaidAmount > 0 && !partnerPaymentAccountId) {
-      return { success: false, error: 'Please select an account for Partner Payment Received.' };
+    if (partnerPaid1Amount > 0 && !partnerPayment1AccountId) {
+      return { success: false, error: 'Please select an account for Partner Payment 1.' };
+    }
+    if (partnerPaid2Amount > 0 && !partnerPayment2AccountId) {
+      return { success: false, error: 'Please select an account for Partner Payment 2.' };
     }
 
     let partnerName = 'Partner';
@@ -224,16 +233,18 @@ export async function addVehicle(formData) {
       // Handle Payment 1 (Suppress cash deduction for legacy cars)
       if (!isLegacy && p1AccountId && p1Mode && p1Amount > 0) {
         await checkSufficientBalance(tx, p1AccountId, p1Amount);
+        const p1Acc = await tx.account.findUnique({ where: { id: p1AccountId } });
+        const isInternal1 = p1Acc && p1Acc.type !== 'CASH' && p1Acc.type !== 'BANK';
         await tx.transaction.create({
           data: {
             date: purchaseDate,
-            transactionMode: p1Mode,
-            type: 'DEBIT',
+            transactionMode: isInternal1 ? 'CASH' : p1Mode, // Internal ledger uses CASH mode
+            type: isInternal1 ? 'CREDIT' : 'DEBIT', // Agent pays on our behalf -> We owe them more / they owe us less (CREDIT). Firm pays -> Firm balance decreases (DEBIT)
             amount: p1Amount,
             accountId: p1AccountId,
             category: 'VEHICLE_PURCHASE',
             referenceId: vehicle.id,
-            description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - Firm Payment 1`
+            description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - Firm Payment 1${isInternal1 ? ' (Paid by Agent/Financier)' : ''}`
           }
         });
       }
@@ -241,16 +252,18 @@ export async function addVehicle(formData) {
       // Handle Payment 2 (Suppress cash deduction for legacy cars)
       if (!isLegacy && p2AccountId && p2Mode && p2Amount > 0) {
         await checkSufficientBalance(tx, p2AccountId, p2Amount);
+        const p2Acc = await tx.account.findUnique({ where: { id: p2AccountId } });
+        const isInternal2 = p2Acc && p2Acc.type !== 'CASH' && p2Acc.type !== 'BANK';
         await tx.transaction.create({
           data: {
             date: purchaseDate,
-            transactionMode: p2Mode,
-            type: 'DEBIT',
+            transactionMode: isInternal2 ? 'CASH' : p2Mode,
+            type: isInternal2 ? 'CREDIT' : 'DEBIT',
             amount: p2Amount,
             accountId: p2AccountId,
             category: 'VEHICLE_PURCHASE',
             referenceId: vehicle.id,
-            description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - Firm Payment 2`
+            description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - Firm Payment 2${isInternal2 ? ' (Paid by Agent/Financier)' : ''}`
           }
         });
       }
@@ -273,21 +286,31 @@ export async function addVehicle(formData) {
 
       // Handle Partnership
       if (partnerAccountId && partnerInvestment > 0) {
+        
+        let investmentModeStr = 'PENDING';
+        if (partnerPaid1Amount > 0 && partnerPaid2Amount > 0) {
+           investmentModeStr = 'MULTIPLE';
+        } else if (partnerPaid1Amount > 0) {
+           investmentModeStr = partnerPayment1Mode;
+        } else if (partnerPaid2Amount > 0) {
+           investmentModeStr = partnerPayment2Mode;
+        }
+        
         await tx.partnership.create({
           data: {
             vehicleId: vehicle.id,
             partnerAccountId: partnerAccountId,
             investmentAmount: partnerInvestment,
             profitSharePercentage: profitSharePercentage,
-            investmentMode: partnerPaymentMode || 'PENDING',
-            isInvestmentPaid: partnerPaidAmount >= partnerInvestment,
-            paidAmount: partnerPaidAmount > 0 ? partnerPaidAmount : 0
+            investmentMode: investmentModeStr,
+            isInvestmentPaid: partnerTotalPaid >= partnerInvestment,
+            paidAmount: partnerTotalPaid > 0 ? partnerTotalPaid : 0
           }
         });
 
         // The amount to credit to the partner's ledger is what they ACTUALLY paid.
         // If they didn't specify a payment mode, we fall back to the full investment (legacy behavior)
-        const amountToCreditPartner = (partnerPaymentMode && partnerPaymentAccountId) ? partnerPaidAmount : partnerInvestment;
+        const amountToCreditPartner = (partnerTotalPaid > 0) ? partnerTotalPaid : partnerInvestment;
 
         if (amountToCreditPartner > 0) {
           await tx.transaction.create({
@@ -305,35 +328,67 @@ export async function addVehicle(formData) {
         }
 
         // Record the actual payment received from the partner to the firm's cash/bank (Suppress for legacy cars)
-        if (!isLegacy && partnerPaymentMode && partnerPaymentAccountId && partnerPaidAmount > 0) {
-          await tx.transaction.create({
-            data: {
-              date: purchaseDate,
-              transactionMode: partnerPaymentMode,
-              type: 'CREDIT', // Money comes IN to the firm
-              amount: partnerPaidAmount,
-              accountId: partnerPaymentAccountId,
-              category: 'GENERAL',
-              referenceId: vehicle.id,
-              description: `Income: Received from ${partnerName} for car ${make} ${model} (${registration || 'Unregistered'})`
-            }
-          });
+        if (!isLegacy) {
+          if (partnerPayment1Mode && partnerPayment1AccountId && partnerPaid1Amount > 0) {
+            await tx.transaction.create({
+              data: {
+                date: purchaseDate,
+                transactionMode: partnerPayment1Mode,
+                type: 'CREDIT', // Money comes IN to the firm
+                amount: partnerPaid1Amount,
+                accountId: partnerPayment1AccountId,
+                category: 'GENERAL',
+                referenceId: vehicle.id,
+                description: `Income: Received from ${partnerName} for car ${make} ${model} (${registration || 'Unregistered'}) - Payment 1`
+              }
+            });
+          }
+          if (partnerPayment2Mode && partnerPayment2AccountId && partnerPaid2Amount > 0) {
+            await tx.transaction.create({
+              data: {
+                date: purchaseDate,
+                transactionMode: partnerPayment2Mode,
+                type: 'CREDIT', // Money comes IN to the firm
+                amount: partnerPaid2Amount,
+                accountId: partnerPayment2AccountId,
+                category: 'GENERAL',
+                referenceId: vehicle.id,
+                description: `Income: Received from ${partnerName} for car ${make} ${model} (${registration || 'Unregistered'}) - Payment 2`
+              }
+            });
+          }
+        }
 
           // And since this capital was used to buy the car, it passes through to the seller
-          await tx.transaction.create({
-            data: {
-              date: purchaseDate,
-              transactionMode: partnerPaymentMode,
-              type: 'DEBIT', // Money goes OUT to the seller
-              amount: partnerPaidAmount,
-              accountId: partnerPaymentAccountId,
-              category: 'VEHICLE_PURCHASE',
-              referenceId: vehicle.id,
-              description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - ${partnerName} Payment`
-            }
-          });
+          if (partnerPayment1Mode && partnerPayment1AccountId && partnerPaid1Amount > 0) {
+            await tx.transaction.create({
+              data: {
+                date: purchaseDate,
+                transactionMode: partnerPayment1Mode,
+                type: 'DEBIT', // Money goes OUT to the seller
+                amount: partnerPaid1Amount,
+                accountId: partnerPayment1AccountId,
+                category: 'VEHICLE_PURCHASE',
+                referenceId: vehicle.id,
+                description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - ${partnerName} Payment 1`
+              }
+            });
+          }
+          if (partnerPayment2Mode && partnerPayment2AccountId && partnerPaid2Amount > 0) {
+            await tx.transaction.create({
+              data: {
+                date: purchaseDate,
+                transactionMode: partnerPayment2Mode,
+                type: 'DEBIT', // Money goes OUT to the seller
+                amount: partnerPaid2Amount,
+                accountId: partnerPayment2AccountId,
+                category: 'VEHICLE_PURCHASE',
+                referenceId: vehicle.id,
+                description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - ${partnerName} Payment 2`
+              }
+            });
+          }
         }
-      }
     });
 
     revalidatePath('/inventory');
@@ -488,8 +543,7 @@ export async function sellVehicle(formData) {
           data: {
             name: `${customerName || 'Direct Customer'} (Customer)`,
             type: 'UGHRANI',
-            openingBalance: 0,
-            currentAdvance: 0
+            openingBalance: 0
           }
         });
         finalReceivableAccountId = newCustomerAccount.id;

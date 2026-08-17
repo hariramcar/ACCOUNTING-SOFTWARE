@@ -51,6 +51,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
   const [payments, setPayments] = useState([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
   const [appliedTokenId, setAppliedTokenId] = useState('');
   const [pendingBalance, setPendingBalance] = useState(0);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Derive the currently selected vehicle object to access its tokens
   const selectedVehicle = inStock.find(v => v.id === selectedVehicleId);
@@ -72,6 +73,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
     
     const pending = Math.round((price - (totalPayments + appliedTokenAmount)) * 100) / 100;
     setPendingBalance(pending);
+    setShowConfirm(false); // Reset confirm state if anything changes
   }, [salePrice, payments, appliedTokenId, selectedVehicle]);
 
   const addPayment = () => {
@@ -94,10 +96,18 @@ export default function SellVehicleModal({ inStock, accounts }) {
       return;
     }
     
+    // Warn if keeping udhari on customer
+    const receivableAccountId = formData.get('receivableAccountId');
+    if (pendingBalance > 0 && !receivableAccountId && !showConfirm) {
+      setShowConfirm(true);
+      return;
+    }
+    
     const res = await sellVehicle(formData);
     if (res?.success) {
       toast.success("Vehicle sold successfully!");
       setIsOpen(false);
+      setShowConfirm(false);
     } else if (res?.error) {
       toast.error(res.error);
     }
@@ -221,12 +231,12 @@ export default function SellVehicleModal({ inStock, accounts }) {
                   
                   <div className="flex flex-col md:flex-row gap-4 mt-4">
                     <div className="flex-1">
-                      <label className="text-[11px] uppercase font-bold text-slate-500 mb-2 block tracking-wider">Customer Name</label>
-                      <input type="text" name="customerName" placeholder="Enter Customer Name" className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
+                      <label className="text-[11px] uppercase font-bold text-slate-500 mb-2 block tracking-wider">Customer Name <span className="text-red-500">*</span></label>
+                      <input type="text" name="customerName" required placeholder="Enter Customer Name" className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
                     </div>
                     <div className="flex-1">
-                      <label className="text-[11px] uppercase font-bold text-slate-500 mb-2 block tracking-wider">Customer Mobile Number</label>
-                      <input type="text" name="customerMobile" placeholder="Enter Mobile Number" maxLength={10} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
+                      <label className="text-[11px] uppercase font-bold text-slate-500 mb-2 block tracking-wider">Customer Mobile Number <span className="text-red-500">*</span></label>
+                      <input type="text" name="customerMobile" required pattern="[0-9]{10}" title="Please enter a valid 10-digit mobile number" placeholder="Enter Mobile Number" maxLength={10} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
                     </div>
                   </div>
 
@@ -265,11 +275,11 @@ export default function SellVehicleModal({ inStock, accounts }) {
                 
                 {pendingBalance !== 0 && (
                   <div className="flex-1 w-full md:w-auto">
-                     <label className="text-[10px] uppercase font-bold text-amber-700 mb-2 block tracking-wider">Select Agent Account (Optional for Direct Customer)</label>
+                     <label className="text-[10px] uppercase font-bold text-amber-700 mb-2 block tracking-wider">Select Loan Agent / Financier (Optional for Direct Customer)</label>
                      <select name="receivableAccountId" className="w-full p-3 rounded-xl border border-amber-200 bg-white shadow-inner text-sm font-bold outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 text-amber-900 transition-all">
                       <option value="">-- Direct Customer Udhari --</option>
-                      {accounts?.filter(a => a.type === 'DSA_AGENT').map(acc => (
-                        <option key={acc.id} value={acc.id}>{acc.name}</option>
+                      {accounts?.filter(a => a.type === 'DSA_AGENT' || a.type === 'FINANCIER').map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.type === 'FINANCIER' ? 'Financier' : 'Agent'})</option>
                       ))}
                     </select>
                   </div>
@@ -343,21 +353,51 @@ export default function SellVehicleModal({ inStock, accounts }) {
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex justify-end gap-3 mt-2 shrink-0 bg-white sticky bottom-0 -mx-6 -mb-6 p-6">
-                <button 
-                  type="button" 
-                  onClick={() => setIsOpen(false)}
-                  className="px-5 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <SubmitButton
-                  disabled={!selectedVehicleId || inStock?.length === 0}
-                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  pendingText="Selling..."
-                >
-                  <HandCoins size={18} />
-                  Confirm Sale
-                </SubmitButton>
+                {!showConfirm ? (
+                  <>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsOpen(false)}
+                      className="px-5 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <SubmitButton
+                      disabled={!selectedVehicleId || inStock?.length === 0}
+                      className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      pendingText="Selling..."
+                    >
+                      <HandCoins size={18} />
+                      Confirm Sale
+                    </SubmitButton>
+                  </>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-center justify-between w-full p-4 bg-amber-50 border border-amber-200 rounded-xl animate-in slide-in-from-bottom-2 duration-300">
+                    <div className="mb-3 sm:mb-0">
+                       <h3 className="text-amber-900 font-bold text-sm mb-1 flex items-center gap-1.5">
+                         Customer Udhari Warning!
+                       </h3>
+                       <p className="text-amber-700 text-xs font-medium max-w-sm">
+                         You did not select a Loan Agent. <strong className="text-amber-800">₹{pendingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> will be kept pending on the customer's account. Are you OK to proceed?
+                       </p>
+                    </div>
+                    <div className="flex gap-2 w-full sm:w-auto shrink-0">
+                      <button 
+                        type="button" 
+                        onClick={() => setShowConfirm(false)}
+                        className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg font-bold text-amber-800 bg-amber-200/50 hover:bg-amber-200 transition-colors text-sm"
+                      >
+                        Wait, Go Back
+                      </button>
+                      <SubmitButton
+                        className="flex-1 sm:flex-none px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold transition-all shadow-sm text-sm flex items-center gap-2"
+                        pendingText="Confirming..."
+                      >
+                        <Check size={16} /> Yes, I am OK
+                      </SubmitButton>
+                    </div>
+                  </div>
+                )}
               </div>
             </form>
           </div>

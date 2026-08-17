@@ -31,8 +31,10 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
 
   const [partnerInvestment, setPartnerInvestment] = useState('');
   const [profitSharePercentage, setProfitSharePercentage] = useState('');
-  const [partnerPaidAmount, setPartnerPaidAmount] = useState('');
-  const [partnerPaymentMode, setPartnerPaymentMode] = useState('');
+  const [partnerPaid1Amount, setPartnerPaid1Amount] = useState('');
+  const [partnerPayment1Mode, setPartnerPayment1Mode] = useState('');
+  const [partnerPaid2Amount, setPartnerPaid2Amount] = useState('');
+  const [partnerPayment2Mode, setPartnerPayment2Mode] = useState('');
   
   const formatIndianNumber = (val) => {
     if (!val) return '';
@@ -171,8 +173,10 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
         setPayment2Mode('');
         setPartnerInvestment('');
         setProfitSharePercentage('');
-        setPartnerPaymentMode('');
-        setPartnerPaidAmount('');
+        setPartnerPaid1Amount('');
+        setPartnerPayment1Mode('');
+        setPartnerPaid2Amount('');
+        setPartnerPayment2Mode('');
         setIsLegacy(false);
         e.target.reset();
       }
@@ -272,74 +276,90 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                   </div>
                 )}
               </div>
+              
+              {!isLegacy && (
+                <div className="bg-slate-50/50 p-5 rounded-2xl mt-3 border border-slate-100 flex flex-col gap-3">
+                  <p className="m-0 mb-1 text-xs uppercase tracking-wider font-bold text-slate-700">Auto-Deduct from Rojmel</p>
+                  
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    <select 
+                      name="payment1Mode" 
+                      value={payment1Mode}
+                      onChange={(e) => setPayment1Mode(e.target.value)}
+                      className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    >
+                      <option value="">No Entry</option>
+                      <option value="CASH">Cash</option>
+                      <option value="BANK">Bank</option>
+                      <option value="AGENT">Agent/Financier</option>
+                    </select>
+                    <select name="payment1AccountId" required={!!payment1Amount || !!payment1Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                      <option value="">Account...</option>
+                      {accounts?.filter(acc => payment1Mode === '' || (payment1Mode === 'AGENT' ? (acc.type === 'DSA_AGENT' || acc.type === 'FINANCIER') : acc.type === payment1Mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                    </select>
+                    <input 
+                      type="text" 
+                      inputMode="decimal"
+                      name="payment1Amount" 
+                      placeholder="Amt 1 (₹)" 
+                      value={payment1Amount}
+                      onChange={handlePayment1Change}
+                      className="w-full text-[13px] font-black p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 placeholder:font-semibold transition-all" 
+                    />
+                  </div>
 
-              <div className="bg-slate-50/50 p-5 rounded-2xl mt-3 border border-slate-100 flex flex-col gap-3">
-                <p className="m-0 mb-1 text-xs uppercase tracking-wider font-bold text-slate-700">Auto-Deduct from Rojmel</p>
-                
-                <div className="grid grid-cols-3 gap-3">
-                  <select 
-                    name="payment1Mode" 
-                    value={payment1Mode}
-                    onChange={(e) => setPayment1Mode(e.target.value)}
-                    className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                  >
-                    <option value="">No Entry</option>
-                    <option value="CASH">Cash</option>
-                    <option value="BANK">Bank</option>
-                  </select>
-                  <select name="payment1AccountId" required={!!payment1Amount || !!payment1Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-                    <option value="">Account...</option>
-                    {accounts?.filter(acc => payment1Mode === '' || acc.type === payment1Mode).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                  </select>
-                  <input 
-                    type="text" 
-                    inputMode="decimal"
-                    name="payment1Amount" 
-                    placeholder="Amt 1 (₹)" 
-                    value={payment1Amount}
-                    onChange={handlePayment1Change}
-                    className="w-full text-[13px] font-black p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 placeholder:font-semibold transition-all" 
-                  />
-                </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <select 
+                      name="payment2Mode" 
+                      value={payment2Mode}
+                      onChange={(e) => setPayment2Mode(e.target.value)}
+                      className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    >
+                      <option value="">No Entry</option>
+                      <option value="CASH">Cash</option>
+                      <option value="BANK">Bank</option>
+                      <option value="AGENT">Agent/Financier</option>
+                    </select>
+                    <select name="payment2AccountId" required={!!payment2Amount || !!payment2Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                      <option value="">Account...</option>
+                      {accounts?.filter(acc => payment2Mode === '' || (payment2Mode === 'AGENT' ? (acc.type === 'DSA_AGENT' || acc.type === 'FINANCIER') : acc.type === payment2Mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                    </select>
+                    <input 
+                      type="text" 
+                      inputMode="decimal"
+                      name="payment2Amount" 
+                      placeholder="Amt 2 (₹)" 
+                      value={payment2Amount}
+                      onChange={handlePayment2Change}
+                      className="w-full text-[13px] font-black p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 placeholder:font-semibold transition-all" 
+                    />
+                  </div>
 
-                <div className="grid grid-cols-3 gap-3">
-                  <select 
-                    name="payment2Mode" 
-                    value={payment2Mode}
-                    onChange={(e) => setPayment2Mode(e.target.value)}
-                    className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                  >
-                    <option value="">No Entry</option>
-                    <option value="CASH">Cash</option>
-                    <option value="BANK">Bank</option>
-                  </select>
-                  <select name="payment2AccountId" required={!!payment2Amount || !!payment2Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-                    <option value="">Account...</option>
-                    {accounts?.filter(acc => payment2Mode === '' || acc.type === payment2Mode).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                  </select>
-                  <input 
-                    type="text" 
-                    inputMode="decimal"
-                    name="payment2Amount" 
-                    placeholder="Amt 2 (₹)" 
-                    value={payment2Amount}
-                    onChange={handlePayment2Change}
-                    className="w-full text-[13px] font-black p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 placeholder:font-semibold transition-all" 
-                  />
-                </div>
-
-                <div className="mt-2 border-t border-slate-200/60 pt-4">
-                  <div className="flex justify-between items-end mb-1">
-                    <p className="m-0 text-[11px] uppercase tracking-wider font-bold text-amber-600">Pending Balance (Not Paid)</p>
+                  <div className="mt-2 border-t border-slate-200/60 pt-4">
+                    <div className="flex justify-between items-end mb-3">
+                      <p className="m-0 text-[11px] uppercase tracking-wider font-bold text-amber-600">Pending Balance (Not Paid)</p>
+                      {pendingBalance > 0 ? (
+                        <strong className="text-amber-600 text-sm font-black tracking-tight">₹{pendingBalance.toLocaleString('en-IN')}</strong>
+                      ) : (
+                        <span className="text-slate-400 text-sm font-bold">₹0</span>
+                      )}
+                    </div>
                     {pendingBalance > 0 ? (
-                      <strong className="text-amber-600 text-sm font-black tracking-tight">₹{pendingBalance.toLocaleString('en-IN')}</strong>
+                      <div className="flex flex-col gap-1.5 mt-2">
+                        <label className="text-[10px] uppercase font-bold text-amber-700 tracking-wider">Select Agent</label>
+                        <select name="payableAccountId" className="w-full text-xs font-bold p-3 rounded-xl border border-amber-200 bg-amber-50 shadow-inner text-amber-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500 transition-all">
+                          <option value="">-- Keep Pending on Car (No Ledger Entry) --</option>
+                          {accounts?.filter(a => a.type === 'DSA_AGENT' || a.type === 'FINANCIER').map(acc => (
+                            <option key={acc.id} value={acc.id}>{acc.name} ({acc.type === 'FINANCIER' ? 'Financier' : 'Agent'})</option>
+                          ))}
+                        </select>
+                      </div>
                     ) : (
-                      <span className="text-slate-400 text-sm font-bold">₹0</span>
+                      <input type="hidden" name="payableAccountId" value="" />
                     )}
                   </div>
-                  <input type="hidden" name="payableAccountId" value="" />
                 </div>
-              </div>
+              )}
 
               <div className="bg-purple-50/50 p-5 rounded-2xl mt-1 border border-purple-100 flex flex-col gap-3">
                 <p className="m-0 mb-1 text-xs uppercase tracking-wider font-black text-purple-700">Partnership (Optional)</p>
@@ -368,40 +388,67 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                       className="text-[13px] font-black flex-1 p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 placeholder:text-purple-300 transition-all" 
                     />
                   </div>
-                  <div className="flex gap-3 mt-1 pt-3 border-t border-purple-200/50">
-                    <select 
-                      name="partnerPaymentMode"
-                      value={partnerPaymentMode}
-                      onChange={(e) => setPartnerPaymentMode(e.target.value)}
-                      className="text-[13px] font-bold flex-1 p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all"
-                    >
-                      <option value="">No Payment Received</option>
-                      <option value="CASH">Received in Cash</option>
-                      <option value="BANK">Received in Bank</option>
-                    </select>
-
-                    {partnerPaymentMode && (
-                      <>
-                        <select name="partnerPaymentAccountId" required className="text-[13px] font-bold flex-1 p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all">
-                          <option value="">Select Account...</option>
-                          {accounts?.filter(acc => acc.type === partnerPaymentMode).map(acc => (
+                  {!isLegacy && (
+                    <div className="flex flex-col gap-3 mt-1 pt-3 border-t border-purple-200/50">
+                      <p className="m-0 text-[10px] uppercase tracking-wider font-bold text-purple-700">Payment Received from Partner</p>
+                      
+                      <div className="grid grid-cols-3 gap-3">
+                        <select 
+                          name="partnerPayment1Mode"
+                          value={partnerPayment1Mode}
+                          onChange={(e) => setPartnerPayment1Mode(e.target.value)}
+                          className="w-full text-[13px] font-bold p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all"
+                        >
+                          <option value="">No Entry</option>
+                          <option value="CASH">Cash</option>
+                          <option value="BANK">Bank</option>
+                        </select>
+                        <select name="partnerPayment1AccountId" required={!!partnerPaid1Amount || !!partnerPayment1Mode} className="w-full text-[13px] font-bold p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all">
+                          <option value="">Account...</option>
+                          {accounts?.filter(acc => partnerPayment1Mode === '' || acc.type === partnerPayment1Mode).map(acc => (
                             <option key={acc.id} value={acc.id}>{acc.name}</option>
                           ))}
                         </select>
-
                         <input 
                           type="text" 
                           inputMode="decimal"
-                          name="partnerPaidAmount"
-                          required
-                          placeholder="Paid Amt (₹)"
-                          value={partnerPaidAmount}
-                          onChange={(e) => setPartnerPaidAmount(formatIndianNumber(e.target.value))}
-                          className="text-[13px] font-black flex-1 p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 placeholder:text-purple-300 transition-all"
+                          name="partnerPaid1Amount"
+                          placeholder="Amt 1 (₹)"
+                          value={partnerPaid1Amount}
+                          onChange={(e) => setPartnerPaid1Amount(formatIndianNumber(e.target.value))}
+                          className="w-full text-[13px] font-black p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 placeholder:text-purple-300 transition-all"
                         />
-                      </>
-                    )}
-                  </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <select 
+                          name="partnerPayment2Mode"
+                          value={partnerPayment2Mode}
+                          onChange={(e) => setPartnerPayment2Mode(e.target.value)}
+                          className="w-full text-[13px] font-bold p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all"
+                        >
+                          <option value="">No Entry</option>
+                          <option value="CASH">Cash</option>
+                          <option value="BANK">Bank</option>
+                        </select>
+                        <select name="partnerPayment2AccountId" required={!!partnerPaid2Amount || !!partnerPayment2Mode} className="w-full text-[13px] font-bold p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all">
+                          <option value="">Account...</option>
+                          {accounts?.filter(acc => partnerPayment2Mode === '' || acc.type === partnerPayment2Mode).map(acc => (
+                            <option key={acc.id} value={acc.id}>{acc.name}</option>
+                          ))}
+                        </select>
+                        <input 
+                          type="text" 
+                          inputMode="decimal"
+                          name="partnerPaid2Amount"
+                          placeholder="Amt 2 (₹)"
+                          value={partnerPaid2Amount}
+                          onChange={(e) => setPartnerPaid2Amount(formatIndianNumber(e.target.value))}
+                          className="w-full text-[13px] font-black p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 placeholder:text-purple-300 transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
