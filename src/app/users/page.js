@@ -5,6 +5,7 @@ import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import EditUserModal from './EditUserModal';
 import SubmitButton from '@/components/SubmitButton';
+import WipeButton from './WipeButton';
 
 export default async function UsersPage() {
   const session = await getSession();
@@ -22,6 +23,9 @@ export default async function UsersPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold mb-1 tracking-tight text-slate-900">Users & Staff</h1>
           <p className="text-slate-500 m-0 font-medium text-sm sm:text-base">Manage access and roles for the Master Ledger.</p>
+        </div>
+        <div>
+          <WipeButton />
         </div>
       </div>
 

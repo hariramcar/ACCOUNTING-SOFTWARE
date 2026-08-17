@@ -126,35 +126,42 @@ export default async function StaffLedgerPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-blue-100 text-blue-600 rounded-lg">
-            <BookOpen size={24} />
+      {/* Stat Cards - Native Mobile Layout */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+        {/* Total Advance */}
+        <div className="col-span-2 md:col-span-1 bg-blue-50 border border-blue-200 rounded-xl p-3 md:p-5 shadow-sm flex items-center gap-3">
+          <div className="p-2 md:p-3 bg-blue-100 text-blue-600 rounded-lg">
+            <BookOpen size={20} className="md:w-6 md:h-6" />
           </div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-1">Total Advance Received</div>
-            <div className="text-2xl font-black text-blue-700">₹{totalAdvances.toLocaleString('en-IN')}</div>
+            <div className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-blue-600 mb-0.5">Advance Received</div>
+            <div className="text-xl md:text-2xl font-black text-blue-700 leading-none">₹{totalAdvances.toLocaleString('en-IN')}</div>
           </div>
         </div>
 
-        <div className="bg-red-50 border border-red-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-red-100 text-red-600 rounded-lg">
-            <Wallet size={24} />
-          </div>
-          <div>
-            <div className="text-xs font-bold uppercase tracking-widest text-red-600 mb-1">Total Spent</div>
-            <div className="text-2xl font-black text-red-700">₹{totalApproved.toLocaleString('en-IN')}</div>
-          </div>
+        {/* Total Spent */}
+        <div className="col-span-1 bg-red-50 border border-red-200 rounded-xl p-3 md:p-5 shadow-sm flex flex-col justify-center gap-1">
+          <div className="text-[9px] md:text-xs font-bold uppercase tracking-widest text-red-600">Approved Spent</div>
+          <div className="text-lg md:text-2xl font-black text-red-700 leading-none">₹{totalApproved.toLocaleString('en-IN')}</div>
         </div>
 
-        <div className={`border rounded-xl p-5 shadow-sm flex items-center gap-4 ${totalAdvances - totalApproved < 0 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
-          <div className={`p-3 rounded-lg ${totalAdvances - totalApproved < 0 ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
-            <Wallet size={24} />
+        {/* Pending Approvals */}
+        <div className="col-span-1 bg-amber-50 border border-amber-200 rounded-xl p-3 md:p-5 shadow-sm flex flex-col justify-center gap-1">
+          <div className="text-[9px] md:text-xs font-bold uppercase tracking-widest text-amber-600">Pending Spent</div>
+          <div className="text-lg md:text-2xl font-black text-amber-700 leading-none">₹{totalPending.toLocaleString('en-IN')}</div>
+        </div>
+
+        {/* Remaining Balance (Cash in Hand / Due) */}
+        <div className={`col-span-2 md:col-span-1 border rounded-xl p-3 md:p-5 shadow-sm flex items-center gap-3 ${totalAdvances - totalApproved < 0 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+          <div className={`p-2 md:p-3 rounded-lg ${totalAdvances - totalApproved < 0 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
+            <Wallet size={20} className="md:w-6 md:h-6" />
           </div>
           <div>
-            <div className={`text-xs font-bold uppercase tracking-widest mb-1 ${totalAdvances - totalApproved < 0 ? 'text-amber-600' : 'text-emerald-600'}`}>Remaining Balance</div>
-            <div className={`text-2xl font-black ${totalAdvances - totalApproved < 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
-              {totalAdvances - totalApproved < 0 ? '-' : ''}₹{Math.abs(totalAdvances - totalApproved).toLocaleString('en-IN')}
+            <div className={`text-[10px] md:text-xs font-bold uppercase tracking-widest mb-0.5 ${totalAdvances - totalApproved < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {totalAdvances - totalApproved < 0 ? 'Reimbursement Due' : 'Cash In Hand'}
+            </div>
+            <div className={`text-xl md:text-2xl font-black leading-none ${totalAdvances - totalApproved < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+              ₹{Math.abs(totalAdvances - totalApproved).toLocaleString('en-IN')}
             </div>
           </div>
         </div>
@@ -169,28 +176,28 @@ export default async function StaffLedgerPage() {
           </div>
         ) : (
           Object.entries(grouped).map(([dateStr, exps]) => (
-            <div key={dateStr} className="mb-6">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-xs font-black uppercase tracking-widest text-slate-500 px-3 py-1 bg-slate-100 rounded-full border border-slate-200">{dateStr}</span>
+            <div key={dateStr} className="mb-4 md:mb-6">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-500 px-2.5 py-0.5 md:py-1 bg-slate-100 rounded-full border border-slate-200">{dateStr}</span>
                 <div className="h-px bg-slate-200 flex-1"></div>
               </div>
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2 md:gap-3">
                 {exps.map(exp => (
-                  <div key={exp.id} className="bg-white rounded-xl p-4 md:p-5 flex justify-between items-start gap-2 sm:gap-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className={`mt-0.5 p-2 rounded-lg border flex-shrink-0 ${
+                  <div key={exp.id} className="bg-white rounded-xl p-3 md:p-5 flex justify-between items-start gap-2 md:gap-4 shadow-sm border border-slate-200">
+                    <div className="flex items-start gap-2.5 md:gap-3 flex-1 min-w-0">
+                      <div className={`mt-0.5 p-1.5 md:p-2 rounded-lg border flex-shrink-0 ${
                         exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' :
                         exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-500 border-blue-100' :
                         exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
                       }`}>
-                        {exp.expenseType === 'INCOME' ? <Wallet size={16} /> :
-                         exp.expenseType === 'ADVANCE' ? <Wallet size={16} /> :
-                         exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={16} /> : <Car size={16} />}
+                        {exp.expenseType === 'INCOME' ? <Wallet size={16} className="w-3.5 h-3.5 md:w-4 md:h-4" /> :
+                         exp.expenseType === 'ADVANCE' ? <Wallet size={16} className="w-3.5 h-3.5 md:w-4 md:h-4" /> :
+                         exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={16} className="w-3.5 h-3.5 md:w-4 md:h-4" /> : <Car size={16} className="w-3.5 h-3.5 md:w-4 md:h-4" />}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-bold text-slate-900 text-[13px] sm:text-sm truncate">{exp.description}</div>
-                        <div className="flex items-center flex-wrap gap-1.5 mt-1">
-                          <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${
+                        <div className="font-bold text-slate-900 text-xs md:text-sm truncate">{exp.description}</div>
+                        <div className="flex items-center flex-wrap gap-1 md:gap-1.5 mt-1">
+                          <span className={`text-[8px] md:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${
                             exp.expenseType === 'INCOME' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
                             exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-600 border-blue-200' :
                             exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-indigo-50 text-indigo-600 border-indigo-200'
@@ -199,7 +206,7 @@ export default async function StaffLedgerPage() {
                           </span>
                           
                           {exp.vehicle && (
-                            <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                            <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                               {exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration})
                             </span>
                           )}
@@ -207,13 +214,13 @@ export default async function StaffLedgerPage() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end justify-center gap-1 flex-shrink-0 text-right">
-                      <div className={`font-black text-sm sm:text-base md:text-lg whitespace-nowrap ${exp.expenseType === 'INCOME' || exp.expenseType === 'ADVANCE' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                      <div className={`font-black text-sm md:text-lg whitespace-nowrap leading-none ${exp.expenseType === 'INCOME' || exp.expenseType === 'ADVANCE' ? 'text-emerald-600' : 'text-slate-900'}`}>
                         {exp.expenseType === 'INCOME' || exp.expenseType === 'ADVANCE' ? '+' : ''}₹{exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </div>
-                      <div className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${
+                      <div className={`text-[8px] md:text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${
                         exp.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 
                         exp.status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 
-                        'bg-red-100 text-red-700'
+                        'bg-rose-100 text-rose-700'
                       }`}>
                         {exp.status}
                       </div>

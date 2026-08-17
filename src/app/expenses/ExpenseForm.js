@@ -139,7 +139,11 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
     if (finalExpenseType !== 'INCOME') {
       const mode = formData.get('mode');
       const accountId = formData.get('accountId');
-      if (mode && mode !== 'PENDING' && !accountId) {
+      
+      // STAFF are auto-assigned their own accountId on the server if they select CASH
+      const isStaffCash = !isAdmin && mode === 'CASH';
+      
+      if (mode && mode !== 'PENDING' && !accountId && !isStaffCash) {
         toast.error('Please select an account for this expense payment.');
         return;
       }
