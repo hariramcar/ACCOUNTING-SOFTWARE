@@ -47,6 +47,8 @@ model Vehicle {
   tokens                 VehicleToken[]
   payableAccount         Account?      @relation("VehiclePayableAccount", fields: [payableAccountId], references: [id])
   receivableAccount      Account?      @relation("VehicleReceivableAccount", fields: [receivableAccountId], references: [id])
+
+  @@index([status])
 }
 
 model Expense {
@@ -66,6 +68,10 @@ model Expense {
   updatedAt          DateTime      @updatedAt
   submittedBy        User?         @relation(fields: [submittedById], references: [id])
   vehicle            Vehicle?      @relation(fields: [vehicleId], references: [id])
+
+  @@index([date])
+  @@index([status])
+  @@index([vehicleId])
 }
 
 model Partnership {
@@ -96,6 +102,10 @@ model Transaction {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   account         Account             @relation(fields: [accountId], references: [id])
+
+  @@index([date])
+  @@index([accountId])
+  @@index([type])
 }
 
 model User {

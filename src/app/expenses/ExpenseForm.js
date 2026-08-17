@@ -522,7 +522,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
 
               {/* EXPENSE SIMPLE AUTO-DEDUCT SECTION */}
               <div className="bg-slate-50 p-4 rounded-lg mt-2 border border-slate-200">
-                <p className="m-0 mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-700">{isAdmin ? 'Auto-Deduct from Rojmel (Optional)' : 'Payment Source'}</p>
+                <p className="m-0 mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-700">Payment Source</p>
                 {accounts.length === 0 ? (
                   <div className="bg-red-50 text-red-600 border border-red-200 rounded-md p-3 text-sm font-semibold">
                     ⚠️ You haven't created any Cash Drawers or Bank Accounts yet! Go to the Master Capital Dashboard (Bank Icon) to add one first.
