@@ -11,6 +11,7 @@ function getLocalDateString() {
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeftRight, Building2, Car, PlusCircle, Trash2 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 function ExpenseSubmitButton({ txType, expenseSubType }) {
@@ -38,6 +39,7 @@ function TransferSubmitButton() {
 }
 
 export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addTransferAction, sellVehicleAction, isAdmin, onSuccess }) {
+  const router = useRouter();
   const [txType, setTxType] = useState('EXPENSE'); // INCOME, EXPENSE, or TRANSFER
   const [expenseSubType, setExpenseSubType] = useState('OFFICE_EXPENSE'); // OFFICE_EXPENSE or CAR_EXPENSE
   
@@ -170,6 +172,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
           setCustomerName('');
           setCustomerMobile('');
           document.getElementById('expense-form').reset();
+          router.refresh();
           if (onSuccess) onSuccess();
         }
       } else {
@@ -185,6 +188,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
           setCustomerName('');
           setCustomerMobile('');
           document.getElementById('expense-form').reset();
+          router.refresh();
           if (onSuccess) onSuccess();
         }
       }
@@ -236,6 +240,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
       } else {
         toast.success('Transfer complete!');
         document.getElementById('transfer-form').reset();
+        router.refresh();
         if (onSuccess) onSuccess();
       }
     } finally {
