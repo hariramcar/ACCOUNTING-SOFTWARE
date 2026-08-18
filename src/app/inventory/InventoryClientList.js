@@ -39,9 +39,6 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
     return filtered;
   }, [inStock, searchQuery, statusFilter]);
 
-  if (!inStock || inStock.length === 0) {
-    return <p className="text-slate-500 text-center py-8 text-sm font-medium">No cars currently in stock.</p>;
-  }
 
   return (
     <div className="w-full pb-2 flex flex-col gap-6 md:gap-8">
@@ -122,6 +119,9 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
               const purchPct = Math.round((car.purchasePrice / totalCost) * 100);
               const repairPct = 100 - purchPct;
 
+              const partnerInvestment = (car.partnerships || []).reduce((sum, p) => sum + Number(p.investmentAmount || 0), 0);
+              const firmInvestment = Math.max(0, car.purchasePrice - partnerInvestment);
+
               return (
                   <div 
                     key={car.id} 
@@ -162,9 +162,17 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
                         <div className="h-full bg-slate-400" style={{ width: `${purchPct}%` }}></div>
                         <div className="h-full bg-red-400" style={{ width: `${repairPct}%` }}></div>
                       </div>
-                      <div className="flex justify-between mt-1">
-                        <span className="text-[8px] font-bold text-slate-400">Purch: ₹{car.purchasePrice.toLocaleString('en-IN')}</span>
-                        {car.totalExpenses > 0 && <span className="text-[8px] font-bold text-red-400">Repairs: +₹{car.totalExpenses.toLocaleString('en-IN')}</span>}
+                      <div className="flex flex-col gap-0.5 mt-1">
+                        <div className="flex justify-between">
+                          <span className="text-[8px] font-bold text-slate-400">Purch: ₹{car.purchasePrice.toLocaleString('en-IN')}</span>
+                          {car.totalExpenses > 0 && <span className="text-[8px] font-bold text-red-400">Repairs: +₹{car.totalExpenses.toLocaleString('en-IN')}</span>}
+                        </div>
+                        {partnerInvestment > 0 && (
+                          <div className="flex justify-start gap-3 border-t border-slate-100 pt-0.5 mt-0.5">
+                            <span className="text-[8px] font-medium text-slate-400">Firm: ₹{firmInvestment.toLocaleString('en-IN')}</span>
+                            <span className="text-[8px] font-medium text-purple-500">Partner: ₹{partnerInvestment.toLocaleString('en-IN')}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -217,6 +225,9 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
                     const purchPct = Math.round((car.purchasePrice / totalCost) * 100);
                     const repairPct = 100 - purchPct;
 
+                    const partnerInvestment = (car.partnerships || []).reduce((sum, p) => sum + Number(p.investmentAmount || 0), 0);
+                    const firmInvestment = Math.max(0, car.purchasePrice - partnerInvestment);
+
                     return (
                       <tr 
                         key={car.id} 
@@ -248,8 +259,20 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
                             <span className="text-slate-400 font-bold">-</span>
                           )}
                         </td>
-                        <td className="py-4 px-6 text-right font-medium text-slate-600 whitespace-nowrap">
-                          ₹{car.purchasePrice.toLocaleString('en-IN')}
+                        <td className="py-4 px-6 text-right whitespace-nowrap">
+                          <div className="font-medium text-slate-600">₹{car.purchasePrice.toLocaleString('en-IN')}</div>
+                          {partnerInvestment > 0 && (
+                            <div className="mt-1 flex flex-col gap-0.5 text-[10px]">
+                              <div className="text-slate-400 flex justify-end gap-1">
+                                <span className="uppercase text-[9px] font-bold">Firm:</span>
+                                <span>₹{firmInvestment.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="text-purple-500 flex justify-end gap-1">
+                                <span className="uppercase text-[9px] font-bold">Ptr:</span>
+                                <span>₹{partnerInvestment.toLocaleString('en-IN')}</span>
+                              </div>
+                            </div>
+                          )}
                         </td>
                         <td className="py-4 px-6 text-right whitespace-nowrap">
                           {hasFirmPending && (

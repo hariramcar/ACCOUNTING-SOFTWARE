@@ -20,6 +20,7 @@ export default function ReceiveTokenModal({ isOpen, onClose, vehicle, inStock = 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [amount, setAmount] = useState('');
+  const [saleAmount, setSaleAmount] = useState('');
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [mounted, setMounted] = useState(false);
   const isSubmittingRef = useRef(false);
@@ -30,7 +31,9 @@ export default function ReceiveTokenModal({ isOpen, onClose, vehicle, inStock = 
 
   if (!isOpen || !mounted) return null;
 
-  const activeVehicleId = vehicle?.id || selectedVehicleId;
+  const activeVehicle = vehicle || inStock.find(v => v.id === selectedVehicleId);
+  const activeVehicleId = activeVehicle?.id || '';
+  const vehicleCost = activeVehicle ? (activeVehicle.totalCost || activeVehicle.purchasePrice || 0) : 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -43,6 +46,9 @@ export default function ReceiveTokenModal({ isOpen, onClose, vehicle, inStock = 
     const formData = new FormData(e.currentTarget);
     formData.append('vehicleId', activeVehicleId);
     formData.append('amount', (amount || '0').replace(/,/g, ''));
+    if (saleAmount) {
+      formData.append('agreedSalePrice', saleAmount.replace(/,/g, ''));
+    }
 
     const result = await addToken(formData);
 
@@ -70,7 +76,7 @@ export default function ReceiveTokenModal({ isOpen, onClose, vehicle, inStock = 
             </h2>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm font-bold text-slate-500">
-                {vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registration || 'UNREGISTERED'})` : 'Select a vehicle below'}
+                {vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registration || 'UNREGISTERED'}) - Total Cost: ₹${Number(vehicleCost).toLocaleString('en-IN')}` : 'Select a vehicle below'}
               </span>
             </div>
           </div>
@@ -103,7 +109,9 @@ export default function ReceiveTokenModal({ isOpen, onClose, vehicle, inStock = 
                   >
                     <option value="">Choose a car in stock...</option>
                     {inStock.map(v => (
-                      <option key={v.id} value={v.id}>{v.make} {v.model} ({v.registration || 'UNREG'})</option>
+                      <option key={v.id} value={v.id}>
+                        {v.make} {v.model} ({v.registration || 'UNREG'}) - Total Cost: ₹{Number(v.totalCost || v.purchasePrice || 0).toLocaleString('en-IN')}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -145,6 +153,24 @@ export default function ReceiveTokenModal({ isOpen, onClose, vehicle, inStock = 
                   onChange={(e) => setAmount(handleAmountFormat(e.target.value))}
                   placeholder="e.g. 20000" 
                   className="w-full pl-10 p-4 rounded-xl border border-transparent bg-blue-50/50 shadow-inner text-lg font-black text-blue-900 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/20 transition-all placeholder:text-blue-300" 
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-[11px] uppercase font-bold text-slate-500 tracking-wider">Agreed Sale Amount (₹)</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <IndianRupee size={16} />
+                </div>
+                <input 
+                  type="text" 
+                  inputMode="decimal"
+                  required
+                  value={saleAmount}
+                  onChange={(e) => setSaleAmount(handleAmountFormat(e.target.value))}
+                  placeholder="e.g. 250000" 
+                  className="w-full pl-10 p-3.5 rounded-xl border border-transparent bg-slate-100 shadow-inner text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 transition-all" 
                 />
               </div>
             </div>

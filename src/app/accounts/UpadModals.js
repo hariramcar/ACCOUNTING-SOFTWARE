@@ -1,4 +1,5 @@
 'use client';
+
 function getLocalDateString() {
   const d = new Date();
   const year = d.getFullYear();
@@ -7,11 +8,10 @@ function getLocalDateString() {
   return `${year}-${month}-${day}`;
 }
 
-
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowUpRight, ArrowDownRight, X, AlertCircle } from 'lucide-react';
-import { giveAdvance, settleBill } from '@/actions/upad';
+import { giveAdvance, settleBill, receiveAdvancePayment } from '@/actions/upad';
 
 const formatIndianNumber = (val) => {
   let numericString = val.replace(/[^0-9.]/g, '');
@@ -23,16 +23,9 @@ const formatIndianNumber = (val) => {
 };
 
 export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
-  const [activeModal, setActiveModal] = useState(null); // 'advance' | 'settle' | null
+  const [activeModal, setActiveModal] = useState(null); // 'advance' | 'settle' | 'receive' | null
   const [amount, setAmount] = useState('');
-  const handleAmountFormat = (val) => {
-    const rawValue = val.replace(/[^0-9.]/g, '');
-    if (!rawValue) return '';
-    const parts = rawValue.split('.');
-    parts[0] = Number(parts[0]).toLocaleString('en-IN');
-    return parts.join('.');
-  };
-
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [mounted, setMounted] = useState(false);
@@ -91,6 +84,30 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
     }
   };
 
+  const handleReceiveSubmit = async (e) => {
+    e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
+    const formData = new FormData(e.currentTarget);
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const result = await receiveAdvancePayment(formData);
+      
+      if (result && !result.success) {
+        setError(result.error);
+      } else {
+        setActiveModal(null);
+        setAmount('');
+        e.target.reset();
+      }
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <>
       <>
@@ -105,8 +122,8 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
           onClick={() => setActiveModal('settle')}
           className="flex-shrink-0 flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 py-2 md:py-2.5 px-3 md:px-4 rounded-lg font-bold shadow-sm transition-colors text-[13px] md:text-sm border border-emerald-200 whitespace-nowrap"
         >
-          <ArrowDownRight size={16} />
-          Settle Bill
+          <ArrowUpRight size={16} />
+          Pay Bill
         </button>
       </>
 
@@ -114,7 +131,6 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
         <div className="fixed inset-0 z-[100] flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setActiveModal(null)}></div>
           <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full max-w-sm h-[85vh] md:h-auto md:max-h-[85vh] overflow-hidden flex flex-col relative z-10 animate-in slide-in-from-bottom-full md:slide-in-from-bottom-4 duration-300">
-            {/* Mobile Drag Handle */}
             <div className="md:hidden flex justify-center pt-4 pb-2 bg-slate-50 shrink-0">
               <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
             </div>
@@ -142,12 +158,34 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
               <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-4">
                 <div>
                   <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 block">Select Person</label>
-                  <select name="accountId" required className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 focus:bg-white transition-all cursor-pointer">
-                    <option value="">Select Mechanic/Staff...</option>
+                  <select 
+                    name="accountId" 
+                    required 
+                    onChange={(e) => {
+                       const selected = upadAccounts.find(a => a.id === e.target.value);
+                       if (selected && selected.type === 'STAFF') {
+                          document.getElementById('salary-checkbox-container').classList.remove('hidden');
+                       } else {
+                          document.getElementById('salary-checkbox-container').classList.add('hidden');
+                       }
+                    }}
+                    className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="">Select Account...</option>
                     {upadAccounts.map(acc => (
                       <option key={acc.id} value={acc.id}>{acc.name} ({acc.type})</option>
                     ))}
                   </select>
+                </div>
+                
+                <div id="salary-checkbox-container" className="hidden bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" name="isSalary" value="true" className="w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500 bg-white" />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-blue-900">Mark as Salary Payment</span>
+                      <span className="text-[10px] font-medium text-blue-600/80">Check this if you are paying salary (does not affect Upad/Advance balance)</span>
+                    </div>
+                  </label>
                 </div>
 
                 <div>
@@ -185,7 +223,7 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
 
                 <div>
                   <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 block">Description / Note</label>
-                  <input type="text" name="description" placeholder="e.g. Advance for repairs" className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 focus:bg-white transition-all" />
+                  <input type="text" name="description" placeholder="e.g. Advance given" className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 focus:bg-white transition-all" />
                 </div>
               </div>
               
@@ -206,14 +244,13 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
         <div className="fixed inset-0 z-[100] flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setActiveModal(null)}></div>
           <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full max-w-sm h-[85vh] md:h-auto md:max-h-[85vh] overflow-hidden flex flex-col relative z-10 animate-in slide-in-from-bottom-full md:slide-in-from-bottom-4 duration-300">
-            {/* Mobile Drag Handle */}
             <div className="md:hidden flex justify-center pt-4 pb-2 bg-slate-50 shrink-0">
               <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
             </div>
             <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between sticky top-0 z-10 shrink-0">
               <div className="flex items-center gap-2">
-                <ArrowDownRight size={18} className="text-emerald-600" />
-                <h2 className="text-lg font-bold text-slate-900 m-0">Settle Bill</h2>
+                <ArrowUpRight size={18} className="text-emerald-600" />
+                <h2 className="text-lg font-bold text-slate-900 m-0">Pay Bill</h2>
               </div>
               <button 
                 onClick={() => { setActiveModal(null); setAmount(''); setError(null); }}
@@ -233,9 +270,9 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
 
               <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-4">
                 <div>
-                  <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 block">Select Person</label>
+                  <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 block">Select Person / Vendor</label>
                   <select name="accountId" required className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer">
-                    <option value="">Select Mechanic/Staff...</option>
+                    <option value="">Select Account...</option>
                     {upadAccounts.map(acc => (
                       <option key={acc.id} value={acc.id}>{acc.name} ({acc.type})</option>
                     ))}
@@ -243,7 +280,7 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
                 </div>
 
                 <div>
-                  <label className="text-[11px] uppercase tracking-wider font-bold text-emerald-700 mb-1.5 block">Bill Amount (₹)</label>
+                  <label className="text-[11px] uppercase tracking-wider font-bold text-emerald-700 mb-1.5 block">Amount (₹)</label>
                   <input 
                     type="text" 
                     inputMode="decimal"
@@ -286,7 +323,7 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
                   <input 
                     type="text" 
                     name="description" 
-                    placeholder="e.g. Settling remaining balance for light work" 
+                    placeholder="e.g. Paid for repair bill" 
                     className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 focus:bg-white transition-all" 
                   />
                 </div>
@@ -297,13 +334,14 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
                 disabled={isSubmitting}
                 className="mt-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[15px] py-4 px-4 rounded-xl shadow-[0_8px_20px_-8px_rgba(16,185,129,0.5)] transition-all focus:ring-4 focus:ring-emerald-500/20 disabled:opacity-70"
               >
-                {isSubmitting ? 'Processing...' : 'Settle & Deduct Balance'}
+                {isSubmitting ? 'Processing...' : 'Pay Bill'}
               </button>
             </form>
           </div>
         </div>,
         document.body
       )}
+
     </>
   );
 }

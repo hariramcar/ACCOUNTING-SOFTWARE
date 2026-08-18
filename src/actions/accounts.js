@@ -56,27 +56,47 @@ export async function getAccountBalances(year, month) {
       let totalPaid = 0; // Current month's incoming money
       let totalExpenses = 0; // Current month's outgoing money
       
+      let salaryGiven = 0;
+      let upadGiven = 0;
+      let upadUsed = 0;
+      
       acc.transactions.forEach(t => {
         const amt = Number(t.amount);
         const isOpeningInjection = (t.description === 'Opening Balance' || t.description === 'Capital Introduced / Opening Balance');
 
+        if (acc.type === 'STAFF') {
+          if (t.category === 'SALARY') {
+            salaryGiven += amt;
+          } else if (t.category === 'UPAD_WITHDRAWAL') {
+            upadGiven += amt;
+          } else if (t.category === 'UPAD_REPAYMENT' || t.category === 'EXPENSE') {
+            upadUsed += amt;
+          }
+        }
+
         // 1. Calculate Monthly Opening Balance 
         // (Includes all past transactions, PLUS any explicit "Opening Balance" injections made this month)
         if (t.date < startOfMonth || isOpeningInjection) {
-          if (t.type === 'CREDIT') openingBalance += amt;
-          else openingBalance -= amt;
+          if (t.category !== 'SALARY') {
+            if (t.type === 'CREDIT') openingBalance += amt;
+            else openingBalance -= amt;
+          }
         }
 
         // 2. Calculate Monthly In/Out (Operating flow THIS month)
         if (t.date >= startOfMonth && t.date <= endOfMonth && !isOpeningInjection) {
-          if (t.type === 'CREDIT') totalPaid += amt;
-          else if (t.type === 'DEBIT') totalExpenses += amt;
+          if (t.category !== 'SALARY') {
+            if (t.type === 'CREDIT') totalPaid += amt;
+            else if (t.type === 'DEBIT') totalExpenses += amt;
+          }
         }
 
         // 3. Current Balance up to the end of the selected month
         if (t.date <= endOfMonth) {
-          if (t.type === 'CREDIT') currentBalance += amt;
-          else if (t.type === 'DEBIT') currentBalance -= amt;
+          if (t.category !== 'SALARY') {
+            if (t.type === 'CREDIT') currentBalance += amt;
+            else if (t.type === 'DEBIT') currentBalance -= amt;
+          }
         }
       });
 
@@ -98,12 +118,15 @@ export async function getAccountBalances(year, month) {
         id: acc.id,
         name: acc.name,
         type: acc.type,
-        openingBalance,
+        openingBalance: Number(acc.openingBalance || 0),
         createdAt: acc.createdAt,
         updatedAt: acc.updatedAt,
+        currentBalance,
         totalPaid,
         totalExpenses,
-        currentBalance,
+        salaryGiven,
+        upadGiven,
+        upadUsed,
         pendingInvestments,
         partnerVehicles
       };

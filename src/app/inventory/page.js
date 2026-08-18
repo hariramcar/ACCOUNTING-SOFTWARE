@@ -32,6 +32,16 @@ export default async function InventoryPage() {
   const { inStock, sold, allCurrentStock } = await getInventory(year, month);
   const { accounts } = await getAccounts();
 
+  const firmStockValue = inStock?.reduce((acc, car) => {
+    const partnerInvestment = (car.partnerships || []).reduce((sum, p) => sum + Number(p.investmentAmount || 0), 0);
+    return acc + Math.max(0, (car.totalCost || 0) - partnerInvestment);
+  }, 0) || 0;
+
+  const firmProfitMonth = sold?.reduce((acc, car) => {
+    const partnerProfitShare = (car.partnerships || []).reduce((sum, p) => sum + (Math.round((Number(car.profit || 0) * (Number(p.profitSharePercentage) / 100)) * 100) / 100), 0);
+    return acc + Math.max(0, (car.profit || 0) - partnerProfitShare);
+  }, 0) || 0;
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 pt-1 md:p-8 flex flex-col gap-4 md:gap-4 text-slate-900 pb-24 md:pb-8">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-3 md:gap-4 border-b border-slate-200 pb-3 md:pb-4 mb-1 md:mb-2 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-1 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
@@ -66,7 +76,7 @@ export default async function InventoryPage() {
             <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider">Stock Value</span>
           </div>
           <div className="text-xl md:text-2xl font-black text-slate-800">
-            ₹{(inStock?.reduce((acc, car) => acc + (car.totalCost || 0), 0) || 0).toLocaleString('en-IN')}
+            ₹{firmStockValue.toLocaleString('en-IN')}
           </div>
         </div>
         
@@ -84,7 +94,7 @@ export default async function InventoryPage() {
             <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider">Profit (Month)</span>
           </div>
           <div className="text-xl md:text-2xl font-black text-purple-900">
-            ₹{(sold?.reduce((acc, car) => acc + (car.profit || 0), 0) || 0).toLocaleString('en-IN')}
+            ₹{firmProfitMonth.toLocaleString('en-IN')}
           </div>
         </div>
       </div>

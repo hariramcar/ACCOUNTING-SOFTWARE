@@ -227,30 +227,57 @@ export async function addExpense(formData) {
     const customerName = formData.get('customerName') || null;
     const customerMobile = formData.get('customerMobile') || null;
     
-    // Auto-ledger parameters (Expense)
-    let accountId = formData.get('accountId') || null;
-    let mode = formData.get('mode') || null;
-
-    if (isStaff) {
-      if (mode === 'UGHRANI') {
-        // Allow them to use Market Place account. mode and accountId from form are kept.
-      } else {
-        // If not UGHRANI, force it to be CASH from their own advance
-        accountId = dbUser.accountId;
-        mode = 'CASH';
-      }
-    }
-
-    // Advanced parameters (Income)
     const paymentModes = formData.getAll('paymentModes');
     const paymentAccountIds = formData.getAll('paymentAccountIds');
     const paymentAmounts = formData.getAll('paymentAmounts');
     const receivableAccountId = formData.get('receivableAccountId');
 
-    let incomeDataStr = null;
-    if (expenseType === 'INCOME') {
-      const payments = [];
-      let totalPaid = 0;
+    let paymentDataStr = null;
+    const payments = [];
+    let totalPaid = 0;
+    
+    if (isStaff && expenseType !== 'INCOME') {
+      // If staff is submitting an expense, force payment to come from their own UPAD
+      // Unless they selected UGHRANI (Market Place)
+      const ughraniIndex = paymentModes.findIndex(m => m === 'UGHRANI');
+      if (ughraniIndex !== -1 && paymentAccountIds[ughraniIndex]) {
+         payments.push({
+           mode: 'UGHRANI',
+           accountId: paymentAccountIds[ughraniIndex],
+           amount: amount
+         });
+         totalPaid = amount;
+      } else {
+         payments.push({
+           mode: 'CASH',
+           accountId: dbUser.accountId,
+           amount: amount
+         });
+         totalPaid = amount;
+         
+         // Validation: Staff cannot exceed their Available Upad Balance
+         // We must calculate their current Upad balance here.
+         const account = await prisma.account.findUnique({
+           where: { id: dbUser.accountId },
+           include: { transactions: true }
+         });
+         if (!account) return { success: false, error: 'Staff account not found' };
+         
+         let upadBalance = 0;
+         account.transactions.forEach(t => {
+           if (t.category !== 'SALARY') {
+             if (t.type === 'CREDIT') upadBalance += Number(t.amount);
+             else if (t.type === 'DEBIT') upadBalance -= Number(t.amount);
+           }
+         });
+         
+         const availableUpad = upadBalance < 0 ? Math.abs(upadBalance) : 0;
+         
+         if (amount > availableUpad) {
+           return { success: false, error: `You cannot submit an expense of ₹${amount.toLocaleString('en-IN')}. Your available Upad balance is only ₹${availableUpad.toLocaleString('en-IN')}.` };
+         }
+      }
+    } else {
       for (let i = 0; i < paymentModes.length; i++) {
         const amt = Math.round(parseFloat((paymentAmounts[i] || '0').toString().replace(/,/g, '')) * 100) / 100 || 0;
         if (paymentModes[i] && paymentAccountIds[i] && amt > 0) {
@@ -262,15 +289,23 @@ export async function addExpense(formData) {
           totalPaid += amt;
         }
       }
+    }
 
+    if (expenseType === 'INCOME') {
       if (totalPaid > amount) {
         return { success: false, error: 'Your payment amount cannot be greater than your income amount.' };
       }
-
-      incomeDataStr = JSON.stringify({
+      paymentDataStr = JSON.stringify({
         payments,
         receivableAccountId,
         pendingBalance: amount - totalPaid
+      });
+    } else {
+      if (totalPaid !== amount && payments.length > 0) {
+        return { success: false, error: 'For expenses, your payment allocations must exactly match the total expense amount.' };
+      }
+      paymentDataStr = JSON.stringify({
+        payments
       });
     }
 
@@ -288,17 +323,17 @@ export async function addExpense(formData) {
           customerName,
           customerMobile,
           status,
-          requestedAccountId: expenseType === 'INCOME' ? null : accountId,
-          requestedMode: expenseType === 'INCOME' ? incomeDataStr : mode,
+          requestedAccountId: null,
+          requestedMode: paymentDataStr,
           submittedById: userId
         }
       });
 
       // 2. Auto-Deduct/Add from Rojmel (ONLY if Admin directly adds it, or if no approval needed)
-      if (status === 'APPROVED') {
-        if (expenseType === 'INCOME') {
-          if (incomeDataStr) {
-            const data = JSON.parse(incomeDataStr);
+        if (paymentDataStr) {
+          const data = JSON.parse(paymentDataStr);
+          
+          if (expenseType === 'INCOME') {
             for (const p of data.payments) {
               await tx.transaction.create({
                 data: {
@@ -327,25 +362,27 @@ export async function addExpense(formData) {
                 }
               });
             }
-          }
-        } else if (accountId && mode) {
-          if (mode !== 'UGHRANI') {
-            await checkSufficientBalance(tx, accountId, amount);
-          }
-          await tx.transaction.create({
-            data: {
-              date,
-              transactionMode: mode === 'UGHRANI' ? 'CASH' : mode,
-              type: mode === 'UGHRANI' ? 'CREDIT' : 'DEBIT',
-              amount,
-              accountId,
-              category: 'EXPENSE',
-              referenceId: expense.id,
-              description: `Auto-Entry (${expenseType === 'CAR_EXPENSE' ? 'Car Repair' : 'Office'}): ${description}`
+          } else {
+            // EXPENSE Mode processing
+            for (const p of data.payments) {
+              if (p.mode !== 'UGHRANI') {
+                await checkSufficientBalance(tx, p.accountId, p.amount);
+              }
+              await tx.transaction.create({
+                data: {
+                  date,
+                  transactionMode: p.mode === 'UGHRANI' ? 'CASH' : p.mode,
+                  type: p.mode === 'UGHRANI' ? 'CREDIT' : 'DEBIT',
+                  amount: p.amount,
+                  accountId: p.accountId,
+                  category: 'EXPENSE',
+                  referenceId: expense.id,
+                  description: `Auto-Entry (${expenseType === 'CAR_EXPENSE' ? 'Car Repair' : 'Office'}): ${description}`
+                }
+              });
             }
-          });
+          }
         }
-      }
     }, { maxWait: 15000, timeout: 30000 }, { maxWait: 15000, timeout: 30000 });
 
     revalidatePath('/expenses');
@@ -399,9 +436,10 @@ export async function approveExpense(formData) {
         data: { status: 'APPROVED' }
       });
 
-      if (expense.expenseType === 'INCOME') {
-        if (expense.requestedMode) {
-          const data = JSON.parse(expense.requestedMode);
+      if (expense.requestedMode && expense.requestedMode.startsWith('{')) {
+        const data = JSON.parse(expense.requestedMode);
+        
+        if (expense.expenseType === 'INCOME') {
           for (const p of data.payments) {
             await tx.transaction.create({
               data: {
@@ -430,8 +468,40 @@ export async function approveExpense(formData) {
               }
             });
           }
+        } else {
+          // EXPENSE Mode processing
+          for (const p of data.payments) {
+            let isStaffAccount = false;
+            if (p.mode === 'CASH' && p.accountId) {
+              const acc = await tx.account.findUnique({ where: { id: p.accountId } });
+              isStaffAccount = acc?.type === 'STAFF';
+            }
+
+            if (p.mode !== 'UGHRANI' && !isStaffAccount) {
+              await checkSufficientBalance(tx, p.accountId, p.amount);
+            }
+            
+            // If UGHRANI (vendor), we CREDIT them (meaning we owe them more).
+            // If STAFF (using their Upad), we CREDIT them (meaning their Upad balance drops, they owe us less).
+            // Otherwise (Firm Cash/Bank), we DEBIT them (money leaves the firm).
+            const isCredit = p.mode === 'UGHRANI' || isStaffAccount;
+
+            await tx.transaction.create({
+              data: {
+                date: expense.date,
+                transactionMode: p.mode === 'UGHRANI' ? 'CASH' : p.mode,
+                type: isCredit ? 'CREDIT' : 'DEBIT',
+                amount: p.amount,
+                accountId: p.accountId,
+                category: 'EXPENSE',
+                referenceId: expense.id,
+                description: `Auto-Entry (${expense.expenseType === 'CAR_EXPENSE' ? 'Car Repair' : 'Office'}): ${expense.description}`
+              }
+            });
+          }
         }
       } else if (expense.requestedAccountId && expense.requestedMode) {
+        // Legacy fallback for old expenses
         if (expense.requestedMode !== 'UGHRANI') {
           await checkSufficientBalance(tx, expense.requestedAccountId, expense.amount);
         }
@@ -715,7 +785,65 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
               });
             }
           } else {
-            // Update standard raw transaction (e.g. VEHICLE_PURCHASE)
+            // Check if this is a Token Transaction
+            if (txToUpdate.category === 'GENERAL' && txToUpdate.description.startsWith('Token Received:') && txToUpdate.referenceId) {
+              const token = await tx.vehicleToken.findUnique({
+                where: { id: txToUpdate.referenceId },
+                include: { vehicle: true }
+              });
+
+              if (token) {
+                if (token.status === 'APPLIED') {
+                  throw new Error('Cannot edit this token because the vehicle has already been sold. Please adjust the vehicle\'s pending balance directly if needed.');
+                }
+
+                const newAmount = Math.round(parseFloat(String(data.amount || '0').replace(/,/g, '')) * 100) / 100;
+                
+                let newAccountId = token.paymentAccountId;
+                let newPaymentMode = token.paymentMode;
+                if (data.accountId && data.accountId !== txToUpdate.accountId) {
+                  const newAcc = await tx.account.findUnique({ where: { id: data.accountId }});
+                  if (newAcc) {
+                    newAccountId = data.accountId;
+                    newPaymentMode = newAcc.type === 'BANK' ? 'BANK' : 'CASH';
+                  }
+                }
+
+                // 1. Sync the VehicleToken
+                await tx.vehicleToken.update({
+                  where: { id: token.id },
+                  data: {
+                    amount: newAmount,
+                    paymentAccountId: newAccountId,
+                    paymentMode: newPaymentMode
+                  }
+                });
+
+                // 2. If FORFEITED, sync the corresponding firm INCOME Expense
+                if (token.status === 'FORFEITED') {
+                  const expenseMatches = await tx.expense.findMany({
+                    where: { expenseType: 'INCOME' }
+                  });
+                  const targetExpense = expenseMatches.find(e => 
+                    e.description.includes(token.customerName) &&
+                    (e.description.includes(token.vehicle.registration || 'Unregistered') || e.description.includes('UNREG')) &&
+                    Number(e.amount) === Number(token.amount)
+                  );
+                  if (targetExpense) {
+                    await tx.expense.update({
+                      where: { id: targetExpense.id },
+                      data: {
+                        amount: newAmount,
+                        requestedAccountId: newAccountId,
+                        requestedMode: newPaymentMode
+                      }
+                    });
+                  }
+                }
+              }
+            }
+
+            // Update standard raw transaction (e.g. VEHICLE_PURCHASE or the Token Transaction itself)
             const updateData = {
               amount: Math.round(parseFloat(String(data.amount || '0').replace(/,/g, '')) * 100) / 100,
               date: new Date(data.date),

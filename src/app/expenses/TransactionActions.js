@@ -112,7 +112,13 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
     isSubmittingRef.current = false;
   };
 
+  const isSplitPayment = !isRawTx && expense.requestedMode && typeof expense.requestedMode === 'string' && expense.requestedMode.startsWith('{');
+
   const handleEditClick = () => {
+    if (isSplitPayment) {
+      toast.error('Transactions with split payment sources cannot be edited directly yet. Please delete and re-create it.');
+      return;
+    }
     if (confirm('WARNING: Editing a transaction is a very powerful action that can alter your ledger and balances across the software. Are you sure you want to edit this?')) {
       setIsEditing(true);
     }

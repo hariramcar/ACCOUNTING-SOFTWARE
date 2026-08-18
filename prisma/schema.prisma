@@ -114,6 +114,7 @@ model User {
   password          String
   role              Role      @default(STAFF)
   name              String
+  diaryNote         String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   expensesSubmitted Expense[]
@@ -134,6 +135,7 @@ enum AccountType {
   FINANCIER
   DSA_AGENT
   UGHRANI
+  UCHAK
 }
 
 enum VehicleStatus {
@@ -172,6 +174,7 @@ enum TransactionCategory {
   CAPITAL_INJECTION
   GENERAL
   INTERNAL_TRANSFER
+  SALARY
 }
 
 model VehicleToken {
@@ -180,6 +183,7 @@ model VehicleToken {
   customerName     String
   customerMobile   String?
   amount           Decimal
+  agreedSalePrice  Decimal?
   date             DateTime
   paymentAccountId String      // Which bank/cash received the token
   paymentMode      String

@@ -66,13 +66,38 @@ export default async function HistoryPage() {
     };
   });
 
-  // Calculate totals (exclude internal transfers, Market Place, and Staff Advances from totals)
+  const soldVehiclesRaw = await prisma.vehicle.findMany({
+    where: { 
+      status: 'SOLD',
+      saleDate: {
+        gte: new Date(year, month, 1),
+        lte: new Date(year, month + 1, 0, 23, 59, 59, 999)
+      }
+    },
+    include: {
+      partnerships: true
+    }
+  });
+
+  const firmCarProfitThisMonth = soldVehiclesRaw.reduce((acc, car) => {
+    const partnerProfitShare = (car.partnerships || []).reduce((sum, p) => sum + (Math.round((Number(car.profit || 0) * (Number(p.profitSharePercentage) / 100)) * 100) / 100), 0);
+    return acc + Math.max(0, (Number(car.profit || 0) - partnerProfitShare));
+  }, 0);
+
+  // Calculate totals (exclude internal transfers, Market Place, Staff Advances, and Asset Exchanges from totals)
   const totalExpenses = expenses?.reduce((sum, exp) => {
     if (exp.requestedMode === 'UGHRANI') return sum;
     if (exp.isStaffAdvance) return sum;
+    if (exp.rawCategory === 'VEHICLE_PURCHASE') return sum;
     return sum + (!exp.isTransfer && exp.status !== 'REJECTED' ? Number(exp.amount) : 0);
   }, 0) || 0;
-  const totalIncome = income?.reduce((sum, inc) => sum + (!inc.isTransfer ? Number(inc.amount) : 0), 0) || 0;
+  
+  const rawOperatingIncome = income?.reduce((sum, inc) => {
+    if (inc.rawCategory === 'VEHICLE_SALE') return sum;
+    return sum + (!inc.isTransfer ? Number(inc.amount) : 0);
+  }, 0) || 0;
+
+  const totalIncome = rawOperatingIncome + firmCarProfitThisMonth;
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 pt-1 md:p-8 flex flex-col gap-4 md:gap-8 text-slate-900 pb-24 md:pb-8">

@@ -344,19 +344,7 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                         <span className="text-slate-400 text-sm font-bold">₹0</span>
                       )}
                     </div>
-                    {pendingBalance > 0 ? (
-                      <div className="flex flex-col gap-1.5 mt-2">
-                        <label className="text-[10px] uppercase font-bold text-amber-700 tracking-wider">Select Agent</label>
-                        <select name="payableAccountId" className="w-full text-xs font-bold p-3 rounded-xl border border-amber-200 bg-amber-50 shadow-inner text-amber-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500 transition-all">
-                          <option value="">-- Keep Pending on Car (No Ledger Entry) --</option>
-                          {accounts?.filter(a => a.type === 'DSA_AGENT' || a.type === 'FINANCIER').map(acc => (
-                            <option key={acc.id} value={acc.id}>{acc.name} ({acc.type === 'FINANCIER' ? 'Financier' : 'Agent'})</option>
-                          ))}
-                        </select>
-                      </div>
-                    ) : (
-                      <input type="hidden" name="payableAccountId" value="" />
-                    )}
+                    <input type="hidden" name="payableAccountId" value="" />
                   </div>
                 </div>
               )}

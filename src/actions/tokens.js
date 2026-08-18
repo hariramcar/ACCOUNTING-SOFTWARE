@@ -16,6 +16,8 @@ export async function addToken(formData) {
     const customerName = formData.get('customerName');
     const customerMobile = formData.get('customerMobile');
     const amount = parseFloat((formData.get('amount') || '0').replace(/,/g, ''));
+    const agreedSalePriceStr = formData.get('agreedSalePrice');
+    const agreedSalePrice = agreedSalePriceStr ? parseFloat(agreedSalePriceStr.replace(/,/g, '')) : null;
     const paymentAccountId = formData.get('paymentAccountId');
     const paymentMode = formData.get('paymentMode');
     const date = new Date(formData.get('date') || Date.now());
@@ -35,6 +37,7 @@ export async function addToken(formData) {
           customerName,
           customerMobile,
           amount,
+          agreedSalePrice,
           date,
           paymentAccountId,
           paymentMode,
@@ -65,12 +68,13 @@ export async function addToken(formData) {
       success: true, 
       token: {
         ...token,
-        amount: Number(token.amount)
+        amount: Number(token.amount),
+        agreedSalePrice: token.agreedSalePrice ? Number(token.agreedSalePrice) : null
       } 
     };
   } catch (error) {
-    console.error('Error adding token:', error);
-    return { success: false, error: 'Failed to add token' };
+    console.error('Failed to add token:', error);
+    return { success: false, error: error.message || 'Failed to record token. Please try again.' };
   }
 }
 

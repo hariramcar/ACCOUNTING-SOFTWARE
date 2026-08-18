@@ -60,10 +60,20 @@ export async function getMonthlyProfitData(year, monthIndex) {
 
     // 4. Fetch In-Stock Vehicles
     const inStockVehicles = await prisma.vehicle.findMany({
-      where: { status: 'IN_STOCK' }
+      where: { status: 'IN_STOCK' },
+      include: {
+        expenses: true,
+        partnerships: true
+      }
     });
     const inStockCount = inStockVehicles.length;
-    const inStockValue = inStockVehicles.reduce((sum, v) => sum + Number(v.purchasePrice || 0), 0);
+    const inStockValue = inStockVehicles.reduce((sum, v) => {
+      const totalExpenses = v.expenses?.reduce((expSum, exp) => expSum + Number(exp.amount || 0), 0) || 0;
+      const legacyExp = Number(v.legacyExpenses || 0);
+      const totalCost = Number(v.purchasePrice || 0) + totalExpenses + legacyExp;
+      const partnerInvestment = v.partnerships?.reduce((pSum, p) => pSum + Number(p.investmentAmount || 0), 0) || 0;
+      return sum + Math.max(0, totalCost - partnerInvestment);
+    }, 0);
 
     // 5. Process calculations
     let totalGrossProfit = 0;
@@ -140,10 +150,16 @@ export async function getMonthlyProfitData(year, monthIndex) {
     const totalLedgerExpenses = ledgerExpenses?.reduce((sum, exp) => {
       if (exp.requestedMode === 'UGHRANI') return sum;
       if (exp.isStaffAdvance) return sum;
+      if (exp.rawCategory === 'VEHICLE_PURCHASE') return sum;
       return sum + (!exp.isTransfer && exp.status !== 'REJECTED' ? Number(exp.amount) : 0);
     }, 0) || 0;
 
-    const totalLedgerIncome = ledgerIncome?.reduce((sum, inc) => sum + (!inc.isTransfer ? Number(inc.amount) : 0), 0) || 0;
+    const rawOperatingIncome = ledgerIncome?.reduce((sum, inc) => {
+      if (inc.rawCategory === 'VEHICLE_SALE') return sum;
+      return sum + (!inc.isTransfer ? Number(inc.amount) : 0);
+    }, 0) || 0;
+    
+    const totalLedgerIncome = rawOperatingIncome + Math.max(0, totalGrossProfit - totalPartnerDeductions);
 
     return {
       success: true,

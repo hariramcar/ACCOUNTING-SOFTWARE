@@ -60,6 +60,37 @@ export async function getInventory(year, month) {
       include: { account: true }
     });
 
+    const purchaseTransactions = await prisma.transaction.findMany({
+      where: {
+        referenceId: { in: allVehicleIds },
+        category: 'VEHICLE_PURCHASE'
+      },
+      include: { account: true }
+    });
+
+    const profitPayouts = await prisma.transaction.findMany({
+      where: {
+        referenceId: { in: allVehicleIds },
+        category: 'GENERAL',
+        type: 'DEBIT',
+        description: { contains: 'Paid Full Settlement' }
+      },
+      include: { account: true }
+    });
+
+    const partnerTransactions = await prisma.transaction.findMany({
+      where: {
+        referenceId: { in: allVehicleIds },
+        category: 'GENERAL',
+        type: 'CREDIT',
+        OR: [
+          { description: { contains: 'Income: Received from' } },
+          { description: { contains: 'Received Pending Capital from' } }
+        ]
+      },
+      include: { account: true }
+    });
+
     const processVehicle = (v) => {
       const totalExpenses = v.expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
       const legacyExp = Number(v.legacyExpenses || 0);
@@ -93,9 +124,30 @@ export async function getInventory(year, month) {
           accountName: t.account ? t.account.name : null,
           account: t.account ? { ...t.account, openingBalance: Number(t.account.openingBalance) } : null
         })),
+        purchaseTransactions: purchaseTransactions.filter(t => t.referenceId === v.id).map(t => ({
+          ...t,
+          amount: Number(t.amount),
+          accountName: t.account ? t.account.name : null,
+          account: t.account ? { ...t.account, openingBalance: Number(t.account.openingBalance) } : null
+        })),
+        partnerTransactions: partnerTransactions.filter(t => t.referenceId === v.id).map(t => ({
+          id: t.id,
+          amount: Number(t.amount),
+          accountName: t.account ? t.account.name : null,
+          transactionMode: t.transactionMode,
+          description: t.description
+        })),
+        profitPayouts: profitPayouts.filter(t => t.referenceId === v.id).map(t => ({
+          id: t.id,
+          amount: Number(t.amount),
+          accountName: t.account ? t.account.name : null,
+          transactionMode: t.transactionMode,
+          description: t.description
+        })),
         tokens: v.tokens ? v.tokens.map(t => ({
           ...t,
-          amount: Number(t.amount)
+          amount: Number(t.amount),
+          agreedSalePrice: t.agreedSalePrice ? Number(t.agreedSalePrice) : null
         })) : []
       };
     };
@@ -310,21 +362,53 @@ export async function addVehicle(formData) {
 
         // The amount to credit to the partner's ledger is what they ACTUALLY paid.
         // If they didn't specify a payment mode, we fall back to the full investment (legacy behavior)
-        const amountToCreditPartner = (partnerTotalPaid > 0) ? partnerTotalPaid : partnerInvestment;
-
-        if (amountToCreditPartner > 0) {
-          await tx.transaction.create({
-            data: {
-              date: purchaseDate,
-              transactionMode: 'CASH', 
-              type: 'CREDIT', 
-              amount: amountToCreditPartner,
-              accountId: partnerAccountId,
-              category: 'GENERAL',
-              referenceId: vehicle.id,
-              description: `Auto-Entry: Partnership Investment from ${partnerName} for car ${make} ${model} (Car Value: ₹${Number(purchasePrice).toLocaleString('en-IN')}, Share: ${profitSharePercentage}%)`
-            }
-          });
+        // Record exact segments of capital invested to the partner's ledger
+        if (!isLegacy) {
+          if (partnerPaid1Amount > 0) {
+            await tx.transaction.create({
+              data: {
+                date: purchaseDate,
+                transactionMode: partnerPayment1Mode || 'CASH', 
+                type: 'CREDIT', 
+                amount: partnerPaid1Amount,
+                accountId: partnerAccountId,
+                category: 'GENERAL',
+                referenceId: vehicle.id,
+                description: `Auto-Entry: Partnership Capital Investment from ${partnerName} for car ${make} ${model} - Payment 1 (${partnerPayment1Mode})`
+              }
+            });
+          }
+          if (partnerPaid2Amount > 0) {
+            await tx.transaction.create({
+              data: {
+                date: purchaseDate,
+                transactionMode: partnerPayment2Mode || 'CASH', 
+                type: 'CREDIT', 
+                amount: partnerPaid2Amount,
+                accountId: partnerAccountId,
+                category: 'GENERAL',
+                referenceId: vehicle.id,
+                description: `Auto-Entry: Partnership Capital Investment from ${partnerName} for car ${make} ${model} - Payment 2 (${partnerPayment2Mode})`
+              }
+            });
+          }
+        } else {
+          // For legacy vehicles, just record the total paid (or full investment if no paid amount is specified)
+          const amountToCreditPartner = (partnerTotalPaid > 0) ? partnerTotalPaid : partnerInvestment;
+          if (amountToCreditPartner > 0) {
+            await tx.transaction.create({
+              data: {
+                date: purchaseDate,
+                transactionMode: 'CASH', 
+                type: 'CREDIT', 
+                amount: amountToCreditPartner,
+                accountId: partnerAccountId,
+                category: 'GENERAL',
+                referenceId: vehicle.id,
+                description: `Auto-Entry: Partnership Investment from ${partnerName} for car ${make} ${model} (Legacy)`
+              }
+            });
+          }
         }
 
         // Record the actual payment received from the partner to the firm's cash/bank (Suppress for legacy cars)
@@ -604,6 +688,33 @@ export async function sellVehicle(formData) {
         });
       }
 
+      // Automatically Forfeit all OTHER active tokens for this vehicle
+      const activeTokensToForfeit = vehicle.tokens.filter(t => t.status === 'ACTIVE' && t.id !== appliedTokenId);
+      
+      for (const tokenToForfeit of activeTokensToForfeit) {
+        // 1. Update status to FORFEITED
+        await tx.vehicleToken.update({
+          where: { id: tokenToForfeit.id },
+          data: { status: 'FORFEITED' }
+        });
+
+        // 2. Record it as an INCOME Expense (100% firm profit)
+        await tx.expense.create({
+          data: {
+            amount: tokenToForfeit.amount,
+            date: saleDate,
+            description: `Auto-Forfeited Token Income: ${tokenToForfeit.customerName} (Ref: ${vehicle.make} ${vehicle.registration || 'Unregistered'})`,
+            expenseType: 'INCOME',
+            // DO NOT link to vehicleId, so it stays 100% firm profit
+            status: 'APPROVED',
+            requestedAccountId: tokenToForfeit.paymentAccountId,
+            requestedMode: tokenToForfeit.paymentMode,
+            customerName: tokenToForfeit.customerName,
+            customerMobile: tokenToForfeit.customerMobile,
+          }
+        });
+      }
+
       // Record Profit/Loss Distribution
 
       // (Removed as per user request: The user prefers to manually log profit payments via the Vehicle Details modal instead of auto-generating them on sale)
@@ -791,6 +902,39 @@ export async function payPartnerProfit(formData) {
       });
       if (!partnership) throw new Error('Partnership not found');
       
+      const capitalInvested = Number(partnership.paidAmount || 0);
+      const actualProfitPaid = amount - capitalInvested;
+
+      // 1. Credit the partner's ledger for the actual profit they earned from this settlement
+      if (actualProfitPaid > 0) {
+        await tx.transaction.create({
+          data: {
+            date: new Date(),
+            transactionMode: 'CASH',
+            type: 'CREDIT',
+            amount: actualProfitPaid,
+            accountId: partnership.partnerAccountId,
+            category: 'GENERAL',
+            referenceId: partnership.vehicleId,
+            description: `Auto-Entry: Profit Earned from sale of ${partnership.vehicle.make} ${partnership.vehicle.model}`
+          }
+        });
+      }
+
+      // 2. Debit the partner's ledger for the full settlement amount paid out (clears their capital + profit)
+      await tx.transaction.create({
+        data: {
+          date: new Date(),
+          transactionMode: sourceAcc.type === 'BANK' ? 'BANK' : 'CASH',
+          type: 'DEBIT',
+          amount: amount,
+          accountId: partnership.partnerAccountId,
+          category: 'GENERAL',
+          referenceId: partnership.vehicleId,
+          description: `Auto-Entry: Paid Full Settlement (Capital + Profit Share) for ${partnership.vehicle.make} ${partnership.vehicle.model}`
+        }
+      });
+
       // DEBIT from Firm's Cash/Bank Account (It's an Expense payout)
       await tx.transaction.create({
         data: {
@@ -804,6 +948,37 @@ export async function payPartnerProfit(formData) {
           description: `Auto-Entry: Paid Full Settlement (Capital + Profit Share) to ${partnership.partnerAccount.name} for ${partnership.vehicle.make} ${partnership.vehicle.model}`
         }
       });
+
+      const cutAmount = parseFloat(formData.get('cutAmount') || '0');
+      if (cutAmount > 0) {
+        // Dummy DEBIT to offset the incoming CREDIT so cash balance doesn't artificially inflate
+        await tx.transaction.create({
+          data: {
+            date: new Date(),
+            transactionMode: sourceAcc.type === 'BANK' ? 'BANK' : 'CASH',
+            type: 'DEBIT',
+            amount: cutAmount,
+            accountId: sourceAccountId,
+            category: 'GENERAL',
+            referenceId: partnership.vehicleId,
+            description: `Auto-Entry: Offset for Cut Profit from ${partnership.partnerAccount.name}`
+          }
+        });
+
+        // The explicit CREDIT (Income) that the user wants to see in the ledger history
+        await tx.transaction.create({
+          data: {
+            date: new Date(),
+            transactionMode: sourceAcc.type === 'BANK' ? 'BANK' : 'CASH',
+            type: 'CREDIT',
+            amount: cutAmount,
+            accountId: sourceAccountId,
+            category: 'GENERAL',
+            referenceId: partnership.vehicleId,
+            description: `Income: Extra Profit Kept (Settlement Cut) from ${partnership.partnerAccount.name} for ${partnership.vehicle.make} ${partnership.vehicle.model}`
+          }
+        });
+      }
     });
 
     revalidatePath('/inventory');

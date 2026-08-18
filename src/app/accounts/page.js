@@ -42,6 +42,9 @@ export default async function AccountsPage() {
   const ughraniAccounts = accounts?.filter(a => a.type === 'UGHRANI') || [];
   const staffAccounts = accounts?.filter(a => a.type === 'STAFF') || [];
   const partnerAccounts = accounts?.filter(a => a.type === 'PARTNER') || [];
+  
+  // Only show Uchak accounts that have a non-zero balance
+  const uchakAccounts = accounts?.filter(a => a.type === 'UCHAK' && Number(a.balance) !== 0) || [];
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 pt-1 md:p-8 flex flex-col gap-4 md:gap-8 text-slate-900 pb-24 md:pb-8">
@@ -56,8 +59,14 @@ export default async function AccountsPage() {
           <p className="text-xs md:text-sm text-slate-500 m-0 font-medium ml-0 md:ml-13 mt-1.5 md:mt-0">Manage Banks, Cash Drawers, Loan Agents, and Market Place.</p>
         </div>
         <div className="flex items-center gap-2.5 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 md:overflow-visible shrink-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+
+          <AgentPaymentModal 
+            agentAccounts={[...agentAccounts, ...staffAccounts, ...ughraniAccounts, ...uchakAccounts]} 
+            ledgerAccounts={[...cashAccounts, ...bankAccounts]} 
+            vehicles={vehicles} 
+          />
           <UpadModals 
-            upadAccounts={[...staffAccounts, ...ughraniAccounts]} 
+            upadAccounts={[...staffAccounts, ...ughraniAccounts, ...uchakAccounts]} 
             ledgerAccounts={[...cashAccounts, ...bankAccounts]} 
           />
           <AddAccountModal />
@@ -105,11 +114,6 @@ export default async function AccountsPage() {
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
             <BriefcaseBusiness size={18} className="text-purple-500" />
             <h3 className="text-base font-bold text-slate-800 m-0 flex-1">Loan Agents</h3>
-            <AgentPaymentModal 
-              agentAccounts={agentAccounts} 
-              ledgerAccounts={[...cashAccounts, ...bankAccounts]} 
-              vehicles={vehicles} 
-            />
           </div>
           <p className="text-xs font-medium text-slate-500 mb-3 mt-1">Track pending loan payouts and commissions from DSA agents.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
@@ -159,20 +163,66 @@ export default async function AccountsPage() {
           </div>
           <p className="text-xs font-medium text-slate-500 mb-3 mt-1">Track staff Upad (Advances given) vs Salary and Bills settled.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
-            {staffAccounts.map(acc => (
-              <AccountCard 
-                key={acc.id} account={acc} colorClass="bg-pink-50/30 border-pink-200 text-pink-800" 
-                creditLabel="Salary / Bills Settled" debitLabel="Upad Given"
-                balanceLogic={(b) => {
-                  if (b === 0) return { color: 'text-slate-700', text: 'Settled' };
-                  if (b < 0) return { color: 'text-emerald-700', text: 'Advance Given (They Owe Us)' };
-                  return { color: 'text-pink-700', text: 'Salary Payable (We Owe Them)' };
-                }}
-              />
-            ))}
+            {staffAccounts.map(acc => {
+               const availableUpad = acc.currentBalance < 0 ? Math.abs(acc.currentBalance) : 0;
+               return (
+                 <AccountHistoryModal key={acc.id} account={acc}>
+                   <div className="bg-pink-50/30 border-pink-200 text-pink-800 border rounded-lg p-3 shadow-sm interactive-card cursor-pointer flex flex-col h-full">
+                     <div className="flex justify-between items-center mb-3 border-b border-black/5 pb-2">
+                       <strong className="text-[15px] tracking-tight flex-1">{acc.name}</strong>
+                       <DeleteAccountButton accountId={acc.id} accountName={acc.name} />
+                     </div>
+                     <div className="flex flex-col gap-2 flex-1">
+                       <div className="grid grid-cols-2 gap-2 mb-1">
+                         <div className="flex flex-col gap-1 p-2 bg-indigo-50/50 rounded border border-indigo-100">
+                           <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-600/80">Salary Paid</span>
+                           <span className="text-sm font-semibold text-indigo-700">₹{acc.salaryGiven?.toLocaleString('en-IN') || '0'}</span>
+                         </div>
+                         <div className="flex flex-col gap-1 p-2 bg-emerald-50/50 rounded border border-emerald-100">
+                           <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600/80">Upad Used</span>
+                           <span className="text-sm font-semibold text-emerald-700">₹{acc.upadUsed?.toLocaleString('en-IN') || '0'}</span>
+                         </div>
+                         <div className="flex flex-col gap-1 p-2 bg-red-50/50 rounded border border-red-100">
+                           <span className="text-[9px] font-bold uppercase tracking-wider text-red-600/80">Upad Given</span>
+                           <span className="text-sm font-semibold text-red-700">₹{acc.upadGiven?.toLocaleString('en-IN') || '0'}</span>
+                         </div>
+                         <div className="flex flex-col gap-1 p-2 bg-amber-50/50 rounded border border-amber-100">
+                           <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600/80">Available Upad</span>
+                           <span className="text-sm font-semibold text-amber-700">₹{availableUpad.toLocaleString('en-IN')}</span>
+                         </div>
+                       </div>
+                     </div>
+                   </div>
+                 </AccountHistoryModal>
+               );
+            })}
             {staffAccounts.length === 0 && <p className="text-slate-400 text-sm font-medium italic col-span-full">No staff accounts added.</p>}
           </div>
         </div>
+
+        {/* UCHAK ACCOUNTS (TEMPORARY ADVANCES) */}
+        {uchakAccounts.length > 0 && (
+          <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full border-l-4 border-l-orange-500">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
+              <Landmark size={18} className="text-orange-500" />
+              <h3 className="text-base font-bold text-slate-800 m-0">Uchak (Temporary Advances)</h3>
+            </div>
+            <p className="text-xs font-medium text-slate-500 mb-3 mt-1">Short-term cash advances given to third parties. These accounts auto-hide when settled.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
+              {uchakAccounts.map(acc => (
+                <AccountCard 
+                  key={acc.id} account={acc} colorClass="bg-orange-50/40 border-orange-200 text-orange-900" 
+                  creditLabel="Settlement Received" debitLabel="Advance Given"
+                  balanceLogic={(b) => {
+                    if (b === 0) return { color: 'text-slate-700', text: 'Settled' };
+                    if (b < 0) return { color: 'text-emerald-700', text: 'They Owe Us' };
+                    return { color: 'text-red-700', text: 'We Owe Them' };
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* BUSINESS PARTNERS */}
         <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">

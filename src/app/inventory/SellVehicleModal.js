@@ -1,9 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { PlusCircle, Trash2, HandCoins, X, ChevronDown, Check } from 'lucide-react';
 import { sellVehicle } from '@/actions/inventory';
-import SubmitButton from '@/components/SubmitButton';
 import toast from 'react-hot-toast';
 
 function getLocalDateString() {
@@ -20,6 +19,8 @@ export default function SellVehicleModal({ inStock, accounts }) {
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
+  const [customerName, setCustomerName] = useState('');
+  const [customerMobile, setCustomerMobile] = useState('');
   const [salePrice, setSalePrice] = useState('');
   const handleAmountFormat = (val) => {
     if (!val) return '';
@@ -90,12 +91,24 @@ export default function SellVehicleModal({ inStock, accounts }) {
     setPayments(payments.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
   
-  const handleAction = async (formData) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (isSubmittingRef.current) return;
+
     if (!selectedVehicleId) {
       toast.error("Please select a vehicle to sell.");
       return;
     }
+
+    if (pendingBalance < 0) {
+      toast.error("Total payments (including token) cannot exceed the Sale Price.");
+      return;
+    }
     
+    const formData = new FormData(e.currentTarget);
     // Warn if keeping udhari on customer
     const receivableAccountId = formData.get('receivableAccountId');
     if (pendingBalance > 0 && !receivableAccountId && !showConfirm) {
@@ -103,13 +116,25 @@ export default function SellVehicleModal({ inStock, accounts }) {
       return;
     }
     
-    const res = await sellVehicle(formData);
-    if (res?.success) {
-      toast.success("Vehicle sold successfully!");
-      setIsOpen(false);
-      setShowConfirm(false);
-    } else if (res?.error) {
-      toast.error(res.error);
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+
+    try {
+      const res = await sellVehicle(formData);
+      if (res?.success) {
+        toast.success("Vehicle sold successfully!");
+        setIsOpen(false);
+        setShowConfirm(false);
+        setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
+        setSalePrice('');
+        setAppliedTokenId('');
+        e.target.reset();
+      } else if (res?.error) {
+        toast.error(res.error);
+      }
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -137,14 +162,21 @@ export default function SellVehicleModal({ inStock, accounts }) {
               </div>
               <button 
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  setIsOpen(false);
+                  setCustomerName('');
+                  setCustomerMobile('');
+                  setSalePrice('');
+                  setAppliedTokenId('');
+                  setSelectedVehicleId('');
+                }}
                 className="text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 border-none cursor-pointer p-2 rounded-full transition-colors"
               >
                 <X size={20} strokeWidth={2.5} />
               </button>
             </div>
 
-            <form action={handleAction} className="flex-1 overflow-y-auto min-h-0 p-6 flex flex-col gap-6 text-sm" style={{ scrollbarWidth: 'thin' }}>
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto min-h-0 p-6 flex flex-col gap-6 text-sm" style={{ scrollbarWidth: 'thin' }}>
               
               {/* Vehicle Selection & Basic Details Block */}
               <div className="bg-slate-50/50 p-4 md:p-6 rounded-2xl border border-slate-100 flex flex-col gap-5">
@@ -209,6 +241,45 @@ export default function SellVehicleModal({ inStock, accounts }) {
                   )}
                 </div>
 
+                {selectedVehicle && selectedVehicle.tokens && selectedVehicle.tokens.filter(t => t.status === 'ACTIVE').length > 0 && (
+                  <div className="flex flex-col gap-2 mt-2 pt-4 border-t border-slate-200">
+                    <label className="text-[11px] uppercase font-bold text-blue-600 tracking-wider">Apply Booking Token (Optional)</label>
+                    <div className="relative">
+                      <select 
+                        name="appliedTokenId"
+                        value={appliedTokenId}
+                        onChange={(e) => {
+                          const tokenId = e.target.value;
+                          setAppliedTokenId(tokenId);
+                          if (tokenId && selectedVehicle) {
+                            const token = selectedVehicle.tokens.find(t => t.id === tokenId);
+                            if (token) {
+                              setCustomerName(token.customerName || '');
+                              setCustomerMobile(token.customerMobile || '');
+                              if (token.agreedSalePrice) {
+                                setSalePrice(handleAmountFormat(token.agreedSalePrice));
+                              }
+                            }
+                          } else {
+                            setCustomerName('');
+                            setCustomerMobile('');
+                            setSalePrice('');
+                          }
+                        }}
+                        className="w-full p-3.5 rounded-xl border border-blue-200 bg-blue-50/50 shadow-inner text-sm font-bold text-blue-900 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 transition-all appearance-none"
+                      >
+                        <option value="">No Token Applied</option>
+                        {selectedVehicle.tokens.filter(t => t.status === 'ACTIVE').map(token => (
+                          <option key={token.id} value={token.id}>
+                            {token.customerName} - ₹{Number(token.amount).toLocaleString('en-IN')}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="text-[10px] text-blue-500 font-medium ml-1">Applying a token will automatically deduct its amount from the pending balance and auto-fill the customer details.</p>
+                  </div>
+                )}
+
                 <div className="flex flex-col md:flex-row gap-4 items-start">
                   <div className="flex-1 w-full">
                     <label className="text-[11px] uppercase font-bold text-emerald-700 mb-2 block tracking-wider">Sale Price (₹)</label>
@@ -232,35 +303,14 @@ export default function SellVehicleModal({ inStock, accounts }) {
                   <div className="flex flex-col md:flex-row gap-4 mt-4">
                     <div className="flex-1">
                       <label className="text-[11px] uppercase font-bold text-slate-500 mb-2 block tracking-wider">Customer Name <span className="text-red-500">*</span></label>
-                      <input type="text" name="customerName" required placeholder="Enter Customer Name" className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
+                      <input type="text" name="customerName" required value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Enter Customer Name" className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
                     </div>
                     <div className="flex-1">
                       <label className="text-[11px] uppercase font-bold text-slate-500 mb-2 block tracking-wider">Customer Mobile Number <span className="text-red-500">*</span></label>
-                      <input type="text" name="customerMobile" required pattern="[0-9]{10}" title="Please enter a valid 10-digit mobile number" placeholder="Enter Mobile Number" maxLength={10} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
+                      <input type="text" name="customerMobile" required value={customerMobile} onChange={(e) => setCustomerMobile(e.target.value)} pattern="[0-9]{10}" title="Please enter a valid 10-digit mobile number" placeholder="Enter Mobile Number" maxLength={10} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-[15px] font-semibold outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition-all text-slate-700" />
                     </div>
                   </div>
 
-                {selectedVehicle && selectedVehicle.tokens && selectedVehicle.tokens.filter(t => t.status === 'ACTIVE').length > 0 && (
-                  <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-slate-200">
-                    <label className="text-[11px] uppercase font-bold text-blue-600 tracking-wider">Apply Booking Token (Optional)</label>
-                    <div className="relative">
-                      <select 
-                        name="appliedTokenId"
-                        value={appliedTokenId}
-                        onChange={(e) => setAppliedTokenId(e.target.value)}
-                        className="w-full p-3.5 rounded-xl border border-blue-200 bg-blue-50/50 shadow-inner text-sm font-bold text-blue-900 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 transition-all appearance-none"
-                      >
-                        <option value="">No Token Applied</option>
-                        {selectedVehicle.tokens.filter(t => t.status === 'ACTIVE').map(token => (
-                          <option key={token.id} value={token.id}>
-                            {token.customerName} - ₹{Number(token.amount).toLocaleString('en-IN')}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <p className="text-[10px] text-blue-500 font-medium ml-1">Applying a token will automatically deduct its amount from the pending balance.</p>
-                  </div>
-                )}
                 </div>
               
               <div className={`p-3 rounded-lg border flex flex-col md:flex-row md:items-center justify-between gap-3 ${pendingBalance !== 0 ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
@@ -362,14 +412,18 @@ export default function SellVehicleModal({ inStock, accounts }) {
                     >
                       Cancel
                     </button>
-                    <SubmitButton
-                      disabled={!selectedVehicleId || inStock?.length === 0}
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !selectedVehicleId || inStock?.length === 0}
                       className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      pendingText="Selling..."
                     >
-                      <HandCoins size={18} />
-                      Confirm Sale
-                    </SubmitButton>
+                      {isSubmitting ? 'Selling...' : (
+                        <>
+                          <HandCoins size={18} />
+                          Confirm Sale
+                        </>
+                      )}
+                    </button>
                   </>
                 ) : (
                   <div className="flex flex-col sm:flex-row items-center justify-between w-full p-4 bg-amber-50 border border-amber-200 rounded-xl animate-in slide-in-from-bottom-2 duration-300">
@@ -389,12 +443,17 @@ export default function SellVehicleModal({ inStock, accounts }) {
                       >
                         Wait, Go Back
                       </button>
-                      <SubmitButton
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
                         className="flex-1 sm:flex-none px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold transition-all shadow-sm text-sm flex items-center gap-2"
-                        pendingText="Confirming..."
                       >
-                        <Check size={16} /> Yes, I am OK
-                      </SubmitButton>
+                        {isSubmitting ? 'Confirming...' : (
+                          <>
+                            <Check size={16} /> Yes, I am OK
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 )}

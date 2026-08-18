@@ -12,6 +12,7 @@ export async function giveAdvance(formData) {
     const dateStr = formData.get('date');
     const description = formData.get('description');
     const sourceAccountId = formData.get('sourceAccountId');
+    const isSalary = formData.get('isSalary') === 'true';
 
     if (!accountId || !sourceAccountId || isNaN(amount) || amount <= 0) {
       throw new Error('Invalid input');
@@ -23,16 +24,18 @@ export async function giveAdvance(formData) {
 
     await prisma.$transaction(async (tx) => {
       await checkSufficientBalance(tx, sourceAccountId, amount);
-      // 1. DEBIT UPAD Account (They OWE us more money now, so their balance goes UP)
+      
+      // 1. DEBIT STAFF/UPAD Account 
+      // If it's salary, we still debit them but mark it as SALARY so it doesn't affect their Upad balance
       await tx.transaction.create({
         data: {
           date: dateStr ? new Date(dateStr) : new Date(),
           transactionMode: sourceAcc.type === 'BANK' ? 'BANK' : 'CASH',
           type: 'DEBIT',
           amount,
-          accountId, // The UPAD person
-          category: 'UPAD_WITHDRAWAL',
-          description: description || 'Advance (Upad) Given'
+          accountId, // The STAFF / UPAD person
+          category: isSalary ? 'SALARY' : 'UPAD_WITHDRAWAL',
+          description: description || (isSalary ? 'Salary Paid' : 'Advance (Upad) Given')
         }
       });
 
@@ -45,8 +48,8 @@ export async function giveAdvance(formData) {
           type: 'DEBIT', // Money leaving
           amount,
           accountId: sourceAccountId, // The Bank/Cash account
-          category: 'UPAD_WITHDRAWAL',
-          description: `Advance Given to Staff/Mechanic`
+          category: isSalary ? 'SALARY' : 'UPAD_WITHDRAWAL',
+          description: isSalary ? `Salary Paid to Staff` : `Advance Given to Staff/Mechanic`
         }
       });
     });
@@ -81,6 +84,7 @@ export async function settleBill(formData) {
       if (amount > 0 && sourceAccountId) {
         await checkSufficientBalance(tx, sourceAccountId, amount);
       }
+      
       // 1. DEBIT UPAD Account (We owe them less / they owe us more)
       await tx.transaction.create({
         data: {
@@ -117,6 +121,7 @@ export async function settleBill(formData) {
     return { success: false, error: 'Failed to settle bill.' };
   }
 }
+
 export async function receiveAgentCarPayment(formData) {
   try {
     const session = await getSession();
@@ -130,22 +135,27 @@ export async function receiveAgentCarPayment(formData) {
     const dateStr = formData.get('date');
     const description = formData.get('description');
     
-    if (amount <= 0 || !vehicleId || !agentAccountId || !ledgerAccountId) {
+    if (amount <= 0 || !agentAccountId || !ledgerAccountId) {
       return { success: false, error: 'Invalid input parameters.' };
     }
 
     const date = new Date(dateStr || Date.now());
 
     await prisma.$transaction(async (tx) => {
+      let vehicleDetails = '';
+      
       // 1. Update Vehicle Pending Balance
-      const vehicle = await tx.vehicle.findUnique({ where: { id: vehicleId } });
-      if (vehicle) {
-        await tx.vehicle.update({
-          where: { id: vehicleId },
-          data: {
-            salePendingBalance: Math.max(0, Number(vehicle.salePendingBalance) - amount)
-          }
-        });
+      if (vehicleId) {
+        const vehicle = await tx.vehicle.findUnique({ where: { id: vehicleId } });
+        if (vehicle) {
+          vehicleDetails = ` (Ref: ${vehicle.make} ${vehicle.model} ${vehicle.registration || 'UNREG'})`;
+          await tx.vehicle.update({
+            where: { id: vehicleId },
+            data: {
+              salePendingBalance: Math.max(0, Number(vehicle.salePendingBalance) - amount)
+            }
+          });
+        }
       }
 
       // 2. Credit Cash/Bank Account (Money In)
@@ -160,8 +170,9 @@ export async function receiveAgentCarPayment(formData) {
             type: 'CREDIT',
             amount,
             accountId: ledgerAccountId,
-            category: 'GENERAL',
-            description: `Agent Car Payment: ${agentAcc?.name || 'Agent'} (${vehicle?.make || ''} ${vehicle?.model || ''})`
+            category: 'INTERNAL_TRANSFER',
+            referenceId: agentAccountId, // Internal link for tracking
+            description: description || `Payment Received from ${agentAcc?.name || 'Account'}${vehicleDetails}`
           }
         });
       }
@@ -175,7 +186,7 @@ export async function receiveAgentCarPayment(formData) {
           amount,
           accountId: agentAccountId,
           category: 'INTERNAL_TRANSFER',
-          description: `Auto-Entry: Agent Car Payment Settled (${vehicle?.registration || ''})`
+          description: `Payment Settled (Money In)${vehicleDetails}`
         }
       });
     });
@@ -189,5 +200,66 @@ export async function receiveAgentCarPayment(formData) {
   } catch (error) {
     console.error('Failed to receive agent payment:', error);
     return { success: false, error: 'Failed to record agent payment.' };
+  }
+}
+
+export async function receiveAdvancePayment(formData) {
+  try {
+    const session = await getSession();
+    if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+
+    const accountId = formData.get('accountId');
+    const destinationAccountId = formData.get('destinationAccountId');
+    const rawAmount = formData.get('amount')?.toString().replace(/,/g, '') || '0';
+    const amount = Math.round(parseFloat(rawAmount) * 100) / 100 || 0;
+    const dateStr = formData.get('date');
+    const description = formData.get('description');
+    
+    if (amount <= 0 || !accountId || !destinationAccountId) {
+      return { success: false, error: 'Invalid input parameters.' };
+    }
+
+    const date = new Date(dateStr || Date.now());
+
+    await prisma.$transaction(async (tx) => {
+      const upadAcc = await tx.account.findUnique({ where: { id: accountId } });
+      const destAcc = await tx.account.findUnique({ where: { id: destinationAccountId } });
+      
+      if (!upadAcc || !destAcc) throw new Error('Account not found');
+
+      // 1. CREDIT Destination Account (Money enters our bank/cash)
+      await tx.transaction.create({
+        data: {
+          date,
+          transactionMode: destAcc.type === 'BANK' ? 'BANK' : 'CASH',
+          type: 'CREDIT',
+          amount,
+          accountId: destinationAccountId,
+          category: 'UPAD_REPAYMENT',
+          description: description || `Payment Received from ${upadAcc.name}`
+        }
+      });
+
+      // 2. CREDIT UPAD Account (Reduce what they owe us)
+      await tx.transaction.create({
+        data: {
+          date,
+          transactionMode: 'CASH',
+          type: 'CREDIT',
+          amount,
+          accountId: accountId,
+          category: 'UPAD_REPAYMENT',
+          description: `Payment Received (Money In)`
+        }
+      });
+    });
+
+    revalidatePath('/accounts');
+    revalidatePath('/rojmel');
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to receive advance payment:', error);
+    return { success: false, error: error.message || 'Failed to receive payment.' };
   }
 }

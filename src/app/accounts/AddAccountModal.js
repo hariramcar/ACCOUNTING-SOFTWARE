@@ -82,6 +82,7 @@ export default function AddAccountModal() {
                     <option value="DSA_AGENT">Loan Agent</option>
                     <option value="UGHRANI">Market Place</option>
                     <option value="PARTNER">Business Partner</option>
+                    <option value="UCHAK">Uchak (Temporary)</option>
                   </select>
                 </div>
                 

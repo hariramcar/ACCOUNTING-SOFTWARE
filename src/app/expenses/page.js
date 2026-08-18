@@ -10,6 +10,7 @@ import DateSelector from './DateSelector';
 import TransactionActions from './TransactionActions';
 import { Receipt, Building2, Car, Wallet } from 'lucide-react';
 import { getSession } from '@/lib/session';
+import DiaryPad from '../components/DiaryPad';
 
 export default async function ExpensesPage({ searchParams }) {
   const session = await getSession();
@@ -41,8 +42,12 @@ export default async function ExpensesPage({ searchParams }) {
     const res = await getPendingExpenses();
     if (res.success) pendingExpenses = res.expenses;
   } else {
-    // STAFF logic: get their specific account balance
-    const dbUser = await prisma.user.findUnique({ where: { id: session?.userId }, select: { accountId: true } });
+    // STAFF logic: get their specific account balance and diary note
+    const dbUser = await prisma.user.findUnique({ 
+      where: { id: session?.userId }, 
+      select: { accountId: true, diaryNote: true } 
+    });
+    staffWallet = { balance: 0, spent: 0, diaryNote: dbUser?.diaryNote || '' };
     if (dbUser?.accountId) {
       const acc = accounts.find(a => a.id === dbUser.accountId);
       if (acc) {
@@ -50,7 +55,8 @@ export default async function ExpensesPage({ searchParams }) {
         const totalSpent = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
         staffWallet = {
           balance: Number(acc.currentBalance || 0) * -1,
-          spent: totalSpent
+          spent: totalSpent,
+          diaryNote: dbUser?.diaryNote || ''
         };
       }
     }
@@ -121,6 +127,7 @@ export default async function ExpensesPage({ searchParams }) {
               addTransferAction={addTransfer}
               sellVehicleAction={sellVehicle}
               isAdmin={isAdmin}
+              staffWallet={staffWallet}
             />
 
             {isAdmin && (
@@ -159,11 +166,12 @@ export default async function ExpensesPage({ searchParams }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
         {/* ADD EXPENSE FORM (CLIENT COMPONENT - HIDDEN ON MOBILE) */}
         <div className="hidden lg:block lg:col-span-1">
-          <ExpenseForm vehicles={vehicles} accounts={accounts || []} addExpenseAction={addExpense} addTransferAction={addTransfer} sellVehicleAction={sellVehicle} isAdmin={isAdmin} />
+          <ExpenseForm vehicles={vehicles} accounts={accounts || []} addExpenseAction={addExpense} addTransferAction={addTransfer} sellVehicleAction={sellVehicle} isAdmin={isAdmin} staffWallet={staffWallet} />
         </div>
 
         {/* EXPENSES LEDGER */}
         <div className="lg:col-span-2 order-2 lg:order-2 flex flex-col gap-3">
+          {!isAdmin && <DiaryPad initialNote={staffWallet?.diaryNote || ''} />}
           <h2 className="border-b border-slate-200 pb-3 mb-3 text-lg font-bold text-slate-900">Recent Transactions Ledger</h2>
 
           {(() => {

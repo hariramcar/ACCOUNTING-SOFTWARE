@@ -106,7 +106,7 @@ export default function PendingApprovalsModal({ pendingExpenses }) {
                           {exp.requestedMode === 'CASH' && exp.submittedBy 
                             ? `${exp.submittedBy.name}'s Advance (Cash)` 
                             : exp.requestedMode 
-                              ? `${exp.requestedMode}` 
+                              ? (exp.requestedMode.startsWith('{') ? 'Split Payment Sources' : `${exp.requestedMode}`) 
                               : 'No auto-entry requested'}
                         </div>
                       </div>

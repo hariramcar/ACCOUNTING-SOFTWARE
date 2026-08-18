@@ -26,6 +26,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
   const [partnerSourceAccountId, setPartnerSourceAccountId] = useState('');
   const [payingProfitId, setPayingProfitId] = useState(null);
   const [profitSourceAccountId, setProfitSourceAccountId] = useState('');
+  const [profitPaymentAmount, setProfitPaymentAmount] = useState('');
   const [error, setError] = useState(null);
   const [partnerError, setPartnerError] = useState(null);
   const [profitError, setProfitError] = useState(null);
@@ -106,8 +107,15 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
     
     const formData = new FormData();
     formData.append('partnershipId', partnershipId);
-    formData.append('amount', amount);
+    
+    const finalAmount = profitPaymentAmount ? parseFloat(profitPaymentAmount.replace(/,/g, '')) : amount;
+    formData.append('amount', finalAmount);
     formData.append('sourceAccountId', profitSourceAccountId);
+    
+    const cutAmount = Math.max(0, amount - finalAmount);
+    if (cutAmount > 0) {
+      formData.append('cutAmount', cutAmount);
+    }
 
     try {
       const result = await payPartnerProfit(formData);
@@ -130,6 +138,13 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
   
   const partnerTotalProfit = (car.partnerships || []).reduce((sum, p) => sum + (Math.round((Number(car.profit || 0) * (Number(p.profitSharePercentage) / 100)) * 100) / 100), 0);
   const netOurProfit = Number(car.profit || 0) - partnerTotalProfit;
+
+  const partnerTotalInvestment = (car.partnerships || []).reduce((sum, p) => sum + Number(p.investmentAmount || 0), 0);
+  const firmCapital = Math.max(0, Number(car.purchasePrice) - partnerTotalInvestment);
+  
+  const firmPayments = (car.purchaseTransactions || []).filter(tx => {
+    return !car.partnerships?.some(p => p.partnerAccount?.name && tx.description.includes(p.partnerAccount.name));
+  });
 
   return createPortal(
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-end z-[9999] transition-all">
@@ -233,7 +248,30 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                   <div>
                     <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider mb-1">Partner Profit Share</div>
                     <div className="font-bold text-sm text-purple-400">- ₹{partnerTotalProfit.toLocaleString('en-IN')}</div>
-                    <div className="text-xs font-bold text-emerald-300 mt-1">Our Share: ₹{netOurProfit.toLocaleString('en-IN')}</div>
+                    {(() => {
+                      let extraProfit = 0;
+                      car.partnerships?.forEach(p => {
+                        const pp = Math.round((Number(car.profit || 0) * (Number(p.profitSharePercentage) / 100)) * 100) / 100;
+                        const inv = Number(p.paidAmount || 0);
+                        const expected = pp + inv;
+                        const tx = car.profitPayouts?.find(t => t.description.includes(p.partnerAccount?.name));
+                        if (tx) {
+                          const paid = Number(tx.amount);
+                          if (expected > paid) extraProfit += (expected - paid);
+                        }
+                      });
+                      
+                      return (
+                        <div className="text-xs font-bold text-emerald-300 mt-1 flex flex-col gap-0.5">
+                          <span>Our Share: ₹{netOurProfit.toLocaleString('en-IN')}</span>
+                          {extraProfit > 0 && (
+                            <span className="text-[9px] text-amber-400 font-bold bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 w-fit">
+                              + ₹{extraProfit.toLocaleString('en-IN')} (Cut from Partner)
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
                 {car.partnerships && car.partnerships.length > 0 && (
@@ -250,6 +288,10 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                         const isPaid = car.profitPayouts?.some(t => t.description.includes(p.partnerAccount?.name));
                         const isPayingThis = payingProfitId === p.id;
                         
+                        const payoutTx = car.profitPayouts?.find(t => t.description.includes(p.partnerAccount?.name));
+                        const actualPaid = payoutTx ? Number(payoutTx.amount) : 0;
+                        const cutAmount = isPaid ? (totalPayout - actualPaid) : 0;
+                        
                         return (
                           <div key={i} className="flex flex-col gap-2 bg-indigo-900/50 p-2 rounded-lg border border-indigo-800/30">
                             <div className="flex justify-between items-start text-xs">
@@ -262,15 +304,20 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                                 <span className="text-[9px] text-indigo-400 font-medium">
                                   (₹{capitalInvested.toLocaleString('en-IN')} Capital + ₹{partnerProfit.toLocaleString('en-IN')} Profit)
                                 </span>
-                                <div className="mt-1">
+                                <div className="mt-1 flex flex-col items-end gap-1.5">
                                   {isPaid ? (
-                                    <span className="text-[9px] font-bold text-emerald-400/90 bg-emerald-400/10 px-1.5 py-0.5 rounded-sm uppercase tracking-widest flex items-center gap-1">
-                                      <CheckCircle2 size={10} /> Paid
-                                    </span>
+                                    <>
+                                      <span className="text-[9px] font-bold text-emerald-400/90 bg-emerald-400/10 px-1.5 py-0.5 rounded-sm uppercase tracking-widest flex items-center gap-1">
+                                        <CheckCircle2 size={10} /> Paid ₹{actualPaid.toLocaleString('en-IN')}
+                                      </span>
+                                    </>
                                   ) : (
                                     !isPayingThis && totalPayout > 0 && (
                                       <button 
-                                        onClick={() => setPayingProfitId(p.id)}
+                                        onClick={() => {
+                                          setPayingProfitId(p.id);
+                                          setProfitPaymentAmount(totalPayout.toString());
+                                        }}
                                         className="text-[9px] font-bold text-white bg-emerald-500/80 hover:bg-emerald-500 px-2 py-1 rounded-sm uppercase tracking-widest transition-colors"
                                       >
                                         Pay Settlement
@@ -295,6 +342,26 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                                     <option key={acc.id} value={acc.id}>{acc.name}</option>
                                   ))}
                                 </select>
+                                <input 
+                                  type="text"
+                                  inputMode="decimal"
+                                  required
+                                  value={profitPaymentAmount}
+                                  onChange={(e) => setProfitPaymentAmount(handleAmountFormat(e.target.value))}
+                                  className="text-xs p-1.5 rounded-md border border-indigo-700 bg-indigo-800/50 text-indigo-100 font-bold outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                  placeholder="Final Payout Amount"
+                                />
+                                {(() => {
+                                  const amt = parseFloat((profitPaymentAmount || '0').replace(/,/g, ''));
+                                  if (!isNaN(amt) && amt < totalPayout && amt >= 0) {
+                                    return (
+                                      <div className="text-[9px] font-bold text-amber-400 bg-amber-400/10 p-1.5 rounded-md border border-amber-400/20">
+                                        Paying ₹{(totalPayout - amt).toLocaleString('en-IN')} less. This is kept as Firm's Extra Profit.
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                                 <div className="flex gap-2">
                                   <button type="submit" disabled={isSubmitting} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] uppercase tracking-wider font-bold py-1.5 rounded-md transition-colors">
                                     {isSubmitting ? '...' : 'Confirm'}
@@ -338,11 +405,27 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                     </div>
                   )}
                 </div>
+
                 <div className="sm:pl-4">
                   <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Total Repairs</div>
                   <div className="font-bold text-sm text-red-500">+ ₹{(totalRepairs + legacyRepairs).toLocaleString('en-IN')}</div>
                 </div>
               </div>
+
+              {firmPayments.length > 0 && (
+                <div className="mt-1 pt-3 border-t border-slate-200/80 flex flex-col gap-1.5">
+                  <div className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider mb-0.5">Firm's Payments</div>
+                  {firmPayments.map((tx, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-[10px]">
+                      <span className="text-slate-600 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                        <span className="capitalize">{tx.accountName || tx.transactionMode}</span>
+                      </span>
+                      <span className="font-bold text-indigo-700 font-mono">₹{tx.amount.toLocaleString('en-IN')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {Number(car.purchasePendingBalance) > 0 && (
                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200/60 w-full shadow-sm mt-1">
@@ -424,6 +507,25 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                           <div className="font-bold text-sm text-purple-700">₹{invested.toLocaleString('en-IN')}</div>
                         </div>
                       </div>
+
+                      {(() => {
+                        const partnerTx = (car.partnerTransactions || []).filter(tx => p.partnerAccount?.name && tx.description.includes(p.partnerAccount.name));
+                        if (partnerTx.length === 0) return null;
+                        return (
+                          <div className="mt-1 pt-2 border-t border-purple-100/60 flex flex-col gap-1.5">
+                            <div className="text-[9px] font-bold text-purple-400 uppercase tracking-wider mb-0.5">Payment Breakdown</div>
+                            {partnerTx.map((tx, idx) => (
+                              <div key={idx} className="flex justify-between items-center text-xs">
+                                <span className="text-purple-600/80 flex items-center gap-1.5">
+                                  <span className="w-1 h-1 rounded-full bg-purple-400"></span>
+                                  {tx.accountName || tx.transactionMode} Payment
+                                </span>
+                                <span className="font-medium text-purple-700 font-mono">₹{tx.amount.toLocaleString('en-IN')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
 
                       {unpaid > 0 && (
                         <div className="mt-2 pt-3 border-t border-purple-100 flex flex-col gap-2">
@@ -508,9 +610,16 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                       </div>
                     </div>
                     <div className="flex flex-col sm:items-end gap-2 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-200/60">
-                      <div className="font-black text-lg text-slate-800">
-                        ₹{Number(token.amount).toLocaleString('en-IN')}
-                      </div>
+                        <div className="flex flex-col items-end">
+                          <span className="font-black text-lg text-slate-800">
+                            ₹{Number(token.amount).toLocaleString('en-IN')}
+                          </span>
+                          {token.agreedSalePrice && (
+                            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
+                              Sale: ₹{Number(token.agreedSalePrice).toLocaleString('en-IN')}
+                            </span>
+                          )}
+                        </div>
                       {token.status === 'ACTIVE' && (
                         <button 
                           onClick={async () => {

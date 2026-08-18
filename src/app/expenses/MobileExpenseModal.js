@@ -11,7 +11,8 @@ export default function MobileExpenseModal({
   addExpenseAction, 
   addTransferAction, 
   sellVehicleAction, 
-  isAdmin 
+  isAdmin,
+  staffWallet
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -57,6 +58,7 @@ export default function MobileExpenseModal({
                 addTransferAction={addTransferAction} 
                 sellVehicleAction={sellVehicleAction} 
                 isAdmin={isAdmin}
+                staffWallet={staffWallet}
                 onSuccess={() => setIsOpen(false)} 
               />
             </div>

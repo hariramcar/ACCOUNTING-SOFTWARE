@@ -146,7 +146,8 @@ export async function getAllExpenses(year, month) {
           recipient,
           isRawTx: true,
           isTransfer: tx.category === 'INTERNAL_TRANSFER',
-          accountType: tx.account ? tx.account.type : null
+          accountType: tx.account ? tx.account.type : null,
+          rawCategory: tx.category
         };
       });
 
@@ -185,8 +186,10 @@ export async function getAllIncome(year, month) {
         NOT: [
           { description: { in: ['Opening Balance', 'Capital Introduced / Opening Balance'] } },
           { description: { startsWith: 'Auto-Entry: Partnership Investment' } },
+          { description: { startsWith: 'Auto-Entry: Partnership Capital Investment' } },
           { description: { startsWith: 'Auto-Entry: Paid Pending Investment Share' } },
           { description: { startsWith: 'Auto-Entry: Profit Share' } },
+          { description: { startsWith: 'Auto-Entry: Profit Earned' } },
           { description: { startsWith: 'Auto-Entry: Pending Receivable' } },
           { description: { startsWith: 'Auto-Entry: Advance Received' } },
           { description: { startsWith: 'Auto-Entry: Agent Car Payment Settled' } },
@@ -218,6 +221,7 @@ export async function getAllIncome(year, month) {
         isTransfer: t.category === 'INTERNAL_TRANSFER',
         transferDetails: t.category === 'INTERNAL_TRANSFER' ? t.referenceId : null,
         accountType: t.account ? t.account.type : null,
+        rawCategory: t.category,
         account: t.account ? {
           ...t.account,
           openingBalance: Number(t.account.openingBalance)

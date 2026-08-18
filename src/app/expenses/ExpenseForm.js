@@ -90,7 +90,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
   const [pendingBalance, setPendingBalance] = useState(0);
 
   useEffect(() => {
-    if (txType === 'INCOME') {
+    if (txType === 'INCOME' || txType === 'EXPENSE') {
       const total = parseFloat((amount || '').toString().replace(/,/g, '')) || 0;
       const totalPaid = payments.reduce((sum, p) => sum + (parseFloat((p.amount || '').toString().replace(/,/g, '')) || 0), 0);
       const pending = Math.round((total - totalPaid) * 100) / 100;
@@ -141,15 +141,14 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
     }
 
     // 4. Validation: Account Selection Guard
-    if (finalExpenseType !== 'INCOME') {
-      const mode = formData.get('mode');
-      const accountId = formData.get('accountId');
-      
-      // STAFF are auto-assigned their own accountId on the server if they select CASH
-      const isStaffCash = !isAdmin && mode === 'CASH';
-      
-      if (mode && mode !== 'PENDING' && !accountId && !isStaffCash) {
-        toast.error('Please select an account for this expense payment.');
+    if (txType === 'INCOME') {
+      if (pendingBalance > 0 && !formData.get('receivableAccountId')) {
+        toast.error('Please select an agent account for the pending balance.');
+        return;
+      }
+    } else {
+      if (pendingBalance !== 0) {
+        toast.error(`For expenses, your payments must exactly match the total amount. You have a difference of ₹${Math.abs(pendingBalance).toLocaleString('en-IN')}`);
         return;
       }
     }
@@ -325,9 +324,8 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
             </div>
           )}
 
-          {txType === 'INCOME' ? (
+          {txType === 'INCOME' && (
             <>
-              {/* Income Specific Layout (Mirrors Sell Vehicle exactly) */}
               <div className="mb-2">
                 <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Select Vehicle (Optional)</label>
                 <select 
@@ -374,193 +372,124 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                   )}
                 </>
               )}
-
-              <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
-                <div className="flex-1 w-full">
-                  <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Description</label>
-                  <input type="text" name="description" required placeholder="e.g. Electricity Bill, Painter, Parts" className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm" />
-                </div>
-              </div>
-
-              <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
-                <div className="flex-1 w-full">
-                  <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Income Amount (₹)</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    name="amount"
-                    required
-                    placeholder="0"
-                    value={amount ?? ''}
-                    onChange={(e) => setAmount(handleAmountFormat(e.target.value))}
-                    className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-bold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm"
-                  />
-                </div>
-                <div className="flex-1 w-full">
-                  <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Date</label>
-                  <input type="date" name="date" required max={getLocalDateString()} defaultValue={getLocalDateString()} className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 text-slate-700 shadow-sm" />
-                </div>
-              </div>
-
-              <div className={`p-4 rounded-lg border flex flex-col md:flex-row md:items-center gap-4 ${pendingBalance !== 0 ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="flex-1">
-                  <div className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${pendingBalance !== 0 ? 'text-amber-700' : 'text-slate-500'}`}>
-                    {pendingBalance < 0 ? 'Advance (We Owe Customer)' : 'Pending Balance (Customer Owes)'}
-                  </div>
-                  <div className={`font-black text-lg ${pendingBalance !== 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                    {pendingBalance < 0 ? '-' : ''}₹{Math.abs(pendingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                </div>
-
-                {pendingBalance !== 0 && (
-                  <div className="flex-1">
-                    <label className="text-[10px] uppercase font-bold text-amber-700 mb-1 block tracking-wider">Select Agent Account (For Pending Baki/Advance)</label>
-                    <select name="receivableAccountId" required className="w-full p-2.5 rounded-md border border-amber-300 bg-white text-sm font-medium outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500">
-                      <option value="">Select Account</option>
-                      {accounts?.filter(a => a.type === 'DSA_AGENT').map(acc => (
-                        <option key={acc.id} value={acc.id}>{acc.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-2.5 mt-2">
-                <div className="flex items-center justify-between border-b border-emerald-200/50 pb-2">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Payments Received</div>
-                  <button
-                    type="button"
-                    onClick={addPayment}
-                    className="text-[10px] uppercase font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-md flex items-center gap-1 transition-colors border border-indigo-200 shadow-sm"
-                  >
-                    <PlusCircle size={12} /> Add Payment
-                  </button>
-                </div>
-
-                {payments.map((p, index) => (
-                  <div key={p.id} className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex flex-col md:flex-row md:items-end gap-2.5 shadow-sm">
-                    <div className="flex-1">
-                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block tracking-wider">Mode</label>
-                      <select
-                        name="paymentModes"
-                        value={p.mode ?? ''}
-                        onChange={(e) => updatePayment(p.id, 'mode', e.target.value)}
-                        required
-                        className="w-full p-2 rounded-md border border-slate-300 bg-white text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                      >
-                        <option value="">None</option>
-                        <option value="CASH">Cash</option>
-                        <option value="BANK">Bank</option>
-                      </select>
-                    </div>
-                    <div className="flex-[1.5]">
-                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block tracking-wider">Account</label>
-                      <select
-                        name="paymentAccountIds"
-                        value={p.accountId ?? ''}
-                        onChange={(e) => updatePayment(p.id, 'accountId', e.target.value)}
-                        required
-                        className="w-full p-2 rounded-md border border-slate-300 bg-white text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                      >
-                        <option value="">Account</option>
-                        {accounts?.filter(acc => p.mode === '' || acc.type === p.mode).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                      </select>
-                    </div>
-                    <div className="flex-[1.5]">
-                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block tracking-wider">Amount (₹)</label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        name="paymentAmounts"
-                        placeholder="Amt"
-                        required
-                        value={p.amount ?? ''}
-                        onChange={(e) => updatePayment(p.id, 'amount', e.target.value.replace(/,/g, ''))}
-                        className="w-full p-2 rounded-md border border-slate-300 bg-white text-xs font-bold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                      />
-                    </div>
-                    {payments.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removePayment(p.id)}
-                        className="p-2 mb-[1px] text-red-600 hover:bg-red-50 hover:text-red-700 rounded-md transition-colors border border-transparent hover:border-red-200"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Expense Original Form */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Description</label>
-                <input type="text" name="description" required placeholder="e.g. Electricity Bill, Painter, Parts" className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium" />
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex flex-col gap-1.5 flex-1">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Amount (₹)</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    name="amount"
-                    required
-                    placeholder="0"
-                    value={amount ?? ''}
-                    onChange={(e) => setAmount(handleAmountFormat(e.target.value))}
-                    className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-semibold"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5 flex-1">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Date</label>
-                  <input type="date" name="date" required max={getLocalDateString()} defaultValue={getLocalDateString()} className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium" />
-                </div>
-              </div>
-
-              {/* EXPENSE SIMPLE AUTO-DEDUCT SECTION */}
-              <div className="bg-slate-50 p-4 rounded-lg mt-2 border border-slate-200">
-                <p className="m-0 mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-700">Payment Source</p>
-                {accounts.length === 0 ? (
-                  <div className="bg-red-50 text-red-600 border border-red-200 rounded-md p-3 text-sm font-semibold">
-                    ⚠️ You haven't created any Cash Drawers or Bank Accounts yet! Go to the Master Capital Dashboard (Bank Icon) to add one first.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Payment Mode</label>
-                      <select
-                        name="mode"
-                        value={mode ?? ''}
-                        onChange={(e) => setMode(e.target.value)}
-                        className="p-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium outline-none focus:border-indigo-500"
-                      >
-                        {isAdmin && <option value="">No Auto-Entry (Keep Pending)</option>}
-                        <option value="CASH">{isAdmin ? 'Cash' : 'My Advance (Cash)'}</option>
-                        {isAdmin && <option value="BANK">Bank</option>}
-                        <option value="UGHRANI">Market Place (Garage/Vendor)</option>
-                      </select>
-                    </div>
-                    
-                    {/* For STAFF, hide account dropdown if CASH (auto-assigned). For ADMIN, show it for everything if mode is selected. */}
-                    {(mode === 'BANK' || mode === 'UGHRANI' || (isAdmin && mode === 'CASH')) && (
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Ledger Account</label>
-                        <select name="accountId" required={mode !== ''} className="p-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium outline-none focus:border-indigo-500">
-                          <option value="">Select Account...</option>
-                          {accounts.filter(acc => acc.type === mode).map(acc => (
-                            <option key={acc.id} value={acc.id}>{acc.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
             </>
           )}
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Description</label>
+            <input type="text" name="description" required placeholder="e.g. Electricity Bill, Painter, Parts" className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium" />
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Amount (₹)</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                name="amount"
+                required
+                placeholder="0"
+                value={amount ?? ''}
+                onChange={(e) => setAmount(handleAmountFormat(e.target.value))}
+                className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-semibold"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Date</label>
+              <input type="date" name="date" required max={getLocalDateString()} defaultValue={getLocalDateString()} className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium" />
+            </div>
+          </div>
+
+          <div className={`p-4 rounded-lg border flex flex-col md:flex-row md:items-center gap-4 ${pendingBalance !== 0 ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
+            <div className="flex-1">
+              <div className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${pendingBalance !== 0 ? 'text-amber-700' : 'text-slate-500'}`}>
+                {pendingBalance !== 0 ? 'Difference / Unallocated' : 'Fully Allocated'}
+              </div>
+              <div className={`font-black text-lg ${pendingBalance !== 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                {pendingBalance < 0 ? '-' : ''}₹{Math.abs(pendingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            </div>
+
+            {txType === 'INCOME' && pendingBalance !== 0 && (
+              <div className="flex-1">
+                <label className="text-[10px] uppercase font-bold text-amber-700 mb-1 block tracking-wider">Select Agent Account (For Pending Baki/Advance)</label>
+                <select name="receivableAccountId" required className="w-full p-2.5 rounded-md border border-amber-300 bg-white text-sm font-medium outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500">
+                  <option value="">Select Account</option>
+                  {accounts?.filter(a => a.type === 'DSA_AGENT').map(acc => (
+                    <option key={acc.id} value={acc.id}>{acc.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2.5 mt-2">
+            <div className="flex items-center justify-between border-b border-indigo-200/50 pb-2">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Payment Sources</div>
+              <button
+                type="button"
+                onClick={addPayment}
+                className="text-[10px] uppercase font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-md flex items-center gap-1 transition-colors border border-indigo-200 shadow-sm"
+              >
+                <PlusCircle size={12} /> Add Payment Source
+              </button>
+            </div>
+
+            {payments.map((p, index) => (
+              <div key={p.id} className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex flex-col md:flex-row md:items-end gap-2.5 shadow-sm">
+                <div className="flex-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block tracking-wider">Mode</label>
+                  <select
+                    name="paymentModes"
+                    value={p.mode ?? ''}
+                    onChange={(e) => updatePayment(p.id, 'mode', e.target.value)}
+                    required
+                    className="w-full p-2 rounded-md border border-slate-300 bg-white text-xs font-semibold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">None</option>
+                    <option value="CASH">Cash</option>
+                    <option value="BANK">Bank</option>
+                    {txType === 'EXPENSE' && <option value="UGHRANI">Market Place / Vendor</option>}
+                  </select>
+                </div>
+                <div className="flex-[1.5]">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block tracking-wider">Account</label>
+                  <select
+                    name="paymentAccountIds"
+                    value={p.accountId ?? ''}
+                    onChange={(e) => updatePayment(p.id, 'accountId', e.target.value)}
+                    required
+                    className="w-full p-2 rounded-md border border-slate-300 bg-white text-xs font-semibold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">Account</option>
+                    {accounts?.filter(acc => p.mode === '' || acc.type === p.mode).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                  </select>
+                </div>
+                <div className="flex-[1.5]">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block tracking-wider">Amount (₹)</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    name="paymentAmounts"
+                    placeholder="Amt"
+                    required
+                    value={p.amount ?? ''}
+                    onChange={(e) => updatePayment(p.id, 'amount', e.target.value.replace(/,/g, ''))}
+                    className="w-full p-2 rounded-md border border-slate-300 bg-white text-xs font-bold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                {payments.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removePayment(p.id)}
+                    className="p-2 mb-[1px] text-red-600 hover:bg-red-50 hover:text-red-700 rounded-md transition-colors border border-transparent hover:border-red-200"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
 
           <ExpenseSubmitButton txType={txType} expenseSubType={expenseSubType} />
         </form>

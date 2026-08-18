@@ -8,7 +8,8 @@ function getLocalDateString() {
 }
 
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ArrowDownRight, AlertCircle } from 'lucide-react';
 import { receiveAgentCarPayment } from '@/actions/upad';
 
@@ -21,11 +22,16 @@ const formatIndianNumber = (num) => {
 
 export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts = [], vehicles = [] }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [amount, setAmount] = useState('');
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isSubmittingRef = useRef(false);
 
@@ -48,7 +54,6 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
       } else {
         setIsOpen(false);
         setAmount('');
-        setSelectedVehicleId('');
         setSelectedAgentId('');
         e.target.reset();
       }
@@ -58,40 +63,18 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
     }
   };
 
-  const handleVehicleChange = (e) => {
-    const vId = e.target.value;
-    setSelectedVehicleId(vId);
-    
-    // Auto-select agent
-    if (vId) {
-      const vehicle = vehicles.find(v => v.id === vId);
-      if (vehicle && vehicle.receivableAccountId && agentAccounts.some(a => a.id === vehicle.receivableAccountId)) {
-        setSelectedAgentId(vehicle.receivableAccountId);
-      }
-    } else {
-      setSelectedAgentId('');
-    }
-  };
-
-  // Only show vehicles that have a pending balance AND are linked to one of our agent accounts
-  const agentVehicles = vehicles.filter(v => 
-    Number(v.salePendingBalance) > 0 && 
-    v.receivableAccountId && 
-    agentAccounts.some(a => a.id === v.receivableAccountId)
-  );
-
   return (
     <>
       <button 
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 py-1.5 px-3.5 rounded-lg font-bold shadow-sm hover:shadow transition-all text-xs border border-purple-500/50 ml-auto"
+        className="flex-shrink-0 flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 py-2 md:py-2.5 px-3 md:px-4 rounded-lg font-bold shadow-sm transition-colors text-[13px] md:text-sm border border-purple-500/50 whitespace-nowrap"
       >
-        <ArrowDownRight size={14} />
-        Receive Car Payment
+        <ArrowDownRight size={16} />
+        Receive Payment
       </button>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4 bg-slate-900/50 backdrop-blur-sm">
+      {mounted && isOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setIsOpen(false)}></div>
           <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col relative z-10 animate-in slide-in-from-bottom-full md:slide-in-from-bottom-4 duration-300">
             {/* Mobile Drag Handle */}
@@ -102,7 +85,7 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
             <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center gap-2">
                 <ArrowDownRight size={18} className="text-purple-600" />
-                <h2 className="text-lg font-bold text-slate-900 m-0">Agent Car Payment</h2>
+                <h2 className="text-lg font-bold text-slate-900 m-0">Receive Payment</h2>
               </div>
               <button 
                 onClick={() => { setIsOpen(false); setAmount(''); setError(null); }}
@@ -121,31 +104,15 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
               )}
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Select Vehicle</label>
-                <select 
-                  name="vehicleId" 
-                  required 
-                  value={selectedVehicleId}
-                  onChange={handleVehicleChange}
-                  className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 outline-none focus:border-indigo-500 font-medium"
-                >
-                  <option value="">Select Sold Car...</option>
-                  {agentVehicles.map(v => (
-                    <option key={v.id} value={v.id}>{v.make} {v.model} (₹{Number(v.salePendingBalance).toLocaleString('en-IN')})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Select Agent Account</label>
-                <select 
-                  name="agentAccountId" 
-                  required 
-                  value={selectedAgentId}
-                  onChange={(e) => setSelectedAgentId(e.target.value)}
-                  className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 outline-none focus:border-indigo-500 font-medium"
-                >
-                  <option value="">Select Agent...</option>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">Select Person / Account</label>
+                  <select 
+                    name="agentAccountId" 
+                    required 
+                    value={selectedAgentId}
+                    onChange={(e) => setSelectedAgentId(e.target.value)}
+                    className="w-full p-3.5 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-purple-500/15 focus:border-purple-500 focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="">Select Account...</option>
                   {agentAccounts.map(acc => (
                     <option key={acc.id} value={acc.id}>{acc.name}</option>
                   ))}
@@ -210,7 +177,7 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
             </form>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   );
 }
