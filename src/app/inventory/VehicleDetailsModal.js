@@ -263,7 +263,8 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                         const pp = Math.round((Number(car.profit || 0) * (Number(p.profitSharePercentage) / 100)) * 100) / 100;
                         const inv = Number(p.paidAmount || 0);
                         const expected = pp + inv;
-                        const tx = car.profitPayouts?.find(t => t.description.includes(p.partnerAccount?.name));
+                        const tx = car.profitPayouts?.find(t => t.description.includes(p.partnerAccount?.name)) || 
+                                   (car.partnerships.length === 1 ? car.profitPayouts?.find(t => t.description.includes('Paid Full Settlement')) : null);
                         if (tx) {
                           const paid = Number(tx.amount);
                           if (expected > paid) extraProfit += (expected - paid);
@@ -293,11 +294,15 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                         const totalPayout = partnerProfit + capitalInvested;
                         
                         // We check if it's paid based on the description containing the partner's name.
-                        // (If multiple partial payments were allowed, we'd check sum. Here we assume it's one full settlement)
-                        const isPaid = car.profitPayouts?.some(t => t.description.includes(p.partnerAccount?.name));
+                        // If it doesn't contain the name (from older consolidated entries), we accept it if they're the only partner
+                        const hasNameMatch = car.profitPayouts?.some(t => t.description.includes(p.partnerAccount?.name));
+                        const hasGeneralMatch = car.profitPayouts?.some(t => t.description.includes('Paid Full Settlement') && (!p.partnerAccount?.name || !t.description.includes(p.partnerAccount.name)));
+                        const isPaid = hasNameMatch || (car.partnerships.length === 1 && hasGeneralMatch);
                         const isPayingThis = payingProfitId === p.id;
                         
-                        const payoutTx = car.profitPayouts?.find(t => t.description.includes(p.partnerAccount?.name));
+                        const payoutTx = car.profitPayouts?.find(t => t.description.includes(p.partnerAccount?.name)) || 
+                                        (car.partnerships.length === 1 ? car.profitPayouts?.find(t => t.description.includes('Paid Full Settlement')) : null);
+                        
                         const actualPaid = payoutTx ? Number(payoutTx.amount) : 0;
                         const cutAmount = isPaid ? (totalPayout - actualPaid) : 0;
                         

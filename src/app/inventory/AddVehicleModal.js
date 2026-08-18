@@ -23,11 +23,26 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
 
   const [purchasePrice, setPurchasePrice] = useState('');
   const [isLegacy, setIsLegacy] = useState(false);
-  const [payment1Amount, setPayment1Amount] = useState('');
-  const [payment2Amount, setPayment2Amount] = useState('');
+  const [firmPayments, setFirmPayments] = useState([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
+
+  const addFirmPayment = () => {
+    setFirmPayments([...firmPayments, { id: Date.now(), mode: '', accountId: '', amount: '' }]);
+  };
   
-  const [payment1Mode, setPayment1Mode] = useState('');
-  const [payment2Mode, setPayment2Mode] = useState('');
+  const removeFirmPayment = (id) => {
+    setFirmPayments(firmPayments.filter(p => p.id !== id));
+  };
+  
+  const updateFirmPayment = (id, field, value) => {
+    setFirmPayments(firmPayments.map(p => {
+      if (p.id === id) {
+        if (field === 'amount') return { ...p, amount: formatIndianNumber(value) };
+        if (field === 'mode') return { ...p, mode: value, accountId: value === 'CASH' ? (accounts?.find(a => a.type === 'CASH')?.id || '') : '' };
+        return { ...p, [field]: value };
+      }
+      return p;
+    }));
+  };
 
   const [partnerInvestment, setPartnerInvestment] = useState('');
   const [profitSharePercentage, setProfitSharePercentage] = useState('');
@@ -64,8 +79,6 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
   };
 
   const handlePriceChange = (e) => setPurchasePrice(formatIndianNumber(e.target.value));
-  const handlePayment1Change = (e) => setPayment1Amount(formatIndianNumber(e.target.value));
-  const handlePayment2Change = (e) => setPayment2Amount(formatIndianNumber(e.target.value));
 
   const handleInvestmentChange = (e) => {
     const val = formatIndianNumber(e.target.value);
@@ -98,8 +111,7 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
   const pendingBalance = Math.max(0, 
     Math.round((
       (Number((purchasePrice || '').replace(/,/g, '')) || 0) 
-      - (Number((payment1Amount || '').replace(/,/g, '')) || 0) 
-      - (Number((payment2Amount || '').replace(/,/g, '')) || 0)
+      - firmPayments.reduce((sum, p) => sum + (Number((p.amount || '').replace(/,/g, '')) || 0), 0)
       - (Number((partnerInvestment || '').replace(/,/g, '')) || 0)
     ) * 100) / 100
   );
@@ -129,8 +141,14 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
     }
 
     formData.append('purchasePrice', (purchasePrice || '0').replace(/,/g, ''));
-    formData.append('payment1Amount', (payment1Amount || '0').replace(/,/g, ''));
-    formData.append('payment2Amount', (payment2Amount || '0').replace(/,/g, ''));
+    
+    const firmPaymentsData = firmPayments.map(p => ({
+      mode: p.mode,
+      accountId: p.accountId,
+      amount: parseFloat((p.amount || '0').replace(/,/g, ''))
+    })).filter(p => p.amount > 0);
+    formData.append('firmPaymentsJson', JSON.stringify(firmPaymentsData));
+
     formData.append('partnerInvestment', (partnerInvestment || '0').replace(/,/g, ''));
 
     const partnerId = formData.get('partnerAccountId');
@@ -167,10 +185,7 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
         toast.success('Vehicle added successfully!');
         setIsOpen(false);
         setPurchasePrice('');
-        setPayment1Amount('');
-        setPayment2Amount('');
-        setPayment1Mode('');
-        setPayment2Mode('');
+        setFirmPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
         setPartnerInvestment('');
         setProfitSharePercentage('');
         setPartnerPaid1Amount('');
@@ -281,73 +296,59 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                 <div className="bg-slate-50/50 p-5 rounded-2xl mt-3 border border-slate-100 flex flex-col gap-3">
                   <p className="m-0 mb-1 text-xs uppercase tracking-wider font-bold text-slate-700">Auto-Deduct from Rojmel</p>
                   
-                  <div className="grid grid-cols-3 gap-3 mb-3">
-                    <select 
-                      name="payment1Mode" 
-                      value={payment1Mode}
-                      onChange={(e) => setPayment1Mode(e.target.value)}
-                      className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                    >
-                      <option value="">No Entry</option>
-                      <option value="CASH">Cash</option>
-                      <option value="BANK">Bank</option>
-                      <option value="AGENT">Agent/Financier</option>
-                    </select>
-                    {payment1Mode === 'CASH' ? (
-                      <>
-                        <div className="w-full text-xs font-bold p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700">💵 Cash (Auto)</div>
-                        <input type="hidden" name="payment1AccountId" value={accounts?.find(a => a.type === 'CASH')?.id || ''} />
-                      </>
-                    ) : (
-                      <select name="payment1AccountId" required={!!payment1Amount || !!payment1Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-                        <option value="">Account...</option>
-                        {accounts?.filter(acc => payment1Mode === '' || (payment1Mode === 'AGENT' ? (acc.type === 'DSA_AGENT' || acc.type === 'FINANCIER') : acc.type === payment1Mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                      </select>
-                    )}
-                    <input 
-                      type="text" 
-                      inputMode="decimal"
-                      name="payment1Amount" 
-                      placeholder="Amt 1 (₹)" 
-                      value={payment1Amount}
-                      onChange={handlePayment1Change}
-                      className="w-full text-[13px] font-black p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 placeholder:font-semibold transition-all" 
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <select 
-                      name="payment2Mode" 
-                      value={payment2Mode}
-                      onChange={(e) => setPayment2Mode(e.target.value)}
-                      className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                    >
-                      <option value="">No Entry</option>
-                      <option value="CASH">Cash</option>
-                      <option value="BANK">Bank</option>
-                      <option value="AGENT">Agent/Financier</option>
-                    </select>
-                    {payment2Mode === 'CASH' ? (
-                      <>
-                        <div className="w-full text-xs font-bold p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700">💵 Cash (Auto)</div>
-                        <input type="hidden" name="payment2AccountId" value={accounts?.find(a => a.type === 'CASH')?.id || ''} />
-                      </>
-                    ) : (
-                      <select name="payment2AccountId" required={!!payment2Amount || !!payment2Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-                        <option value="">Account...</option>
-                        {accounts?.filter(acc => payment2Mode === '' || (payment2Mode === 'AGENT' ? (acc.type === 'DSA_AGENT' || acc.type === 'FINANCIER') : acc.type === payment2Mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                      </select>
-                    )}
-                    <input 
-                      type="text" 
-                      inputMode="decimal"
-                      name="payment2Amount" 
-                      placeholder="Amt 2 (₹)" 
-                      value={payment2Amount}
-                      onChange={handlePayment2Change}
-                      className="w-full text-[13px] font-black p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 placeholder:font-semibold transition-all" 
-                    />
-                  </div>
+                  {firmPayments.map((p, idx) => (
+                    <div key={p.id} className="flex gap-2 mb-3">
+                      <div className="grid grid-cols-3 gap-2 flex-1">
+                        <select 
+                          value={p.mode}
+                          onChange={(e) => updateFirmPayment(p.id, 'mode', e.target.value)}
+                          className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                        >
+                          <option value="">No Entry</option>
+                          <option value="CASH">Cash</option>
+                          <option value="BANK">Bank</option>
+                          <option value="AGENT">Agent/Financier</option>
+                        </select>
+                        {p.mode === 'CASH' ? (
+                          <div className="w-full text-xs font-bold p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center">💵 Cash (Auto)</div>
+                        ) : (
+                          <select 
+                            value={p.accountId}
+                            onChange={(e) => updateFirmPayment(p.id, 'accountId', e.target.value)}
+                            required={!!p.amount || !!p.mode} 
+                            className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                          >
+                            <option value="">Account...</option>
+                            {accounts?.filter(acc => p.mode === '' || (p.mode === 'AGENT' ? (acc.type === 'DSA_AGENT' || acc.type === 'FINANCIER') : acc.type === p.mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                          </select>
+                        )}
+                        <input 
+                          type="text" 
+                          inputMode="decimal"
+                          placeholder="Amount (₹)" 
+                          value={p.amount}
+                          onChange={(e) => updateFirmPayment(p.id, 'amount', e.target.value)}
+                          className="w-full text-[13px] font-black p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 placeholder:font-semibold transition-all" 
+                        />
+                      </div>
+                      {idx > 0 && (
+                        <button 
+                          type="button" 
+                          onClick={() => removeFirmPayment(p.id)}
+                          className="shrink-0 w-11 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-600 transition-colors"
+                        >
+                          <X size={16} strokeWidth={2.5} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button 
+                    type="button" 
+                    onClick={addFirmPayment}
+                    className="text-xs font-bold text-indigo-600 bg-indigo-50/80 hover:bg-indigo-100/80 p-2.5 rounded-xl transition-colors border border-indigo-100 w-full flex items-center justify-center gap-1.5"
+                  >
+                    <PlusCircle size={14} /> Add Payment Source
+                  </button>
 
                   <div className="mt-2 border-t border-slate-200/60 pt-4">
                     <div className="flex justify-between items-end mb-3">

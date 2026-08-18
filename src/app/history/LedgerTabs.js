@@ -1,9 +1,28 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Building2, Car, ArrowDownRight, ArrowUpRight, TrendingUp, Receipt, Wallet, BookOpen, Search, X } from 'lucide-react';
+import { Building2, Car, ArrowDownRight, ArrowUpRight, TrendingUp, Receipt, Wallet, BookOpen, Search, X, CheckCircle2 } from 'lucide-react';
 import TransactionActions from '../expenses/TransactionActions';
 import { updateExpense } from '@/actions/expenses';
+
+const isExpenseCounted = (exp) => {
+  if (exp.requestedMode === 'UGHRANI') return false;
+  if (exp.isStaffAdvance) return false;
+  if (exp.rawCategory === 'VEHICLE_PURCHASE') return false;
+  if (exp.description?.startsWith('Auto-Entry: Paid Full Settlement')) return false;
+  if (exp.isTransfer) return false;
+  if (exp.status === 'REJECTED') return false;
+  return true;
+};
+
+const isIncomeCounted = (inc) => {
+  if (inc.rawCategory === 'VEHICLE_SALE') return false;
+  if (inc.description?.startsWith('Token Received:') && !inc.isForfeitedToken) return false;
+  if (inc.description?.startsWith('Income: Received from')) return false;
+  if (inc.description?.startsWith('Auto-Entry: Received Pending Capital')) return false;
+  if (inc.isTransfer) return false;
+  return true;
+};
 
 export default function LedgerTabs({ income, expenses, totalIncome, totalExpenses, accounts = [], vehicles = [] }) {
   const [activeTab, setActiveTab] = useState('INCOME');
@@ -209,8 +228,9 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                                 <span className="text-blue-600 text-[10px] font-bold uppercase tracking-wider">{inc.transferDetails}</span>
                               )}
                               {inc.paymentSource && (
-                                <span className="text-slate-500 text-[10px] font-semibold">
+                                <span className="text-slate-500 text-[10px] font-semibold flex items-center gap-1">
                                   Source: <span className="text-slate-700">{inc.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : inc.paymentSource}</span>
+                                  {isIncomeCounted(inc) && <CheckCircle2 size={12} className="text-emerald-500" title="Counted in Total Income" />}
                                 </span>
                               )}
                             </div>
@@ -258,11 +278,14 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                         </div>
                       </td>
                       <td className="py-4 px-5">
-                        {inc.paymentSource ? (
-                          <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wider text-[10px] inline-block">
-                            {inc.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : inc.paymentSource}
-                          </span>
-                        ) : <span className="text-slate-300 font-bold">-</span>}
+                        <div className="flex items-center gap-2">
+                          {inc.paymentSource ? (
+                            <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wider text-[10px] inline-block">
+                              {inc.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : inc.paymentSource}
+                            </span>
+                          ) : <span className="text-slate-300 font-bold">-</span>}
+                          {isIncomeCounted(inc) && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" title="Counted in Total Income" />}
+                        </div>
                       </td>
                       <td className="py-4 px-5 text-right font-black text-lg whitespace-nowrap">
                         <span className={inc.isTransfer ? 'text-blue-600' : 'text-emerald-600'}>
@@ -316,17 +339,19 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                               {exp.vehicle && (
                                 <span className="text-[10px] font-semibold text-slate-500">Vehicle: <span className="text-slate-700">{exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration})</span></span>
                               )}
-                              {exp.recipient && (
-                                <span className="text-[10px] font-semibold text-slate-500">To: <span className="text-slate-700 capitalize">{exp.recipient}</span></span>
-                              )}
+                              {/* Recipient removed */}
                               {exp.paymentSource && (
-                                <span className="text-[10px] font-semibold text-slate-500">Source: <span className="text-slate-700">{exp.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : exp.paymentSource}</span></span>
+                                <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1">Source: <span className="text-slate-700">{exp.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : exp.paymentSource}</span>
+                                {isExpenseCounted(exp) && <CheckCircle2 size={12} className="text-emerald-500" title="Counted in Total Expenses" />}
+                                </span>
                               )}
                             </div>
                           </div>
-                          <span className={`text-[14px] font-black tracking-tight whitespace-nowrap shrink-0 mt-0.5 ${exp.status === 'REJECTED' ? 'text-slate-400 line-through' : (exp.expenseType === 'OFFICE_EXPENSE' ? 'text-red-600' : 'text-indigo-600')}`}>
-                            -₹{Number(exp.amount).toLocaleString('en-IN')}
-                          </span>
+                          <div className="flex flex-col items-end shrink-0 mt-0.5 gap-1">
+                            <span className={`text-[14px] font-black tracking-tight whitespace-nowrap ${exp.status === 'REJECTED' ? 'text-slate-400 line-through' : (exp.expenseType === 'OFFICE_EXPENSE' ? 'text-red-600' : 'text-indigo-600')}`}>
+                              -₹{Number(exp.amount).toLocaleString('en-IN')}
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -342,7 +367,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                   <tr className="bg-slate-50/80 border-b border-slate-200">
                     <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date</th>
                     <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Description</th>
-                    <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Paid To</th>
+                    {/* Paid To column removed */}
                     <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Source</th>
                     <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Amount</th>
                     <th className="py-4 px-5"></th>
@@ -370,15 +395,41 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                           </div>
                         </div>
                       </td>
+                      {/* Paid To column removed */}
                       <td className="py-4 px-5">
-                        {exp.recipient ? <span className="text-[12px] font-bold text-slate-700 capitalize">{exp.recipient}</span> : <span className="text-slate-300 font-bold">-</span>}
-                      </td>
-                      <td className="py-4 px-5">
-                        {exp.paymentSource ? (
-                          <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wider text-[10px] inline-block">
-                            {exp.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : exp.paymentSource}
-                          </span>
-                        ) : <span className="text-slate-300 font-bold">-</span>}
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const source = exp.paymentSource;
+                            if (!source) return <span className="text-slate-300 font-bold">-</span>;
+                            try {
+                              if (source.startsWith('{') && source.includes('"payments"')) {
+                                const parsed = JSON.parse(source);
+                                if (parsed.payments && Array.isArray(parsed.payments)) {
+                                  return (
+                                    <div className="flex flex-wrap gap-1">
+                                      {parsed.payments.map((p, i) => {
+                                        const accName = accounts?.find(a => a.id === p.accountId)?.name || p.mode;
+                                        const displayName = accName === 'UGHRANI' ? 'MARKET PLACE' : accName;
+                                        return (
+                                          <span key={i} className="bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[9px] whitespace-nowrap inline-flex items-center gap-1">
+                                            {displayName} <span className="opacity-70">(₹{p.amount.toLocaleString('en-IN')})</span>
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                }
+                              }
+                            } catch(e) {}
+                            const displayName = source === 'UGHRANI' ? 'MARKET PLACE' : source;
+                            return (
+                              <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wider text-[10px] inline-block">
+                                {displayName}
+                              </span>
+                            );
+                          })()}
+                          {isExpenseCounted(exp) && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" title="Counted in Total Expenses" />}
+                        </div>
                       </td>
                       <td className="py-4 px-5 text-right font-black text-lg whitespace-nowrap">
                         <span className={exp.status === 'REJECTED' ? 'text-slate-400 line-through' : (exp.expenseType === 'OFFICE_EXPENSE' ? 'text-red-600' : 'text-indigo-600')}>

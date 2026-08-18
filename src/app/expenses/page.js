@@ -175,6 +175,37 @@ export default async function ExpensesPage({ searchParams }) {
           <h2 className="border-b border-slate-200 pb-3 mb-3 text-lg font-bold text-slate-900">Recent Transactions Ledger</h2>
 
           {(() => {
+            const renderPaymentSource = (source) => {
+              if (!source) return null;
+              try {
+                if (source.startsWith('{') && source.includes('"payments"')) {
+                  const parsed = JSON.parse(source);
+                  if (parsed.payments && Array.isArray(parsed.payments)) {
+                    return (
+                      <div className="flex flex-wrap gap-1">
+                        {parsed.payments.map((p, i) => {
+                          const accName = accounts?.find(a => a.id === p.accountId)?.name || p.mode;
+                          const displayName = accName === 'UGHRANI' ? 'MARKET PLACE' : accName;
+                          return (
+                            <span key={i} className="bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[9px] whitespace-nowrap inline-flex items-center gap-1">
+                              {displayName} <span className="opacity-70">(₹{p.amount.toLocaleString('en-IN')})</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+                }
+              } catch(e) {}
+              
+              const displayName = source === 'UGHRANI' ? 'MARKET PLACE' : source;
+              return (
+                <span className="bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[9px] whitespace-nowrap">
+                  {displayName}
+                </span>
+              );
+            };
+
             if (!expenses || expenses.length === 0) return null;
 
             const grouped = expenses.reduce((acc, exp) => {
@@ -233,9 +264,9 @@ export default async function ExpensesPage({ searchParams }) {
                                 {exp.recipient}
                               </div>
                             )}
-                            <div className="flex items-center gap-0.5 text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                              <Wallet size={10} />
-                              {exp.paymentSource}
+                            <div className="flex items-center gap-1">
+                              <Wallet size={10} className="text-slate-400" />
+                              {renderPaymentSource(exp.paymentSource)}
                             </div>
                           </div>
                         )}
@@ -298,7 +329,7 @@ export default async function ExpensesPage({ searchParams }) {
                             {exp.paymentSource && (
                               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 uppercase tracking-wider">
                                 <Wallet size={14} className="text-slate-400" />
-                                {exp.paymentSource}
+                                {renderPaymentSource(exp.paymentSource)}
                               </div>
                             )}
                           </td>

@@ -85,7 +85,10 @@ export async function getAllExpenses(year, month) {
     const rawTx = await prisma.transaction.findMany({
       where: {
         category: { in: ['VEHICLE_PURCHASE', 'INTERNAL_TRANSFER', 'UPAD_WITHDRAWAL', 'UPAD_REPAYMENT', 'GENERAL'] },
-        type: 'DEBIT',
+        OR: [
+          { type: 'DEBIT' },
+          { type: 'CREDIT', category: 'VEHICLE_PURCHASE' }
+        ],
         date: {
           gte: startDate,
           lte: endDate
@@ -194,13 +197,18 @@ export async function getAllIncome(year, month) {
           { description: { startsWith: 'Auto-Entry: Advance Received' } },
           { description: { startsWith: 'Auto-Entry: Agent Car Payment Settled' } },
           { category: 'EXPENSE' },
-          { category: 'UPAD_REPAYMENT' } // Exclude vendor payments from income
+          { category: 'UPAD_REPAYMENT' }, // Exclude vendor payments from income
+          { category: 'VEHICLE_PURCHASE' } // Exclude all vehicle purchases from income
         ]
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       include: {
         account: true
       }
+    });
+
+    const allTokens = await prisma.vehicleToken.findMany({
+      select: { id: true, status: true }
     });
 
     const income = transactionsRaw.map(t => {
@@ -222,6 +230,9 @@ export async function getAllIncome(year, month) {
         transferDetails: t.category === 'INTERNAL_TRANSFER' ? t.referenceId : null,
         accountType: t.account ? t.account.type : null,
         rawCategory: t.category,
+        isForfeitedToken: t.description?.startsWith('Token Received:') 
+                          ? (allTokens.find(token => token.id === t.referenceId)?.status === 'FORFEITED') 
+                          : false,
         account: t.account ? {
           ...t.account,
           openingBalance: Number(t.account.openingBalance)

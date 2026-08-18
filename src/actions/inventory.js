@@ -196,14 +196,13 @@ export async function addVehicle(formData) {
       }
     }
 
-    // Split Payments
-    const p1Amount = parseFloat((formData.get('payment1Amount') || '0').replace(/,/g, ''));
-    const p1Mode = formData.get('payment1Mode') || null;
-    const p1AccountId = formData.get('payment1AccountId') || null;
-
-    const p2Amount = parseFloat((formData.get('payment2Amount') || '0').replace(/,/g, ''));
-    const p2Mode = formData.get('payment2Mode') || null;
-    const p2AccountId = formData.get('payment2AccountId') || null;
+    const firmPaymentsJson = formData.get('firmPaymentsJson');
+    let firmPayments = [];
+    if (firmPaymentsJson) {
+      try {
+        firmPayments = JSON.parse(firmPaymentsJson);
+      } catch (e) {}
+    }
 
     if (registration) {
       const existing = await prisma.vehicle.findFirst({
@@ -239,19 +238,56 @@ export async function addVehicle(formData) {
 
     const payableAccountId = formData.get('payableAccountId');
     
-    const totalPaidOrInvested = p1Amount + p2Amount + partnerInvestment;
+    const firmPaymentsTotal = firmPayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalPaidOrInvested = firmPaymentsTotal + partnerInvestment;
     if (totalPaidOrInvested > purchasePrice) {
       return { success: false, error: 'Your payment amount cannot be greater than your expense amount (purchase price).' };
     }
     
     const pendingAmount = Math.round((purchasePrice - totalPaidOrInvested) * 100) / 100;
 
-    // Strict validation for missing accounts
-    if (p1Amount > 0 && !p1AccountId) {
-      return { success: false, error: 'Please select an account for Payment 1.' };
-    }
-    if (p2Amount > 0 && !p2AccountId) {
-      return { success: false, error: 'Please select an account for Payment 2.' };
+    // Strict validation for missing accounts and agent balances
+    for (const p of firmPayments) {
+      if (p.amount > 0 && !p.accountId) {
+        return { success: false, error: 'Please select an account for all entered payments.' };
+      }
+      
+      if (p.mode === 'AGENT' && p.accountId && p.amount > 0) {
+        const agentAcc = await prisma.account.findUnique({ 
+          where: { id: p.accountId },
+          include: { transactions: true }
+        });
+        
+        if (agentAcc && (agentAcc.type === 'DSA_AGENT' || agentAcc.type === 'FINANCIER')) {
+          let currentBalance = Number(agentAcc.openingBalance || 0);
+          
+          agentAcc.transactions.forEach(t => {
+            if (t.type === 'CREDIT') currentBalance += Number(t.amount);
+            else if (t.type === 'DEBIT') currentBalance -= Number(t.amount);
+          });
+          
+          // Include UPAD transfers where this agent was used as a reference
+          const refTransactions = await prisma.transaction.findMany({
+            where: { referenceId: p.accountId, category: 'INTERNAL_TRANSFER' }
+          });
+          
+          refTransactions.forEach(t => {
+             // In UPAD, receiving money from agent is logged as CREDIT to cash with referenceId = agent
+             if (t.type === 'CREDIT') currentBalance += Number(t.amount);
+             else if (t.type === 'DEBIT') currentBalance -= Number(t.amount);
+          });
+          
+          // Negative balance means they owe us money (Receivable)
+          const receivableAmount = currentBalance < 0 ? Math.abs(currentBalance) : 0;
+          
+          if (p.amount > receivableAmount) {
+            return { 
+              success: false, 
+              error: `Loan Agent (${agentAcc.name}) only has a pending balance of ₹${receivableAmount.toLocaleString('en-IN')}. You cannot use ₹${p.amount.toLocaleString('en-IN')}.` 
+            };
+          }
+        }
+      }
     }
     if (partnerPaid1Amount > 0 && !partnerPayment1AccountId) {
       return { success: false, error: 'Please select an account for Partner Payment 1.' };
@@ -282,42 +318,28 @@ export async function addVehicle(formData) {
         }
       });
 
-      // Handle Payment 1 (Suppress cash deduction for legacy cars)
-      if (!isLegacy && p1AccountId && p1Mode && p1Amount > 0) {
-        await checkSufficientBalance(tx, p1AccountId, p1Amount);
-        const p1Acc = await tx.account.findUnique({ where: { id: p1AccountId } });
-        const isInternal1 = p1Acc && p1Acc.type !== 'CASH' && p1Acc.type !== 'BANK';
-        await tx.transaction.create({
-          data: {
-            date: purchaseDate,
-            transactionMode: isInternal1 ? 'CASH' : p1Mode, // Internal ledger uses CASH mode
-            type: isInternal1 ? 'CREDIT' : 'DEBIT', // Agent pays on our behalf -> We owe them more / they owe us less (CREDIT). Firm pays -> Firm balance decreases (DEBIT)
-            amount: p1Amount,
-            accountId: p1AccountId,
-            category: 'VEHICLE_PURCHASE',
-            referenceId: vehicle.id,
-            description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - Firm Payment 1${isInternal1 ? ' (Paid by Agent/Financier)' : ''}`
+      // Handle Firm Payments (Suppress cash deduction for legacy cars)
+      if (!isLegacy) {
+        for (let i = 0; i < firmPayments.length; i++) {
+          const p = firmPayments[i];
+          if (p.accountId && p.mode && p.amount > 0) {
+            await checkSufficientBalance(tx, p.accountId, p.amount);
+            const pAcc = await tx.account.findUnique({ where: { id: p.accountId } });
+            const isInternal = pAcc && pAcc.type !== 'CASH' && pAcc.type !== 'BANK';
+            await tx.transaction.create({
+              data: {
+                date: purchaseDate,
+                transactionMode: isInternal ? 'CASH' : p.mode, // Internal ledger uses CASH mode
+                type: isInternal ? 'CREDIT' : 'DEBIT', // Agent pays on our behalf -> We owe them more / they owe us less (CREDIT). Firm pays -> Firm balance decreases (DEBIT)
+                amount: p.amount,
+                accountId: p.accountId,
+                category: 'VEHICLE_PURCHASE',
+                referenceId: vehicle.id,
+                description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - Firm Payment ${i + 1}${isInternal ? ' (Paid by Agent/Financier)' : ''}`
+              }
+            });
           }
-        });
-      }
-
-      // Handle Payment 2 (Suppress cash deduction for legacy cars)
-      if (!isLegacy && p2AccountId && p2Mode && p2Amount > 0) {
-        await checkSufficientBalance(tx, p2AccountId, p2Amount);
-        const p2Acc = await tx.account.findUnique({ where: { id: p2AccountId } });
-        const isInternal2 = p2Acc && p2Acc.type !== 'CASH' && p2Acc.type !== 'BANK';
-        await tx.transaction.create({
-          data: {
-            date: purchaseDate,
-            transactionMode: isInternal2 ? 'CASH' : p2Mode,
-            type: isInternal2 ? 'CREDIT' : 'DEBIT',
-            amount: p2Amount,
-            accountId: p2AccountId,
-            category: 'VEHICLE_PURCHASE',
-            referenceId: vehicle.id,
-            description: `Expense: Purchased car ${make} ${model} (${registration || 'Unregistered'}) - Firm Payment 2${isInternal2 ? ' (Paid by Agent/Financier)' : ''}`
-          }
-        });
+        }
       }
 
       // Handle Pending Payable (Udhari)
@@ -360,55 +382,34 @@ export async function addVehicle(formData) {
           }
         });
 
-        // The amount to credit to the partner's ledger is what they ACTUALLY paid.
-        // If they didn't specify a payment mode, we fall back to the full investment (legacy behavior)
-        // Record exact segments of capital invested to the partner's ledger
-        if (!isLegacy) {
-          if (partnerPaid1Amount > 0) {
-            await tx.transaction.create({
-              data: {
-                date: purchaseDate,
-                transactionMode: partnerPayment1Mode || 'CASH', 
-                type: 'CREDIT', 
-                amount: partnerPaid1Amount,
-                accountId: partnerAccountId,
-                category: 'GENERAL',
-                referenceId: vehicle.id,
-                description: `Auto-Entry: Partnership Capital Investment from ${partnerName} for car ${make} ${model} - Payment 1 (${partnerPayment1Mode})`
-              }
-            });
-          }
-          if (partnerPaid2Amount > 0) {
-            await tx.transaction.create({
-              data: {
-                date: purchaseDate,
-                transactionMode: partnerPayment2Mode || 'CASH', 
-                type: 'CREDIT', 
-                amount: partnerPaid2Amount,
-                accountId: partnerAccountId,
-                category: 'GENERAL',
-                referenceId: vehicle.id,
-                description: `Auto-Entry: Partnership Capital Investment from ${partnerName} for car ${make} ${model} - Payment 2 (${partnerPayment2Mode})`
-              }
-            });
-          }
-        } else {
-          // For legacy vehicles, just record the total paid (or full investment if no paid amount is specified)
-          const amountToCreditPartner = (partnerTotalPaid > 0) ? partnerTotalPaid : partnerInvestment;
-          if (amountToCreditPartner > 0) {
-            await tx.transaction.create({
-              data: {
-                date: purchaseDate,
-                transactionMode: 'CASH', 
-                type: 'CREDIT', 
-                amount: amountToCreditPartner,
-                accountId: partnerAccountId,
-                category: 'GENERAL',
-                referenceId: vehicle.id,
-                description: `Auto-Entry: Partnership Investment from ${partnerName} for car ${make} ${model} (Legacy)`
-              }
-            });
-          }
+        // Credit the Partner's Ledger for their capital investment
+        if (partnerPayment1Mode && partnerPaid1Amount > 0) {
+          await tx.transaction.create({
+            data: {
+              date: purchaseDate,
+              transactionMode: 'CASH', // Internal ledger mode
+              type: 'CREDIT',
+              amount: partnerPaid1Amount,
+              accountId: partnerAccountId,
+              category: 'GENERAL',
+              referenceId: vehicle.id,
+              description: `Auto-Entry: Partnership Capital Investment for ${make} ${model} (${registration || 'Unregistered'}) - Payment 1`
+            }
+          });
+        }
+        if (partnerPayment2Mode && partnerPaid2Amount > 0) {
+          await tx.transaction.create({
+            data: {
+              date: purchaseDate,
+              transactionMode: 'CASH', // Internal ledger mode
+              type: 'CREDIT',
+              amount: partnerPaid2Amount,
+              accountId: partnerAccountId,
+              category: 'GENERAL',
+              referenceId: vehicle.id,
+              description: `Auto-Entry: Partnership Capital Investment for ${make} ${model} (${registration || 'Unregistered'}) - Payment 2`
+            }
+          });
         }
 
         // Record the actual payment received from the partner to the firm's cash/bank (Suppress for legacy cars)
@@ -921,17 +922,17 @@ export async function payPartnerProfit(formData) {
         });
       }
 
-      // 2. Debit the partner's ledger for the full settlement amount paid out (clears their capital + profit)
+      // 2. DEBIT the Partner's Ledger for the total payout to reduce the firm's debt to them
       await tx.transaction.create({
         data: {
           date: new Date(),
-          transactionMode: sourceAcc.type === 'BANK' ? 'BANK' : 'CASH',
+          transactionMode: 'CASH',
           type: 'DEBIT',
           amount: amount,
           accountId: partnership.partnerAccountId,
           category: 'GENERAL',
           referenceId: partnership.vehicleId,
-          description: `Auto-Entry: Paid Full Settlement (Capital + Profit Share) for ${partnership.vehicle.make} ${partnership.vehicle.model}`
+          description: `Auto-Entry: Received Full Settlement (Capital + Profit Share) for ${partnership.vehicle.make} ${partnership.vehicle.model}`
         }
       });
 
@@ -945,25 +946,13 @@ export async function payPartnerProfit(formData) {
           accountId: sourceAccountId,
           category: 'GENERAL',
           referenceId: partnership.vehicleId, // Link to vehicle so we can detect it
-          description: `Auto-Entry: Paid Full Settlement (Capital + Profit Share) to ${partnership.partnerAccount.name} for ${partnership.vehicle.make} ${partnership.vehicle.model}`
+          description: `Auto-Entry: Paid Full Settlement (Capital + Profit Share) for ${partnership.vehicle.make} ${partnership.vehicle.model}`
         }
       });
 
       const cutAmount = parseFloat(formData.get('cutAmount') || '0');
       if (cutAmount > 0) {
-        // Dummy DEBIT to offset the incoming CREDIT so cash balance doesn't artificially inflate
-        await tx.transaction.create({
-          data: {
-            date: new Date(),
-            transactionMode: sourceAcc.type === 'BANK' ? 'BANK' : 'CASH',
-            type: 'DEBIT',
-            amount: cutAmount,
-            accountId: sourceAccountId,
-            category: 'GENERAL',
-            referenceId: partnership.vehicleId,
-            description: `Auto-Entry: Offset for Cut Profit from ${partnership.partnerAccount.name}`
-          }
-        });
+        // Removed Dummy DEBIT offset. Net cash correctly decreases by (Payout - Cut)
 
         // The explicit CREDIT (Income) that the user wants to see in the ledger history
         await tx.transaction.create({

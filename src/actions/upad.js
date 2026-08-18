@@ -80,6 +80,12 @@ export async function settleBill(formData) {
     const sourceAcc = await prisma.account.findUnique({ where: { id: sourceAccountId } });
     if (!sourceAcc) throw new Error('Source account not found');
 
+    const vendorAcc = await prisma.account.findUnique({ where: { id: accountId } });
+    if (!vendorAcc) throw new Error('Vendor account not found');
+
+    const baseDescription = description ? description : 'Bill Settled / Paid to Vendor';
+    const finalDescription = `${baseDescription} - ${vendorAcc.name}`;
+
     await prisma.$transaction(async (tx) => {
       if (amount > 0 && sourceAccountId) {
         await checkSufficientBalance(tx, sourceAccountId, amount);
@@ -94,7 +100,7 @@ export async function settleBill(formData) {
           amount,
           accountId, // The UPAD person
           category: 'UPAD_REPAYMENT',
-          description: description || 'Bill Settled / Paid to Vendor'
+          description: finalDescription
         }
       });
 
@@ -107,7 +113,7 @@ export async function settleBill(formData) {
           amount,
           accountId: sourceAccountId, // The Bank/Cash account
           category: 'UPAD_REPAYMENT',
-          description: 'Bill Settled / Paid to Vendor'
+          description: finalDescription
         }
       });
     });
@@ -163,6 +169,10 @@ export async function receiveAgentCarPayment(formData) {
       const agentAcc = await tx.account.findUnique({ where: { id: agentAccountId } });
       
       if (ledgerAcc) {
+        const finalDescription = description 
+          ? `${description} - ${agentAcc?.name || 'Agent'}${vehicleDetails}`
+          : `Payment Settled by ${agentAcc?.name || 'Agent'}${vehicleDetails}`;
+
         await tx.transaction.create({
           data: {
             date,
@@ -172,23 +182,12 @@ export async function receiveAgentCarPayment(formData) {
             accountId: ledgerAccountId,
             category: 'INTERNAL_TRANSFER',
             referenceId: agentAccountId, // Internal link for tracking
-            description: description || `Payment Received from ${agentAcc?.name || 'Account'}${vehicleDetails}`
+            description: finalDescription
           }
         });
       }
 
-      // 3. Credit Agent Account (Reduce what they owe us)
-      await tx.transaction.create({
-        data: {
-          date,
-          transactionMode: 'CASH',
-          type: 'CREDIT',
-          amount,
-          accountId: agentAccountId,
-          category: 'INTERNAL_TRANSFER',
-          description: `Payment Settled (Money In)${vehicleDetails}`
-        }
-      });
+      // Removed duplicate Credit to Agent Account to avoid double-entry in Rojmel
     });
 
     revalidatePath('/accounts');
