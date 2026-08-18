@@ -293,10 +293,17 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                       <option value="BANK">Bank</option>
                       <option value="AGENT">Agent/Financier</option>
                     </select>
-                    <select name="payment1AccountId" required={!!payment1Amount || !!payment1Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-                      <option value="">Account...</option>
-                      {accounts?.filter(acc => payment1Mode === '' || (payment1Mode === 'AGENT' ? (acc.type === 'DSA_AGENT' || acc.type === 'FINANCIER') : acc.type === payment1Mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                    </select>
+                    {payment1Mode === 'CASH' ? (
+                      <>
+                        <div className="w-full text-xs font-bold p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700">💵 Cash (Auto)</div>
+                        <input type="hidden" name="payment1AccountId" value={accounts?.find(a => a.type === 'CASH')?.id || ''} />
+                      </>
+                    ) : (
+                      <select name="payment1AccountId" required={!!payment1Amount || !!payment1Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                        <option value="">Account...</option>
+                        {accounts?.filter(acc => payment1Mode === '' || (payment1Mode === 'AGENT' ? (acc.type === 'DSA_AGENT' || acc.type === 'FINANCIER') : acc.type === payment1Mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                      </select>
+                    )}
                     <input 
                       type="text" 
                       inputMode="decimal"
@@ -320,10 +327,17 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                       <option value="BANK">Bank</option>
                       <option value="AGENT">Agent/Financier</option>
                     </select>
-                    <select name="payment2AccountId" required={!!payment2Amount || !!payment2Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-                      <option value="">Account...</option>
-                      {accounts?.filter(acc => payment2Mode === '' || (payment2Mode === 'AGENT' ? (acc.type === 'DSA_AGENT' || acc.type === 'FINANCIER') : acc.type === payment2Mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                    </select>
+                    {payment2Mode === 'CASH' ? (
+                      <>
+                        <div className="w-full text-xs font-bold p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700">💵 Cash (Auto)</div>
+                        <input type="hidden" name="payment2AccountId" value={accounts?.find(a => a.type === 'CASH')?.id || ''} />
+                      </>
+                    ) : (
+                      <select name="payment2AccountId" required={!!payment2Amount || !!payment2Mode} className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                        <option value="">Account...</option>
+                        {accounts?.filter(acc => payment2Mode === '' || (payment2Mode === 'AGENT' ? (acc.type === 'DSA_AGENT' || acc.type === 'FINANCIER') : acc.type === payment2Mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                      </select>
+                    )}
                     <input 
                       type="text" 
                       inputMode="decimal"
@@ -391,12 +405,19 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                           <option value="CASH">Cash</option>
                           <option value="BANK">Bank</option>
                         </select>
-                        <select name="partnerPayment1AccountId" required={!!partnerPaid1Amount || !!partnerPayment1Mode} className="w-full text-[13px] font-bold p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all">
-                          <option value="">Account...</option>
-                          {accounts?.filter(acc => partnerPayment1Mode === '' || acc.type === partnerPayment1Mode).map(acc => (
-                            <option key={acc.id} value={acc.id}>{acc.name}</option>
-                          ))}
-                        </select>
+                        {partnerPayment1Mode === 'CASH' ? (
+                          <>
+                            <div className="w-full text-[13px] font-bold p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700">💵 Cash (Auto)</div>
+                            <input type="hidden" name="partnerPayment1AccountId" value={accounts?.find(a => a.type === 'CASH')?.id || ''} />
+                          </>
+                        ) : (
+                          <select name="partnerPayment1AccountId" required={!!partnerPaid1Amount || !!partnerPayment1Mode} className="w-full text-[13px] font-bold p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all">
+                            <option value="">Account...</option>
+                            {accounts?.filter(acc => partnerPayment1Mode === '' || acc.type === partnerPayment1Mode).map(acc => (
+                              <option key={acc.id} value={acc.id}>{acc.name}</option>
+                            ))}
+                          </select>
+                        )}
                         <input 
                           type="text" 
                           inputMode="decimal"
@@ -419,12 +440,19 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                           <option value="CASH">Cash</option>
                           <option value="BANK">Bank</option>
                         </select>
-                        <select name="partnerPayment2AccountId" required={!!partnerPaid2Amount || !!partnerPayment2Mode} className="w-full text-[13px] font-bold p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all">
-                          <option value="">Account...</option>
-                          {accounts?.filter(acc => partnerPayment2Mode === '' || acc.type === partnerPayment2Mode).map(acc => (
-                            <option key={acc.id} value={acc.id}>{acc.name}</option>
-                          ))}
-                        </select>
+                        {partnerPayment2Mode === 'CASH' ? (
+                          <>
+                            <div className="w-full text-[13px] font-bold p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700">💵 Cash (Auto)</div>
+                            <input type="hidden" name="partnerPayment2AccountId" value={accounts?.find(a => a.type === 'CASH')?.id || ''} />
+                          </>
+                        ) : (
+                          <select name="partnerPayment2AccountId" required={!!partnerPaid2Amount || !!partnerPayment2Mode} className="w-full text-[13px] font-bold p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 transition-all">
+                            <option value="">Account...</option>
+                            {accounts?.filter(acc => partnerPayment2Mode === '' || acc.type === partnerPayment2Mode).map(acc => (
+                              <option key={acc.id} value={acc.id}>{acc.name}</option>
+                            ))}
+                          </select>
+                        )}
                         <input 
                           type="text" 
                           inputMode="decimal"

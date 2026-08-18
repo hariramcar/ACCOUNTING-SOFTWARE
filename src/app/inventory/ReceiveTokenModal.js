@@ -18,6 +18,7 @@ function getLocalDateString() {
 export default function ReceiveTokenModal({ isOpen, onClose, vehicle, inStock = [], accounts }) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tokenPayMode, setTokenPayMode] = useState('BANK');
   const [error, setError] = useState(null);
   const [amount, setAmount] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
@@ -175,28 +176,36 @@ export default function ReceiveTokenModal({ isOpen, onClose, vehicle, inStock = 
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <label className="text-[11px] uppercase font-bold text-slate-500 tracking-wider">Payment Mode</label>
-                <select name="paymentMode" required className="w-full p-3.5 rounded-xl border border-transparent bg-slate-100 shadow-inner text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 transition-all">
-                  <option value="BANK">Bank Transfer / UPI</option>
-                  <option value="CASH">Cash</option>
-                </select>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setTokenPayMode('CASH')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${tokenPayMode === 'CASH' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>💵 Cash</button>
+                  <button type="button" onClick={() => setTokenPayMode('BANK')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${tokenPayMode === 'BANK' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>🏦 Bank</button>
+                </div>
+                <input type="hidden" name="paymentMode" value={tokenPayMode} />
               </div>
 
               <div className="flex flex-col gap-2">
                 <label className="text-[11px] uppercase font-bold text-slate-500 tracking-wider">Deposit Into</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <CreditCard size={16} />
+                {tokenPayMode === 'CASH' ? (
+                  <>
+                    <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-700 flex items-center gap-2">💵 Cash Account (Auto-selected)</div>
+                    <input type="hidden" name="paymentAccountId" value={accounts?.find(a => a.type === 'CASH')?.id || ''} />
+                  </>
+                ) : (
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <CreditCard size={16} />
+                    </div>
+                    <select name="paymentAccountId" required className="w-full pl-10 p-3.5 rounded-xl border border-transparent bg-slate-100 shadow-inner text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 transition-all appearance-none">
+                      <option value="">Select Bank Account</option>
+                      {accounts.filter(a => a.type === 'BANK').map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name}</option>
+                      ))}
+                    </select>
                   </div>
-                  <select name="paymentAccountId" required className="w-full pl-10 p-3.5 rounded-xl border border-transparent bg-slate-100 shadow-inner text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 transition-all appearance-none">
-                    <option value="">Select Account</option>
-                    {accounts.filter(a => a.type === 'BANK' || a.type === 'CASH').map(acc => (
-                      <option key={acc.id} value={acc.id}>{acc.name} (₹{acc.openingBalance.toLocaleString('en-IN')})</option>
-                    ))}
-                  </select>
-                </div>
+                )}
               </div>
             </div>
 

@@ -12,6 +12,7 @@ export default function PendingPayablesModal({ payables = [], receivables = [], 
   const [payingVehicleId, setPayingVehicleId] = useState(null);
   const [amount, setAmount] = useState('');
   const [paymentAccountId, setPaymentAccountId] = useState('');
+  const [payMode, setPayMode] = useState('CASH');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -34,9 +35,11 @@ export default function PendingPayablesModal({ payables = [], receivables = [], 
     formData.append('vehicleId', vehicleId);
     formData.append('amount', amount);
     
-    const selectedAccount = accounts.find(a => a.id === paymentAccountId);
+    const cashAccount = accounts.find(a => a.type === 'CASH');
+    const finalAccountId = payMode === 'CASH' ? (cashAccount?.id || '') : paymentAccountId;
+    const selectedAccount = accounts.find(a => a.id === finalAccountId);
     formData.append('mode', selectedAccount ? selectedAccount.type : 'CASH');
-    formData.append('paymentAccountId', paymentAccountId);
+    formData.append('paymentAccountId', finalAccountId);
     formData.append('paymentType', isReceivable ? 'RECEIVABLE' : 'PAYABLE');
 
     try {
@@ -205,19 +208,27 @@ export default function PendingPayablesModal({ payables = [], receivables = [], 
                                 </div>
                                 <div>
                                   <label className="block text-xs font-bold text-slate-500 mb-1">Account (From/To)</label>
-                                  <select
-                                    required
-                                    value={paymentAccountId}
-                                    onChange={(e) => setPaymentAccountId(e.target.value)}
-                                    className="w-full bg-white border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-medium"
-                                  >
-                                    <option value="">Select Account</option>
-                                    {accounts.map(acc => (
-                                      <option key={acc.id} value={acc.id}>
-                                        {acc.name} (Bal: ₹{acc.openingBalance.toLocaleString('en-IN')})
-                                      </option>
-                                    ))}
-                                  </select>
+                                  <div className="flex gap-2 mb-2">
+                                    <button type="button" onClick={() => { setPayMode('CASH'); setPaymentAccountId(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${payMode === 'CASH' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>💵 Cash</button>
+                                    <button type="button" onClick={() => { setPayMode('BANK'); setPaymentAccountId(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${payMode === 'BANK' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>🏦 Bank</button>
+                                  </div>
+                                  {payMode === 'CASH' ? (
+                                    <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-700 flex items-center gap-1.5">💵 Cash Account (Auto-selected)</div>
+                                  ) : (
+                                    <select
+                                      required
+                                      value={paymentAccountId}
+                                      onChange={(e) => setPaymentAccountId(e.target.value)}
+                                      className="w-full bg-white border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-medium"
+                                    >
+                                      <option value="">Select Bank Account...</option>
+                                      {accounts.filter(a => a.type === 'BANK').map(acc => (
+                                        <option key={acc.id} value={acc.id}>
+                                          {acc.name} (Bal: ₹{acc.openingBalance.toLocaleString('en-IN')})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex justify-end gap-2">
@@ -230,7 +241,7 @@ export default function PendingPayablesModal({ payables = [], receivables = [], 
                                 </button>
                                 <button
                                   type="submit"
-                                  disabled={isSubmitting || !amount || !paymentAccountId}
+                                  disabled={isSubmitting || !amount || (payMode === 'BANK' && !paymentAccountId)}
                                   className={`px-4 py-2 text-sm font-bold text-white rounded-lg flex items-center gap-2 ${isSubmitting ? 'bg-slate-400' : isReceivable ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'} disabled:opacity-50`}
                                 >
                                   <CreditCard size={16} />

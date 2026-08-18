@@ -145,6 +145,14 @@ export async function createAccount(formData) {
     const type = formData.get('type');
     const openingBalance = parseFloat(formData.get('openingBalance') || '0');
 
+    // Enforce: only 1 CASH account allowed
+    if (type === 'CASH') {
+      const existingCash = await prisma.account.findFirst({ where: { type: 'CASH' } });
+      if (existingCash) {
+        return { success: false, error: 'Only one Cash account is allowed. A Cash account already exists.' };
+      }
+    }
+
     const account = await prisma.account.create({
       data: {
         name,

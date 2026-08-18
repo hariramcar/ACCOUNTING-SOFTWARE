@@ -88,7 +88,17 @@ export default function SellVehicleModal({ inStock, accounts }) {
   };
 
   const updatePayment = (id, field, value) => {
-    setPayments(payments.map(p => p.id === id ? { ...p, [field]: value } : p));
+    const cashAcc = accounts?.find(a => a.type === 'CASH');
+    setPayments(payments.map(p => {
+      if (p.id !== id) return p;
+      const updated = { ...p, [field]: value };
+      if (field === 'mode' && value === 'CASH') {
+        updated.accountId = cashAcc?.id || '';
+      } else if (field === 'mode' && value !== 'CASH') {
+        updated.accountId = '';
+      }
+      return updated;
+    }));
   };
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -365,15 +375,22 @@ export default function SellVehicleModal({ inStock, accounts }) {
                         </select>
                       </div>
                       <div className="flex-[1.5]">
-                        <select 
-                          name="paymentAccountIds" 
-                          value={p.accountId}
-                          onChange={(e) => updatePayment(p.id, 'accountId', e.target.value)}
-                          className="w-full p-3 rounded-lg border-0 bg-slate-100 shadow-inner text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 transition-all"
-                        >
-                          <option value="">Account...</option>
-                          {accounts?.filter(acc => p.mode === '' || acc.type === p.mode).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                        </select>
+                        {p.mode === 'CASH' ? (
+                          <>
+                            <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-700">💵 Cash (Auto-selected)</div>
+                            <input type="hidden" name="paymentAccountIds" value={accounts?.find(a => a.type === 'CASH')?.id || ''} />
+                          </>
+                        ) : (
+                          <select 
+                            name="paymentAccountIds" 
+                            value={p.accountId}
+                            onChange={(e) => updatePayment(p.id, 'accountId', e.target.value)}
+                            className="w-full p-3 rounded-lg border-0 bg-slate-100 shadow-inner text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 transition-all"
+                          >
+                            <option value="">Select Account...</option>
+                            {accounts?.filter(acc => p.mode === 'BANK' ? acc.type === 'BANK' : (p.mode === '' ? true : acc.type === p.mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                          </select>
+                        )}
                       </div>
                       <div className="flex-1">
                         <input 

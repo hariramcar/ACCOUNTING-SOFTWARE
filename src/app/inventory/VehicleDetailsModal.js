@@ -27,6 +27,9 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
   const [payingProfitId, setPayingProfitId] = useState(null);
   const [profitSourceAccountId, setProfitSourceAccountId] = useState('');
   const [profitPaymentAmount, setProfitPaymentAmount] = useState('');
+  const [payMode, setPayMode] = useState('CASH');
+  const [partnerPayMode, setPartnerPayMode] = useState('CASH');
+  const [profitPayMode, setProfitPayMode] = useState('CASH');
   const [error, setError] = useState(null);
   const [partnerError, setPartnerError] = useState(null);
   const [profitError, setProfitError] = useState(null);
@@ -50,7 +53,8 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
     const formData = new FormData();
     formData.append('vehicleId', car.id);
     formData.append('amount', amount);
-    formData.append('sourceAccountId', sourceAccountId);
+    const finalSourceId = payMode === 'CASH' ? (accounts.find(a => a.type === 'CASH')?.id || '') : sourceAccountId;
+    formData.append('sourceAccountId', finalSourceId);
 
     try {
       const result = await payVehiclePendingBalance(formData);
@@ -60,6 +64,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
         setIsPaying(false);
         setAmount('');
         setSourceAccountId('');
+        setPayMode('CASH');
         onClose(); // Close modal to refresh
       }
     } finally {
@@ -79,7 +84,8 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
     const formData = new FormData();
     formData.append('partnershipId', partnershipId);
     formData.append('amount', partnerAmount);
-    formData.append('targetAccountId', partnerSourceAccountId);
+    const finalPartnerSourceId = partnerPayMode === 'CASH' ? (accounts.find(a => a.type === 'CASH')?.id || '') : partnerSourceAccountId;
+    formData.append('targetAccountId', finalPartnerSourceId);
 
     try {
       const result = await payPartnerPendingInvestment(formData);
@@ -89,6 +95,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
         setPayingPartnerId(null);
         setPartnerAmount('');
         setPartnerSourceAccountId('');
+        setPartnerPayMode('CASH');
         onClose();
       }
     } finally {
@@ -110,7 +117,8 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
     
     const finalAmount = profitPaymentAmount ? parseFloat(profitPaymentAmount.replace(/,/g, '')) : amount;
     formData.append('amount', finalAmount);
-    formData.append('sourceAccountId', profitSourceAccountId);
+    const finalProfitSourceId = profitPayMode === 'CASH' ? (accounts.find(a => a.type === 'CASH')?.id || '') : profitSourceAccountId;
+    formData.append('sourceAccountId', finalProfitSourceId);
     
     const cutAmount = Math.max(0, amount - finalAmount);
     if (cutAmount > 0) {
@@ -124,6 +132,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
       } else {
         setPayingProfitId(null);
         setProfitSourceAccountId('');
+        setProfitPayMode('CASH');
         onClose();
       }
     } finally {
@@ -331,17 +340,28 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                             {isPayingThis && !isPaid && (
                               <form onSubmit={(e) => handlePayPartnerProfit(e, p.id, totalPayout)} className="mt-1 pt-2 border-t border-indigo-800/50 flex flex-col gap-2">
                                 {profitError && <div className="text-[10px] text-red-400 bg-red-400/10 p-1.5 rounded-md">{profitError}</div>}
-                                <select 
-                                  required
-                                  value={profitSourceAccountId}
-                                  onChange={(e) => setProfitSourceAccountId(e.target.value)}
-                                  className="text-xs p-1.5 rounded-md border border-indigo-700 bg-indigo-800/50 text-indigo-100 font-medium outline-none focus:ring-2 focus:ring-indigo-500/50"
-                                >
-                                  <option value="">Pay From (Cash/Bank)...</option>
-                                  {accounts.filter(a => ['CASH', 'BANK'].includes(a.type)).map(acc => (
-                                    <option key={acc.id} value={acc.id}>{acc.name}</option>
-                                  ))}
-                                </select>
+                                <div className="flex gap-1 mb-1">
+                                  <button type="button" onClick={() => { setProfitPayMode('CASH'); setProfitSourceAccountId(accounts.find(a => a.type === 'CASH')?.id || ''); }} className={`flex-1 py-1 rounded-md text-[9px] font-bold border transition-all ${profitPayMode === 'CASH' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-indigo-800/50 text-indigo-300 border-indigo-700 hover:bg-indigo-800'}`}>💵 Cash</button>
+                                  <button type="button" onClick={() => { setProfitPayMode('BANK'); setProfitSourceAccountId(''); }} className={`flex-1 py-1 rounded-md text-[9px] font-bold border transition-all ${profitPayMode === 'BANK' ? 'bg-blue-600 text-white border-blue-600' : 'bg-indigo-800/50 text-indigo-300 border-indigo-700 hover:bg-indigo-800'}`}>🏦 Bank</button>
+                                </div>
+                                {profitPayMode === 'CASH' ? (
+                                  <>
+                                    <div className="text-xs p-1.5 rounded-md bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold">💵 Cash (Auto-selected)</div>
+                                    <input type="hidden" value={accounts.find(a => a.type === 'CASH')?.id || ''} />
+                                  </>
+                                ) : (
+                                  <select 
+                                    required
+                                    value={profitSourceAccountId}
+                                    onChange={(e) => setProfitSourceAccountId(e.target.value)}
+                                    className="text-xs p-1.5 rounded-md border border-indigo-700 bg-indigo-800/50 text-indigo-100 font-medium outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                  >
+                                    <option value="">Select Bank Account...</option>
+                                    {accounts.filter(a => a.type === 'BANK').map(acc => (
+                                      <option key={acc.id} value={acc.id}>{acc.name}</option>
+                                    ))}
+                                  </select>
+                                )}
                                 <input 
                                   type="text"
                                   inputMode="decimal"
@@ -445,17 +465,27 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                   {isPaying && (
                     <form onSubmit={handlePayPending} className="flex flex-col gap-3 mt-4 pt-4 border-t border-amber-200/60">
                       {error && <div className="text-[10px] text-red-600 bg-red-50 p-2 rounded-md">{error}</div>}
-                      <select 
-                        required
-                        value={sourceAccountId}
-                        onChange={(e) => setSourceAccountId(e.target.value)}
-                        className="text-sm p-2 rounded-lg border border-amber-300 bg-white font-medium outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500"
-                      >
-                        <option value="">Pay From (Cash/Bank)...</option>
-                        {accounts.filter(a => ['CASH', 'BANK'].includes(a.type)).map(acc => (
-                          <option key={acc.id} value={acc.id}>{acc.name}</option>
-                        ))}
-                      </select>
+                      <div className="flex gap-2 mb-2">
+                        <button type="button" onClick={() => { setPayMode('CASH'); setSourceAccountId(accounts.find(a => a.type === 'CASH')?.id || ''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${payMode === 'CASH' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>💵 Cash</button>
+                        <button type="button" onClick={() => { setPayMode('BANK'); setSourceAccountId(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${payMode === 'BANK' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>🏦 Bank</button>
+                      </div>
+                      {payMode === 'CASH' ? (
+                        <>
+                          <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-700 flex items-center gap-1.5">💵 Cash Account (Auto-selected)</div>
+                        </>
+                      ) : (
+                        <select 
+                          required
+                          value={sourceAccountId}
+                          onChange={(e) => setSourceAccountId(e.target.value)}
+                          className="text-sm p-2 rounded-lg border border-amber-300 bg-white font-medium outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500"
+                        >
+                          <option value="">Select Bank Account...</option>
+                          {accounts.filter(a => a.type === 'BANK').map(acc => (
+                            <option key={acc.id} value={acc.id}>{acc.name}</option>
+                          ))}
+                        </select>
+                      )}
                       <input 
                         type="text"
                         inputMode="decimal"
@@ -545,17 +575,27 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                           {isPayingThis && (
                             <form onSubmit={(e) => handlePayPartnerPending(e, p.id)} className="flex flex-col gap-3 mt-2">
                               {partnerError && <div className="text-[10px] text-red-600 bg-red-50 p-2 rounded-md">{partnerError}</div>}
-                              <select 
-                                required
-                                value={partnerSourceAccountId}
-                                onChange={(e) => setPartnerSourceAccountId(e.target.value)}
-                                className="text-sm p-2 rounded-lg border border-purple-300 bg-white font-medium outline-none focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500"
-                              >
-                                <option value="">Receive To (Cash/Bank)...</option>
-                                {accounts.filter(a => ['CASH', 'BANK'].includes(a.type)).map(acc => (
-                                  <option key={acc.id} value={acc.id}>{acc.name}</option>
-                                ))}
-                              </select>
+                              <div className="flex gap-2 mb-2">
+                                <button type="button" onClick={() => { setPartnerPayMode('CASH'); setPartnerSourceAccountId(accounts.find(a => a.type === 'CASH')?.id || ''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${partnerPayMode === 'CASH' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>💵 Cash</button>
+                                <button type="button" onClick={() => { setPartnerPayMode('BANK'); setPartnerSourceAccountId(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${partnerPayMode === 'BANK' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>🏦 Bank</button>
+                              </div>
+                              {partnerPayMode === 'CASH' ? (
+                                <>
+                                  <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-700 flex items-center gap-1.5">💵 Cash Account (Auto-selected)</div>
+                                </>
+                              ) : (
+                                <select 
+                                  required
+                                  value={partnerSourceAccountId}
+                                  onChange={(e) => setPartnerSourceAccountId(e.target.value)}
+                                  className="text-sm p-2 rounded-lg border border-purple-300 bg-white font-medium outline-none focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500"
+                                >
+                                  <option value="">Select Bank Account...</option>
+                                  {accounts.filter(a => a.type === 'BANK').map(acc => (
+                                    <option key={acc.id} value={acc.id}>{acc.name}</option>
+                                  ))}
+                                </select>
+                              )}
                               <input 
                                 type="text"
                                 inputMode="decimal"

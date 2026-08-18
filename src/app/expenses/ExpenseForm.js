@@ -108,8 +108,20 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
     }
   };
 
+  const cashAccount = accounts?.find(a => a.type === 'CASH');
+
   const updatePayment = (id, field, value) => {
-    setPayments(payments.map(p => p.id === id ? { ...p, [field]: value } : p));
+    setPayments(payments.map(p => {
+      if (p.id !== id) return p;
+      const updated = { ...p, [field]: value };
+      // Auto-select CASH account when mode changes to CASH
+      if (field === 'mode' && value === 'CASH') {
+        updated.accountId = cashAccount?.id || '';
+      } else if (field === 'mode' && value !== 'CASH') {
+        updated.accountId = ''; // Reset so user picks bank account
+      }
+      return updated;
+    }));
   };
 
   const isSubmittingRef = useRef(false);
@@ -454,16 +466,25 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                 </div>
                 <div className="flex-[1.5]">
                   <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block tracking-wider">Account</label>
-                  <select
-                    name="paymentAccountIds"
-                    value={p.accountId ?? ''}
-                    onChange={(e) => updatePayment(p.id, 'accountId', e.target.value)}
-                    required
-                    className="w-full p-2 rounded-md border border-slate-300 bg-white text-xs font-semibold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="">Account</option>
-                    {accounts?.filter(acc => p.mode === '' || acc.type === p.mode).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                  </select>
+                  {p.mode === 'CASH' ? (
+                    <>
+                      <div className="p-2 rounded-md bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                        💵 Cash (Auto-selected)
+                      </div>
+                      <input type="hidden" name="paymentAccountIds" value={cashAccount?.id || ''} />
+                    </>
+                  ) : (
+                    <select
+                      name="paymentAccountIds"
+                      value={p.accountId ?? ''}
+                      onChange={(e) => updatePayment(p.id, 'accountId', e.target.value)}
+                      required
+                      className="w-full p-2 rounded-md border border-slate-300 bg-white text-xs font-semibold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="">Select Account</option>
+                      {accounts?.filter(acc => p.mode === 'BANK' ? acc.type === 'BANK' : (p.mode === '' ? true : acc.type === p.mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                    </select>
+                  )}
                 </div>
                 <div className="flex-[1.5]">
                   <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block tracking-wider">Amount (₹)</label>

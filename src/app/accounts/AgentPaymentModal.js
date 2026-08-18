@@ -26,6 +26,7 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
   const [amount, setAmount] = useState('');
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [depositMode, setDepositMode] = useState('CASH');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -120,13 +121,24 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Deposit To (Bank or Cash)</label>
-                <select name="ledgerAccountId" required className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 outline-none focus:border-indigo-500 font-medium">
-                  <option value="">Select Bank or Cash...</option>
-                  {ledgerAccounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>{acc.name} ({acc.type})</option>
-                  ))}
-                </select>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Deposit To</label>
+                <div className="flex gap-2 mb-1">
+                  <button type="button" onClick={() => setDepositMode('CASH')} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${depositMode === 'CASH' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>💵 Cash</button>
+                  <button type="button" onClick={() => setDepositMode('BANK')} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${depositMode === 'BANK' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>🏦 Bank</button>
+                </div>
+                {depositMode === 'CASH' ? (
+                  <>
+                    <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-700 flex items-center gap-1.5">💵 Cash Account (Auto-selected)</div>
+                    <input type="hidden" name="ledgerAccountId" value={ledgerAccounts.find(a => a.type === 'CASH')?.id || ''} />
+                  </>
+                ) : (
+                  <select name="ledgerAccountId" required className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 outline-none focus:border-indigo-500 font-medium">
+                    <option value="">Select Bank Account...</option>
+                    {ledgerAccounts.filter(acc => acc.type === 'BANK').map(acc => (
+                      <option key={acc.id} value={acc.id}>{acc.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="flex gap-4">

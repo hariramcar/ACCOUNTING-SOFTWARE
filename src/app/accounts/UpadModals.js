@@ -26,6 +26,8 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
   const [activeModal, setActiveModal] = useState(null); // 'advance' | 'settle' | 'receive' | null
   const [amount, setAmount] = useState('');
   
+  const [advancePayMode, setAdvancePayMode] = useState('CASH');
+  const [billPayMode, setBillPayMode] = useState('CASH');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [mounted, setMounted] = useState(false);
@@ -212,12 +214,23 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
                   
                   <div>
                     <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 block">Payment Account</label>
-                    <select name="sourceAccountId" required className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 focus:bg-white transition-all cursor-pointer">
-                      <option value="">Select Account...</option>
-                      {ledgerAccounts.map(acc => (
-                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.type})</option>
-                      ))}
-                    </select>
+                    <div className="flex gap-2 mb-2">
+                      <button type="button" onClick={() => setAdvancePayMode('CASH')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${advancePayMode === 'CASH' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>💵 Cash</button>
+                      <button type="button" onClick={() => setAdvancePayMode('BANK')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${advancePayMode === 'BANK' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>🏦 Bank</button>
+                    </div>
+                    {advancePayMode === 'CASH' ? (
+                      <>
+                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-700">💵 Cash Account (Auto-selected)</div>
+                        <input type="hidden" name="sourceAccountId" value={ledgerAccounts.find(a => a.type === 'CASH')?.id || ''} />
+                      </>
+                    ) : (
+                      <select name="sourceAccountId" required className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 focus:bg-white transition-all cursor-pointer">
+                        <option value="">Select Bank Account...</option>
+                        {ledgerAccounts.filter(acc => acc.type === 'BANK').map(acc => (
+                          <option key={acc.id} value={acc.id}>{acc.name}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 
@@ -309,12 +322,23 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
 
                   <div>
                     <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 block">Pay From</label>
-                    <select name="sourceAccountId" required className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer">
-                      <option value="">Select Bank/Cash...</option>
-                      {ledgerAccounts.map(acc => (
-                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.type})</option>
-                      ))}
-                    </select>
+                    <div className="flex gap-2 mb-2">
+                      <button type="button" onClick={() => setBillPayMode('CASH')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${billPayMode === 'CASH' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>💵 Cash</button>
+                      <button type="button" onClick={() => setBillPayMode('BANK')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${billPayMode === 'BANK' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>🏦 Bank</button>
+                    </div>
+                    {billPayMode === 'CASH' ? (
+                      <>
+                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-700">💵 Cash Account (Auto-selected)</div>
+                        <input type="hidden" name="sourceAccountId" value={ledgerAccounts.find(a => a.type === 'CASH')?.id || ''} />
+                      </>
+                    ) : (
+                      <select name="sourceAccountId" required className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer">
+                        <option value="">Select Bank Account...</option>
+                        {ledgerAccounts.filter(acc => acc.type === 'BANK').map(acc => (
+                          <option key={acc.id} value={acc.id}>{acc.name}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 
