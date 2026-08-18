@@ -25,9 +25,17 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
                     {car.registration || 'UNREG'}
                   </span>
                 </h4>
-                <div className="text-[10px] font-medium text-slate-500 mt-1 uppercase tracking-wider">
-                  {car.saleDate ? new Date(car.saleDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'}
-                  {car.customerName && <span className="ml-1 capitalize text-slate-400">• {car.customerName}</span>}
+                <div className="text-[10px] font-medium text-slate-500 mt-1 uppercase tracking-wider flex flex-col gap-0.5">
+                  <div>
+                    {car.saleDate ? new Date(car.saleDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'}
+                  </div>
+                  {(car.customerName || car.customerMobile) && (
+                    <div className="normal-case text-slate-400 mt-0.5">
+                      {car.customerName && <span className="capitalize">{car.customerName}</span>}
+                      {car.customerName && car.customerMobile && <span> - </span>}
+                      {car.customerMobile && <span>{car.customerMobile}</span>}
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -95,14 +103,21 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
                     {car.make} {car.model} ({car.registration})
                     <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider px-2 py-0.5 bg-white border border-slate-200 rounded-sm">{car.registration}</span>
                   </h4>
-                  <div className="flex flex-col gap-1 mt-2">
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    {(car.customerName || car.customerMobile) && (
+                      <div className="text-[12px] text-slate-500 font-medium flex items-center gap-2">
+                        {car.customerName && <span className="capitalize">{car.customerName}</span>}
+                        {car.customerName && car.customerMobile && <span className="text-slate-300">|</span>}
+                        {car.customerMobile && <span>{car.customerMobile}</span>}
+                      </div>
+                    )}
                     {car.salePendingBalance > 0 && car.receivableAccount && (
-                      <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200/50 px-2 py-1 rounded w-max">
+                      <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200/50 px-2 py-0.5 rounded w-max">
                         Pending Receive: ₹{car.salePendingBalance.toLocaleString('en-IN')} ({car.receivableAccount.name})
                       </div>
                     )}
                     {car.purchasePendingBalance > 0 && (
-                      <div className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200/50 px-2 py-1 rounded w-max">
+                      <div className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200/50 px-2 py-0.5 rounded w-max">
                         Pending Pay: ₹{car.purchasePendingBalance.toLocaleString('en-IN')}
                         {car.payableAccount && ` (${car.payableAccount.name})`}
                       </div>
@@ -120,8 +135,6 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
                   <div className="font-bold text-slate-900 mb-1">₹{car.salePrice.toLocaleString('en-IN')}</div>
                   <div className="text-[11px] text-slate-500 uppercase tracking-wider">
                     {car.saleDate ? new Date(car.saleDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                    {car.customerName && <div className="text-slate-400 mt-1 capitalize">{car.customerName}</div>}
-                    {car.customerMobile && <div className="text-slate-400">{car.customerMobile}</div>}
                   </div>
                 </td>
                 <td className="py-4 px-6 align-top text-right">
