@@ -1,12 +1,16 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Pencil, Trash2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function TransactionActions({ expense, deleteExpenseAction, updateExpenseAction, isRawTx, hideDelete = false, accounts = [], vehicles = [] }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => setMounted(true), []);
   
   const getLocalDateString = (dateObj) => {
     if (!dateObj) return '';
@@ -180,10 +184,10 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
         )}
       </div>
 
-      {isEditing && (
-        <div className="fixed inset-0 bg-slate-900/50 flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4 z-50 backdrop-blur-sm">
+      {isEditing && mounted && createPortal(
+        <div className="fixed inset-0 bg-slate-900/50 flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4 z-[9999] backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setIsEditing(false)}></div>
-          <div className="bg-white rounded-t-3xl md:rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative z-10 animate-in slide-in-from-bottom-full md:slide-in-from-bottom-4 duration-300">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative z-[10000] animate-in slide-in-from-bottom-full md:slide-in-from-bottom-4 duration-300">
             {/* Mobile Drag Handle */}
             <div className="md:hidden flex justify-center pt-4 pb-2 bg-slate-50">
               <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
@@ -248,7 +252,7 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
                       <option value="">-- No Specific Vehicle --</option>
                       {vehicles.filter(v => v.status !== 'SOLD').map(v => (
                         <option key={v.id} value={v.id}>
-                          {v.make} {v.model} {v.registration ? `(${v.registration})` : ''}
+                          {v.make} {v.model} - {v.registration || 'Unregistered'}
                         </option>
                       ))}
                     </select>
@@ -307,7 +311,7 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
             </form>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   );
 }

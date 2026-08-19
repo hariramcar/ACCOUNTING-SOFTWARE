@@ -877,6 +877,23 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
                }
             }
             
+            // If it's a vehicle sale payment, sync the difference to the vehicle's salePrice and profit
+            if (txToUpdate.category === 'VEHICLE_SALE' && txToUpdate.referenceId && txToUpdate.description.includes('Auto-Entry: Sold')) {
+               const diff = updateData.amount - txToUpdate.amount;
+               if (diff !== 0) {
+                 const vehicle = await tx.vehicle.findUnique({ where: { id: txToUpdate.referenceId }});
+                 if (vehicle) {
+                   await tx.vehicle.update({
+                     where: { id: vehicle.id },
+                     data: { 
+                       salePrice: (vehicle.salePrice || 0) + diff,
+                       profit: (vehicle.profit || 0) + diff
+                     }
+                   });
+                 }
+               }
+            }
+            
             let isPartnerInvestment = false;
             let partnerLegs = [];
             
@@ -1064,6 +1081,28 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
         
         if (expToUpdate.vehicleId) {
           await syncVehicleState(tx, expToUpdate.vehicleId);
+        }
+        
+        // Sync VehicleToken if this is a forfeited token income
+        if (expToUpdate.description && expToUpdate.description.startsWith('Auto-Forfeited Token Income:')) {
+          const match = expToUpdate.description.match(/Auto-Forfeited Token Income: (.*?) \(Ref:/);
+          if (match) {
+            const customerName = match[1];
+            // Find the forfeited token that matches the vehicle and customer
+            const tokenToUpdate = await tx.vehicleToken.findFirst({
+              where: { 
+                vehicleId: expToUpdate.vehicleId, 
+                customerName: customerName,
+                status: 'FORFEITED' 
+              }
+            });
+            if (tokenToUpdate) {
+               await tx.vehicleToken.update({
+                 where: { id: tokenToUpdate.id },
+                 data: { amount: updateData.amount }
+               });
+            }
+          }
         }
         
         const txs = await tx.transaction.findMany({ where: { referenceId: expenseId } });

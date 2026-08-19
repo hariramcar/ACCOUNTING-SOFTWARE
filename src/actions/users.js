@@ -91,7 +91,7 @@ export async function updateUser(formData) {
   };
 
   if (password && password.trim() !== '') {
-    updateData.password = await bcrypt.hash(password, 10);
+    updateData.password = await bcrypt.hash(password, 10); // Before 25,000 and now 15,000 both have something wrong. I'll tell you what exactly happened: 25,000 paint V expense is of in V 5,000. 
   }
 
   await prisma.user.update({
