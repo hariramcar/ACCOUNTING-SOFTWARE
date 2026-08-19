@@ -26,17 +26,32 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
     return parts.join('.');
   };
 
+  let initialAccountId = expense.accountId || '';
+  let isSplitPayment = false;
+  
+  if (!isRawTx && expense.requestedMode && typeof expense.requestedMode === 'string' && expense.requestedMode.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(expense.requestedMode);
+      if (parsed.payments && Array.isArray(parsed.payments)) {
+        if (parsed.payments.length > 1) {
+          isSplitPayment = true;
+        } else if (parsed.payments.length === 1) {
+          initialAccountId = parsed.payments[0].accountId || '';
+        }
+      }
+    } catch(e) {}
+  }
+
   const [editData, setEditData] = useState({
     description: expense.description,
     amount: handleAmountFormat(expense.amount),
     date: getLocalDateString(expense.date),
-    accountId: expense.accountId || '',
+    accountId: initialAccountId,
     vehicleId: expense.vehicle?.id || expense.referenceId || '',
     customerName: expense.customerName || '',
     customerMobile: expense.customerMobile || ''
   });
 
-  
   const isSubmittingRef = useRef(false);
 
   const isIncome = expense.expenseType === 'INCOME';
@@ -111,8 +126,6 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
     setIsDeleting(false);
     isSubmittingRef.current = false;
   };
-
-  const isSplitPayment = !isRawTx && expense.requestedMode && typeof expense.requestedMode === 'string' && expense.requestedMode.startsWith('{');
 
   const handleEditClick = () => {
     if (isSplitPayment) {
@@ -280,8 +293,8 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
                       className={`w-full p-2.5 rounded-lg border ${theme.border} bg-white text-sm font-medium outline-none ${theme.focusBorder} focus:ring-1 ${theme.focusRing} text-slate-700 transition-all shadow-sm`}
                     >
                       <option value="">Select Account</option>
-                      {accounts.filter(a => a.type === 'CASH' || a.type === 'BANK').map(acc => (
-                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.type})</option>
+                      {accounts.filter(a => a.type === 'CASH' || a.type === 'BANK' || a.id === editData.accountId).map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name} {acc.type === 'UGHRANI' ? '(MARKET PLACE)' : `(${acc.type})`}</option>
                       ))}
                     </select>
                   </div>

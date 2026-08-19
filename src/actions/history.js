@@ -144,7 +144,7 @@ export async function getAllExpenses(year, month) {
           status: 'APPROVED',
           vehicle: null,
           submittedBy: null,
-          transferDetails: (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') ? tx.referenceId : null,
+          transferDetails: (tx.category === 'INTERNAL_TRANSFER' && tx.referenceId && !tx.referenceId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) ? tx.referenceId : null,
           paymentSource,
           recipient,
           isRawTx: true,
@@ -227,7 +227,7 @@ export async function getAllIncome(year, month) {
         recipient,
         isRawTx: true,
         isTransfer: t.category === 'INTERNAL_TRANSFER',
-        transferDetails: t.category === 'INTERNAL_TRANSFER' ? t.referenceId : null,
+        transferDetails: (t.category === 'INTERNAL_TRANSFER' && t.referenceId && !t.referenceId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) ? t.referenceId : null,
         accountType: t.account ? t.account.type : null,
         rawCategory: t.category,
         isForfeitedToken: t.description?.startsWith('Token Received:') 

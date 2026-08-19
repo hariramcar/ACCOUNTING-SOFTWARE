@@ -64,6 +64,15 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
     }
   };
 
+  const formatAccountType = (type) => {
+    if (type === 'UGHRANI') return 'Marketplace';
+    if (type === 'UCHAK') return 'Uchak';
+    if (type === 'STAFF') return 'Staff';
+    if (type === 'PARTNER') return 'Partner';
+    if (type === 'FINANCIER' || type === 'DSA_AGENT') return 'Loan Agent';
+    return type;
+  };
+
   return (
     <>
       <button 
@@ -115,7 +124,7 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
                   >
                     <option value="">Select Account...</option>
                   {agentAccounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>{acc.name}</option>
+                    <option key={acc.id} value={acc.id}>{acc.name} ({formatAccountType(acc.type)})</option>
                   ))}
                 </select>
               </div>

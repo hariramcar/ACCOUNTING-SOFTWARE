@@ -86,11 +86,16 @@ export default async function HistoryPage() {
 
   // Calculate totals (exclude internal transfers, Market Place, Staff Advances, and Asset Exchanges from totals)
   const totalExpenses = expenses?.reduce((sum, exp) => {
-    if (exp.requestedMode === 'UGHRANI') return sum;
-    if (exp.isStaffAdvance) return sum;
+    // Non-Operating / Asset / Transfer
     if (exp.rawCategory === 'VEHICLE_PURCHASE') return sum;
     if (exp.description?.startsWith('Auto-Entry: Paid Full Settlement')) return sum;
-    return sum + (!exp.isTransfer && exp.status !== 'REJECTED' ? Number(exp.amount) : 0);
+    if (exp.isTransfer || exp.status === 'REJECTED') return sum;
+
+    // Pure Accrual Basis: NEVER count Advances or Bill Payments (Ledger Settlements)
+    // We only count actual Expense records (Paint, Belt, etc.) in FULL.
+    if (exp.rawCategory === 'UPAD_WITHDRAWAL' || exp.rawCategory === 'UPAD_REPAYMENT') return sum;
+    
+    return sum + Number(exp.amount);
   }, 0) || 0;
   
   const rawOperatingIncome = income?.reduce((sum, inc) => {

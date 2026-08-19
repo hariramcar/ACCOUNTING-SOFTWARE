@@ -105,7 +105,7 @@ export async function getRecentExpenses(dateString = null) {
         expenseType: expType,
         status: 'APPROVED',
         vehicle: null,
-        transferDetails: (tx.category === 'INTERNAL_TRANSFER' || tx.category === 'UPAD_WITHDRAWAL' || tx.category === 'UPAD_REPAYMENT') ? tx.referenceId : null,
+        transferDetails: (tx.category === 'INTERNAL_TRANSFER' && tx.referenceId && !tx.referenceId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) ? tx.referenceId : null,
         paymentSource,
         recipient: tx.account ? tx.account.name : null,
         accountId: tx.accountId,
@@ -863,15 +863,39 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
               }
             }
             
+            // If it's a direct firm vehicle purchase, sync the difference to the vehicle's purchase price
+            if (txToUpdate.category === 'VEHICLE_PURCHASE' && txToUpdate.referenceId && !txToUpdate.description.includes('Partner')) {
+               const diff = updateData.amount - txToUpdate.amount;
+               if (diff !== 0) {
+                 const vehicle = await tx.vehicle.findUnique({ where: { id: txToUpdate.referenceId }});
+                 if (vehicle) {
+                   await tx.vehicle.update({
+                     where: { id: vehicle.id },
+                     data: { purchasePrice: vehicle.purchasePrice + diff }
+                   });
+                 }
+               }
+            }
+            
             let isPartnerInvestment = false;
             let partnerLegs = [];
             
             if (txToUpdate.referenceId) {
+                const extractPaymentSuffix = (desc) => {
+                  const match = desc.match(/- Payment (\d+)$/);
+                  return match ? match[0] : '';
+                };
+                const suffix = extractPaymentSuffix(txToUpdate.description);
+                
                 const possibleLegs = await tx.transaction.findMany({
-                    where: { referenceId: txToUpdate.referenceId, amount: txToUpdate.amount }
+                    where: { 
+                      referenceId: txToUpdate.referenceId, 
+                      amount: txToUpdate.amount,
+                      description: { contains: suffix }
+                    }
                 });
                 
-                const leg1 = possibleLegs.find(t => t.category === 'GENERAL' && (t.description.includes('Partnership Investment') || t.description.includes('Paid Pending Investment Share')));
+                const leg1 = possibleLegs.find(t => t.category === 'GENERAL' && (t.description.includes('Partnership Capital Investment') || t.description.includes('Paid Pending Investment Share') || t.description.includes('Partnership Investment')));
                 const leg2 = possibleLegs.find(t => t.category === 'GENERAL' && (t.description.includes('Income: Received from') || t.description.includes('Received Pending Capital')));
                 const leg3 = possibleLegs.find(t => t.category === 'VEHICLE_PURCHASE' && (t.description.includes('from Partner Capital') || (t.description.includes('Purchased car') && t.description.includes('Payment'))));
                 
@@ -1011,15 +1035,28 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
           customerName: data.customerName || null,
           customerMobile: data.customerMobile || null
         };
-        
-        if (data.accountId && data.accountId !== expToUpdate.requestedAccountId) {
+        if (data.accountId) {
           const newAcc = await tx.account.findUnique({ where: { id: data.accountId }});
           if (newAcc) {
-            updateData.requestedAccountId = data.accountId;
-            updateData.requestedMode = newAcc.type === 'BANK' ? 'BANK' : 'CASH';
+            let modeStr = newAcc.type === 'BANK' ? 'BANK' : newAcc.type === 'UGHRANI' ? 'UGHRANI' : 'CASH';
+            
+            // Check if existing requestedMode is a JSON string
+            if (expToUpdate.requestedMode && expToUpdate.requestedMode.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(expToUpdate.requestedMode);
+                if (parsed.payments && parsed.payments.length === 1) {
+                  parsed.payments[0].accountId = data.accountId;
+                  parsed.payments[0].mode = modeStr;
+                  parsed.payments[0].amount = updateData.amount;
+                  updateData.requestedMode = JSON.stringify(parsed);
+                }
+              } catch(e) {}
+            } else {
+              updateData.requestedAccountId = data.accountId;
+              updateData.requestedMode = modeStr;
+            }
           }
         }
-        
         await tx.expense.update({
           where: { id: expenseId },
           data: updateData
@@ -1036,11 +1073,20 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
             date: new Date(data.date),
             description: `Auto-Entry: ${data.description}`
           };
-          if (updateData.requestedAccountId) {
+          if (updateData.requestedMode && !updateData.requestedMode.startsWith('{')) {
             txUpdateData.accountId = updateData.requestedAccountId;
             txUpdateData.transactionMode = updateData.requestedMode;
+          } else if (updateData.requestedMode && updateData.requestedMode.startsWith('{')) {
+            const parsed = JSON.parse(updateData.requestedMode);
+            if (parsed.payments && parsed.payments.length === 1) {
+              txUpdateData.accountId = parsed.payments[0].accountId;
+              txUpdateData.transactionMode = parsed.payments[0].mode === 'UGHRANI' ? 'CASH' : parsed.payments[0].mode;
+              if (expToUpdate.expenseType !== 'INCOME') {
+                txUpdateData.type = parsed.payments[0].mode === 'UGHRANI' ? 'CREDIT' : 'DEBIT';
+              }
+            }
           }
-          if (txs[0].type === 'DEBIT') {
+          if (txs[0].type === 'DEBIT' && txUpdateData.type !== 'CREDIT') {
              await checkSufficientBalance(tx, txUpdateData.accountId || txs[0].accountId, txUpdateData.amount, txs[0].id);
           }
           await tx.transaction.update({

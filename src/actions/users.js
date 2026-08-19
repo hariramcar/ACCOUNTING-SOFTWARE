@@ -60,7 +60,7 @@ export async function deleteUser(formData) {
   }
 
   const id = formData.get('id');
-  
+
   if (id === session.userId) {
     throw new Error('Cannot delete yourself');
   }

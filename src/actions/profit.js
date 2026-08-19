@@ -148,14 +148,24 @@ export async function getMonthlyProfitData(year, monthIndex) {
     const { income: ledgerIncome } = await getAllIncome(year, monthIndex);
 
     const totalLedgerExpenses = ledgerExpenses?.reduce((sum, exp) => {
-      if (exp.requestedMode === 'UGHRANI') return sum;
-      if (exp.isStaffAdvance) return sum;
+      // Non-Operating / Asset / Transfer
       if (exp.rawCategory === 'VEHICLE_PURCHASE') return sum;
-      return sum + (!exp.isTransfer && exp.status !== 'REJECTED' ? Number(exp.amount) : 0);
+      if (exp.description?.startsWith('Auto-Entry: Paid Full Settlement')) return sum;
+      if (exp.isTransfer || exp.status === 'REJECTED') return sum;
+
+      // Pure Accrual Basis
+      if (exp.rawCategory === 'UPAD_WITHDRAWAL' || exp.rawCategory === 'UPAD_REPAYMENT') return sum;
+      
+      return sum + Number(exp.amount);
     }, 0) || 0;
 
     const rawOperatingIncome = ledgerIncome?.reduce((sum, inc) => {
       if (inc.rawCategory === 'VEHICLE_SALE') return sum;
+      if (inc.description?.startsWith('Token Received:') && !inc.isForfeitedToken) return sum;
+      if (inc.description?.startsWith('Income: Received from')) return sum;
+      if (inc.description?.startsWith('Auto-Entry: Received Pending Capital')) return sum;
+      if (inc.description?.startsWith('Auto-Entry: Paid Pending Udhari')) return sum;
+      if (inc.description?.startsWith('Auto-Entry: Partnership Capital Investment')) return sum;
       return sum + (!inc.isTransfer ? Number(inc.amount) : 0);
     }, 0) || 0;
     
@@ -189,7 +199,11 @@ export async function getPendingPayables() {
   try {
     const pendingVehicles = await prisma.vehicle.findMany({
       where: {
-        purchasePendingBalance: { gt: 0 }
+        purchasePendingBalance: { gt: 0 },
+        OR: [
+          { payableAccountId: null },
+          { payableAccount: { type: { notIn: ['FINANCIER', 'DSA_AGENT', 'PARTNER', 'STAFF'] } } }
+        ]
       },
       include: {
         payableAccount: true
@@ -202,7 +216,11 @@ export async function getPendingPayables() {
     const pendingReceivablesVehicles = await prisma.vehicle.findMany({
       where: {
         salePendingBalance: { gt: 0 },
-        status: 'SOLD'
+        status: 'SOLD',
+        OR: [
+          { receivableAccountId: null },
+          { receivableAccount: { type: { notIn: ['FINANCIER', 'DSA_AGENT', 'PARTNER', 'STAFF'] } } }
+        ]
       },
       include: {
         receivableAccount: true

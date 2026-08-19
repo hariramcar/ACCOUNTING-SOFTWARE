@@ -178,7 +178,7 @@ export default async function ExpensesPage({ searchParams }) {
             const renderPaymentSource = (source) => {
               if (!source) return null;
               try {
-                if (source.startsWith('{') && source.includes('"payments"')) {
+                if (typeof source === 'string' && source.startsWith('{') && source.includes('"payments"')) {
                   const parsed = JSON.parse(source);
                   if (parsed.payments && Array.isArray(parsed.payments)) {
                     return (
@@ -188,7 +188,7 @@ export default async function ExpensesPage({ searchParams }) {
                           const displayName = accName === 'UGHRANI' ? 'MARKET PLACE' : accName;
                           return (
                             <span key={i} className="bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[9px] whitespace-nowrap inline-flex items-center gap-1">
-                              {displayName} <span className="opacity-70">(₹{p.amount.toLocaleString('en-IN')})</span>
+                              {displayName} {parsed.payments.length > 1 && <span className="opacity-70">(₹{Number(p.amount || 0).toLocaleString('en-IN')})</span>}
                             </span>
                           );
                         })}
@@ -196,7 +196,9 @@ export default async function ExpensesPage({ searchParams }) {
                     );
                   }
                 }
-              } catch(e) {}
+              } catch(e) {
+                console.error('Error parsing payment source:', e);
+              }
               
               const displayName = source === 'UGHRANI' ? 'MARKET PLACE' : source;
               return (

@@ -40,7 +40,7 @@ export default async function ProfitDashboard() {
     const ughrani = balancesResult.accounts.filter(a => a.type === 'UGHRANI').reduce((sum, a) => sum + a.currentBalance, 0);
     capitalMetrics = { cash, bank, total: cash + bank + ughrani };
 
-    udhariAccounts = balancesResult.accounts.filter(a => a.type === 'UGHRANI' && Math.abs(a.currentBalance) > 0);
+    udhariAccounts = balancesResult.accounts.filter(a => ['UGHRANI', 'FINANCIER', 'DSA_AGENT'].includes(a.type) && Math.abs(a.currentBalance) > 0);
   }
 
   const totalMarketplacePending = udhariAccounts.reduce((sum, a) => sum + Math.abs(a.currentBalance), 0);
@@ -204,7 +204,7 @@ export default async function ProfitDashboard() {
             <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
 
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-4 relative z-10">
-              <Wallet size={16} className="text-amber-400" /> Marketplace (Udhari)
+              <Wallet size={16} className="text-amber-400" /> Ledgers (Agents & Udhari)
             </h3>
 
             <div className="flex flex-col gap-3 z-10 relative max-h-[300px] overflow-y-auto pr-1">

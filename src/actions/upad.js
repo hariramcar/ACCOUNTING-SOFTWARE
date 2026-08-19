@@ -22,6 +22,15 @@ export async function giveAdvance(formData) {
     const sourceAcc = await prisma.account.findUnique({ where: { id: sourceAccountId } });
     if (!sourceAcc) throw new Error('Source account not found');
 
+    const targetAcc = await prisma.account.findUnique({ where: { id: accountId } });
+    if (!targetAcc) throw new Error('Recipient account not found');
+
+    const baseDescription1 = description ? description : (isSalary ? 'Salary Paid' : 'Advance (Upad) Given');
+    const finalDescription1 = `${baseDescription1} - ${targetAcc.name}`;
+
+    const baseDescription2 = isSalary ? `Salary Paid to Staff` : `Advance Given to Staff/Mechanic`;
+    const finalDescription2 = description ? `${description} - ${targetAcc.name}` : `${baseDescription2} - ${targetAcc.name}`;
+
     await prisma.$transaction(async (tx) => {
       await checkSufficientBalance(tx, sourceAccountId, amount);
       
@@ -35,7 +44,7 @@ export async function giveAdvance(formData) {
           amount,
           accountId, // The STAFF / UPAD person
           category: isSalary ? 'SALARY' : 'UPAD_WITHDRAWAL',
-          description: description || (isSalary ? 'Salary Paid' : 'Advance (Upad) Given')
+          description: finalDescription1
         }
       });
 
@@ -49,7 +58,7 @@ export async function giveAdvance(formData) {
           amount,
           accountId: sourceAccountId, // The Bank/Cash account
           category: isSalary ? 'SALARY' : 'UPAD_WITHDRAWAL',
-          description: isSalary ? `Salary Paid to Staff` : `Advance Given to Staff/Mechanic`
+          description: finalDescription2
         }
       });
     });

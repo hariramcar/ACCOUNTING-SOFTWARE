@@ -6,13 +6,70 @@ import TransactionActions from '../expenses/TransactionActions';
 import { updateExpense } from '@/actions/expenses';
 
 const isExpenseCounted = (exp) => {
-  if (exp.requestedMode === 'UGHRANI') return false;
-  if (exp.isStaffAdvance) return false;
   if (exp.rawCategory === 'VEHICLE_PURCHASE') return false;
   if (exp.description?.startsWith('Auto-Entry: Paid Full Settlement')) return false;
   if (exp.isTransfer) return false;
   if (exp.status === 'REJECTED') return false;
+  
+  if (exp.rawCategory === 'UPAD_WITHDRAWAL' || exp.rawCategory === 'UPAD_REPAYMENT') return false;
+  
   return true;
+};
+
+const PaymentSource = ({ source, accounts, inline = false }) => {
+  if (!source) return <span className="text-slate-300 font-bold">-</span>;
+  
+  try {
+    if (typeof source === 'string' && source.startsWith('{') && source.includes('"payments"')) {
+      const parsed = JSON.parse(source);
+      if (parsed.payments && Array.isArray(parsed.payments)) {
+        if (inline) {
+          return (
+            <span className="text-slate-700 font-bold tracking-wider inline-flex gap-1 items-center">
+              {parsed.payments.map((p, i) => {
+                const accName = accounts?.find(a => a.id === p.accountId)?.name || p.mode;
+                const displayName = accName === 'UGHRANI' ? 'MARKET PLACE' : accName;
+                return (
+                  <span key={i}>
+                    {displayName} {parsed.payments.length > 1 && <span className="opacity-70">(₹{Number(p.amount || 0).toLocaleString('en-IN')})</span>}
+                    {i < parsed.payments.length - 1 ? ', ' : ''}
+                  </span>
+                );
+              })}
+            </span>
+          );
+        }
+        
+        return (
+          <div className="flex flex-wrap gap-1">
+            {parsed.payments.map((p, i) => {
+              const accName = accounts?.find(a => a.id === p.accountId)?.name || p.mode;
+              const displayName = accName === 'UGHRANI' ? 'MARKET PLACE' : accName;
+              return (
+                <span key={i} className="bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[9px] whitespace-nowrap inline-flex items-center gap-1">
+                  {displayName} {parsed.payments.length > 1 && <span className="opacity-70">(₹{Number(p.amount || 0).toLocaleString('en-IN')})</span>}
+                </span>
+              );
+            })}
+          </div>
+        );
+      }
+    }
+  } catch(e) {
+    console.error('Error parsing payment source:', e);
+  }
+  
+  const displayName = source === 'UGHRANI' ? 'MARKET PLACE' : source;
+  
+  if (inline) {
+    return <span className="text-slate-700">{displayName}</span>;
+  }
+  
+  return (
+    <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wider text-[10px] inline-block">
+      {displayName}
+    </span>
+  );
 };
 
 const isIncomeCounted = (inc) => {
@@ -20,6 +77,8 @@ const isIncomeCounted = (inc) => {
   if (inc.description?.startsWith('Token Received:') && !inc.isForfeitedToken) return false;
   if (inc.description?.startsWith('Income: Received from')) return false;
   if (inc.description?.startsWith('Auto-Entry: Received Pending Capital')) return false;
+  if (inc.description?.startsWith('Auto-Entry: Paid Pending Udhari')) return false;
+  if (inc.description?.startsWith('Auto-Entry: Partnership Capital Investment')) return false;
   if (inc.isTransfer) return false;
   return true;
 };
@@ -229,7 +288,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                               )}
                               {inc.paymentSource && (
                                 <span className="text-slate-500 text-[10px] font-semibold flex items-center gap-1">
-                                  Source: <span className="text-slate-700">{inc.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : inc.paymentSource}</span>
+                                  Source: <PaymentSource source={inc.paymentSource} accounts={accounts} inline={true} />
                                   {isIncomeCounted(inc) && <CheckCircle2 size={12} className="text-emerald-500" title="Counted in Total Income" />}
                                 </span>
                               )}
@@ -280,9 +339,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                       <td className="py-4 px-5">
                         <div className="flex items-center gap-2">
                           {inc.paymentSource ? (
-                            <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wider text-[10px] inline-block">
-                              {inc.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : inc.paymentSource}
-                            </span>
+                            <PaymentSource source={inc.paymentSource} accounts={accounts} />
                           ) : <span className="text-slate-300 font-bold">-</span>}
                           {isIncomeCounted(inc) && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" title="Counted in Total Income" />}
                         </div>
@@ -341,7 +398,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                               )}
                               {/* Recipient removed */}
                               {exp.paymentSource && (
-                                <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1">Source: <span className="text-slate-700">{exp.paymentSource === 'UGHRANI' ? 'MARKET PLACE' : exp.paymentSource}</span>
+                                <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1">Source: <PaymentSource source={exp.paymentSource} accounts={accounts} inline={true} />
                                 {isExpenseCounted(exp) && <CheckCircle2 size={12} className="text-emerald-500" title="Counted in Total Expenses" />}
                                 </span>
                               )}
@@ -398,36 +455,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                       {/* Paid To column removed */}
                       <td className="py-4 px-5">
                         <div className="flex items-center gap-2">
-                          {(() => {
-                            const source = exp.paymentSource;
-                            if (!source) return <span className="text-slate-300 font-bold">-</span>;
-                            try {
-                              if (source.startsWith('{') && source.includes('"payments"')) {
-                                const parsed = JSON.parse(source);
-                                if (parsed.payments && Array.isArray(parsed.payments)) {
-                                  return (
-                                    <div className="flex flex-wrap gap-1">
-                                      {parsed.payments.map((p, i) => {
-                                        const accName = accounts?.find(a => a.id === p.accountId)?.name || p.mode;
-                                        const displayName = accName === 'UGHRANI' ? 'MARKET PLACE' : accName;
-                                        return (
-                                          <span key={i} className="bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[9px] whitespace-nowrap inline-flex items-center gap-1">
-                                            {displayName} <span className="opacity-70">(₹{p.amount.toLocaleString('en-IN')})</span>
-                                          </span>
-                                        );
-                                      })}
-                                    </div>
-                                  );
-                                }
-                              }
-                            } catch(e) {}
-                            const displayName = source === 'UGHRANI' ? 'MARKET PLACE' : source;
-                            return (
-                              <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wider text-[10px] inline-block">
-                                {displayName}
-                              </span>
-                            );
-                          })()}
+                          <PaymentSource source={exp.paymentSource} accounts={accounts} />
                           {isExpenseCounted(exp) && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" title="Counted in Total Expenses" />}
                         </div>
                       </td>
