@@ -196,7 +196,21 @@ export async function receiveAgentCarPayment(formData) {
         });
       }
 
-      // Removed duplicate Credit to Agent Account to avoid double-entry in Rojmel
+      // 3. Credit Agent/Uchak Account (Settle their balance)
+      if (agentAcc) {
+        await tx.transaction.create({
+          data: {
+            date,
+            transactionMode: 'CASH', // Internal ledger link
+            type: 'CREDIT',
+            amount,
+            accountId: agentAccountId,
+            category: 'INTERNAL_TRANSFER',
+            referenceId: ledgerAccountId, // Internal link back to bank
+            description: `Auto-Entry: Agent Car Payment Settled - ${description || 'Money Received'}${vehicleDetails}`
+          }
+        });
+      }
     });
 
     revalidatePath('/accounts');

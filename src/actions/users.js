@@ -65,8 +65,35 @@ export async function deleteUser(formData) {
     throw new Error('Cannot delete yourself');
   }
 
-  await prisma.user.delete({
-    where: { id }
+  await prisma.$transaction(async (tx) => {
+    const userToDelete = await tx.user.findUnique({ where: { id } });
+    if (!userToDelete) return;
+    
+    // Nullify expenses to prevent foreign key constraint crash
+    await tx.expense.updateMany({
+      where: { submittedById: id },
+      data: { submittedById: null }
+    });
+
+    // Delete the user
+    await tx.user.delete({
+      where: { id }
+    });
+
+    // Clean up orphaned STAFF account
+    if (userToDelete.accountId) {
+      const txCount = await tx.transaction.count({
+        where: { accountId: userToDelete.accountId }
+      });
+
+      if (txCount > 0) {
+        throw new Error('Cannot delete this user because they have recorded UPAD/Salary transactions. Please settle and clear their account first, or ask the developer to implement soft-deletion.');
+      }
+
+      await tx.account.delete({
+        where: { id: userToDelete.accountId }
+      });
+    }
   });
 
   revalidatePath('/users');

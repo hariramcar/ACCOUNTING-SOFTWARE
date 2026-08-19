@@ -62,7 +62,7 @@ export async function getAccountBalances(year, month) {
       
       acc.transactions.forEach(t => {
         const amt = Number(t.amount);
-        const isOpeningInjection = (t.description === 'Opening Balance' || t.description === 'Capital Introduced / Opening Balance');
+        const isOpeningInjection = (t.category === 'CAPITAL_INJECTION');
 
         if (acc.type === 'STAFF') {
           if (t.category === 'SALARY') {
@@ -76,7 +76,7 @@ export async function getAccountBalances(year, month) {
 
         // 1. Calculate Monthly Opening Balance 
         // (Includes all past transactions, PLUS any explicit "Opening Balance" injections made this month)
-        if (t.date < startOfMonth || isOpeningInjection) {
+        if (t.date < startOfMonth || (isOpeningInjection && t.date <= endOfMonth)) {
           if (t.category !== 'SALARY') {
             if (t.type === 'CREDIT') openingBalance += amt;
             else openingBalance -= amt;
@@ -165,11 +165,11 @@ export async function createAccount(formData) {
       await prisma.transaction.create({
         data: {
           date: new Date(),
-          transactionMode: 'CASH',
+          transactionMode: type === 'BANK' ? 'BANK' : 'CASH',
           type: 'CREDIT',
           amount: openingBalance,
           accountId: account.id,
-          category: 'GENERAL',
+          category: 'CAPITAL_INJECTION',
           description: 'Opening Balance'
         }
       });
@@ -192,14 +192,17 @@ export async function injectCapital(formData) {
 
     if (amount <= 0) throw new Error('Amount must be positive');
 
+    const account = await prisma.account.findUnique({ where: { id: accountId } });
+    if (!account) throw new Error('Account not found');
+
     await prisma.transaction.create({
       data: {
         date,
-        transactionMode: 'CASH', // Defaulting to CASH mode for capital injection text style, but it affects the specific account
+        transactionMode: account.type === 'BANK' ? 'BANK' : 'CASH',
         type: 'CREDIT',
         amount,
         accountId,
-        category: 'GENERAL',
+        category: 'CAPITAL_INJECTION',
         description: 'Capital Introduced / Opening Balance'
       }
     });

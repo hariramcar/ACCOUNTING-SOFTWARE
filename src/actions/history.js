@@ -187,7 +187,7 @@ export async function getAllIncome(year, month) {
           lte: endDate
         },
         NOT: [
-          { description: { in: ['Opening Balance', 'Capital Introduced / Opening Balance'] } },
+          { category: 'CAPITAL_INJECTION' },
           { description: { startsWith: 'Auto-Entry: Partnership Investment' } },
           { description: { startsWith: 'Auto-Entry: Partnership Capital Investment' } },
           { description: { startsWith: 'Auto-Entry: Paid Pending Investment Share' } },

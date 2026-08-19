@@ -201,7 +201,10 @@ export async function addVehicle(formData) {
     if (firmPaymentsJson) {
       try {
         firmPayments = JSON.parse(firmPaymentsJson);
-      } catch (e) {}
+      } catch (e) {
+        console.error('Failed to parse firmPaymentsJson:', e);
+        return { success: false, error: 'Internal system error: Invalid payment data format. Please refresh and try again.' };
+      }
     }
 
     if (registration) {
@@ -343,7 +346,7 @@ export async function addVehicle(formData) {
       }
 
       // Handle Pending Payable (Udhari)
-      if (payableAccountId && pendingAmount > 0) {
+      if (!isLegacy && payableAccountId && pendingAmount > 0) {
         await tx.transaction.create({
           data: {
             date: purchaseDate,

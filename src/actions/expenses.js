@@ -58,7 +58,7 @@ export async function getRecentExpenses(dateString = null) {
       rawTx = await prisma.transaction.findMany({
         where: {
           NOT: [
-            { description: { in: ['Opening Balance', 'Capital Introduced / Opening Balance'] } },
+            { category: 'CAPITAL_INJECTION' },
             { description: { startsWith: 'Auto-Entry: Partnership Investment' } },
             { description: { startsWith: 'Auto-Entry: Profit Share' } },
             { description: { startsWith: 'Auto-Entry: Agent Car Payment Settled' } },
@@ -131,7 +131,8 @@ export async function getRecentExpenses(dateString = null) {
             paymentSource = 'Pending';
           }
         } catch (e) {
-          // If it's not valid JSON, leave it as is
+          console.warn(`[Ledger] Fallback string used for requestedMode: ${exp.requestedMode}`);
+          // If it's not valid JSON, leave it as is (legacy fallback)
         }
       }
       
@@ -671,7 +672,11 @@ export async function deleteExpense(expenseId, isRawTx = false) {
               if (vehicle) {
                 // Smart Cascade for Partner Investment Delete
                 const possibleLegs = await tx.transaction.findMany({
-                    where: { referenceId: vehicle.id, amount: txToDelete.amount }
+                    where: { 
+                      referenceId: vehicle.id, 
+                      amount: txToDelete.amount,
+                      date: txToDelete.date
+                    }
                 });
                 
                 const leg1 = possibleLegs.find(t => t.category === 'GENERAL' && (t.description.includes('Partnership Investment') || t.description.includes('Paid Pending Investment Share')));
