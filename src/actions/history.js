@@ -187,7 +187,8 @@ export async function getAllIncome(year, month) {
           lte: endDate
         },
         NOT: [
-          { category: 'CAPITAL_INJECTION' },
+          // CAPITAL_INJECTION and Opening Balance are intentionally NOT filtered here so they show up in the Ledger list. 
+          // They are excluded from the Total Income sum in history/page.js instead.
           { description: { startsWith: 'Auto-Entry: Partnership Investment' } },
           { description: { startsWith: 'Auto-Entry: Partnership Capital Investment' } },
           { description: { startsWith: 'Auto-Entry: Paid Pending Investment Share' } },

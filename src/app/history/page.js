@@ -100,6 +100,8 @@ export default async function HistoryPage() {
   
   const rawOperatingIncome = income?.reduce((sum, inc) => {
     if (inc.rawCategory === 'VEHICLE_SALE') return sum;
+    if (inc.rawCategory === 'CAPITAL_INJECTION') return sum; // Do not count Opening Balance/Capital in Operating Income
+    if (inc.description === 'Opening Balance' || inc.description === 'Capital Introduced / Opening Balance') return sum;
     if (inc.description?.startsWith('Token Received:') && !inc.isForfeitedToken) return sum; // Exclude applied/active tokens to prevent double-counting
     if (inc.description?.startsWith('Income: Received from')) return sum;
     if (inc.description?.startsWith('Auto-Entry: Received Pending Capital')) return sum;

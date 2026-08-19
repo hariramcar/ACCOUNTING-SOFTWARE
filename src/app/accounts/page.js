@@ -61,7 +61,7 @@ export default async function AccountsPage() {
         <div className="flex items-center gap-2.5 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 md:overflow-visible shrink-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
 
           <AgentPaymentModal 
-            agentAccounts={[...agentAccounts, ...uchakAccounts]} 
+            agentAccounts={[...agentAccounts, ...uchakAccounts, ...staffAccounts]} 
             ledgerAccounts={[...cashAccounts, ...bankAccounts]} 
             vehicles={vehicles} 
           />

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { Bell, CheckCircle, XCircle, X, Building2, Car } from 'lucide-react';
 import { approveExpense, rejectExpense } from '@/actions/expenses';
 
-export default function PendingApprovalsModal({ pendingExpenses }) {
+export default function PendingApprovalsModal({ pendingExpenses, accounts }) {
   const [isOpen, setIsOpen] = useState(false);
   const [processingId, setProcessingId] = useState(null);
   const [mounted, setMounted] = useState(false);
@@ -27,6 +27,38 @@ export default function PendingApprovalsModal({ pendingExpenses }) {
       await rejectExpense(formData);
     }
     setProcessingId(null);
+  };
+
+  const renderRequestedPayout = (exp) => {
+    if (exp.requestedMode === 'CASH' && exp.submittedBy) {
+      return `${exp.submittedBy.name}'s Advance (Cash)`;
+    }
+    
+    if (!exp.requestedMode) return 'No auto-entry requested';
+
+    if (exp.requestedMode.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(exp.requestedMode);
+        if (parsed.payments && Array.isArray(parsed.payments)) {
+          return (
+            <div className="flex flex-col gap-1 mt-1">
+              {parsed.payments.map((p, i) => {
+                const accName = accounts?.find(a => a.id === p.accountId)?.name || p.mode;
+                const displayName = accName === 'UGHRANI' ? 'MARKET PLACE' : accName;
+                return (
+                  <span key={i} className="bg-white border border-slate-200 text-slate-700 px-2 py-1 rounded font-bold uppercase tracking-wider text-[10px] flex justify-between items-center w-full">
+                    <span>{p.mode === 'UGHRANI' ? 'Market' : p.mode === 'BANK' ? 'Bank' : 'Cash'} • {displayName}</span>
+                    <span className="text-emerald-600">₹{Number(p.amount || 0).toLocaleString('en-IN')}</span>
+                  </span>
+                );
+              })}
+            </div>
+          );
+        }
+      } catch(e) {}
+    }
+
+    return exp.requestedMode;
   };
 
   return (
@@ -96,18 +128,14 @@ export default function PendingApprovalsModal({ pendingExpenses }) {
                     </div>
                     
                     <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs font-medium text-slate-600">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="flex flex-col gap-3">
                         <div>
                           <span className="text-slate-400 uppercase tracking-wider text-[9px] font-bold block mb-0.5">Date</span>
                           {new Date(exp.date).toLocaleDateString('en-GB')}
                         </div>
                         <div>
                           <span className="text-slate-400 uppercase tracking-wider text-[9px] font-bold block mb-0.5">Requested Payout</span>
-                          {exp.requestedMode === 'CASH' && exp.submittedBy 
-                            ? `${exp.submittedBy.name}'s Advance (Cash)` 
-                            : exp.requestedMode 
-                              ? (exp.requestedMode.startsWith('{') ? 'Split Payment Sources' : `${exp.requestedMode}`) 
-                              : 'No auto-entry requested'}
+                          {renderRequestedPayout(exp)}
                         </div>
                       </div>
                       {exp.vehicle && (

@@ -142,7 +142,7 @@ export async function getHistoricalCashBalances(targetDateString) {
       
       // If the transaction is an opening capital injection created TODAY, 
       // we consider it as part of the Opening Cash for today rather than operating income.
-      if (t.category === 'CAPITAL_INJECTION') {
+      if (t.category === 'CAPITAL_INJECTION' || t.description === 'Opening Balance' || t.description === 'Capital Introduced / Opening Balance') {
         if (t.type === 'CREDIT') totalOpening += amt;
         else totalOpening -= amt;
       }

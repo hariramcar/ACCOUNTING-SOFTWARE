@@ -59,6 +59,7 @@ export async function getRecentExpenses(dateString = null) {
         where: {
           NOT: [
             { category: 'CAPITAL_INJECTION' },
+            { description: { in: ['Opening Balance', 'Capital Introduced / Opening Balance'] } },
             { description: { startsWith: 'Auto-Entry: Partnership Investment' } },
             { description: { startsWith: 'Auto-Entry: Profit Share' } },
             { description: { startsWith: 'Auto-Entry: Agent Car Payment Settled' } },
@@ -238,45 +239,58 @@ export async function addExpense(formData) {
     let totalPaid = 0;
     
     if (isStaff && expenseType !== 'INCOME') {
-      // If staff is submitting an expense, force payment to come from their own UPAD
-      // Unless they selected UGHRANI (Market Place)
-      const ughraniIndex = paymentModes.findIndex(m => m === 'UGHRANI');
-      if (ughraniIndex !== -1 && paymentAccountIds[ughraniIndex]) {
-         payments.push({
-           mode: 'UGHRANI',
-           accountId: paymentAccountIds[ughraniIndex],
-           amount: amount
-         });
-         totalPaid = amount;
-      } else {
-         payments.push({
-           mode: 'CASH',
-           accountId: dbUser.accountId,
-           amount: amount
-         });
-         totalPaid = amount;
-         
-         // Validation: Staff cannot exceed their Available Upad Balance
-         // We must calculate their current Upad balance here.
-         const account = await prisma.account.findUnique({
-           where: { id: dbUser.accountId },
-           include: { transactions: true }
-         });
-         if (!account) return { success: false, error: 'Staff account not found' };
-         
-         let upadBalance = 0;
-         account.transactions.forEach(t => {
-           if (t.category !== 'SALARY') {
-             if (t.type === 'CREDIT') upadBalance += Number(t.amount);
-             else if (t.type === 'DEBIT') upadBalance -= Number(t.amount);
-           }
-         });
-         
-         const availableUpad = upadBalance < 0 ? Math.abs(upadBalance) : 0;
-         
-         if (amount > availableUpad) {
-           return { success: false, error: `You cannot submit an expense of ₹${amount.toLocaleString('en-IN')}. Your available Upad balance is only ₹${availableUpad.toLocaleString('en-IN')}.` };
-         }
+      let requestedCash = 0;
+      let requestedBank = 0;
+
+      for (let i = 0; i < paymentModes.length; i++) {
+        const amt = Math.round(parseFloat((paymentAmounts[i] || '0').toString().replace(/,/g, '')) * 100) / 100 || 0;
+        if (paymentModes[i] && amt > 0) {
+          if (paymentModes[i] === 'CASH') {
+            payments.push({ mode: 'CASH', accountId: dbUser.accountId, amount: amt });
+            requestedCash += amt;
+            totalPaid += amt;
+          } else if (paymentModes[i] === 'BANK') {
+            payments.push({ mode: 'BANK', accountId: dbUser.accountId, amount: amt });
+            requestedBank += amt;
+            totalPaid += amt;
+          } else if (paymentModes[i] === 'UGHRANI' && paymentAccountIds[i]) {
+            payments.push({ mode: 'UGHRANI', accountId: paymentAccountIds[i], amount: amt });
+            totalPaid += amt;
+          }
+        }
+      }
+
+      if (requestedCash > 0 || requestedBank > 0) {
+        const account = await prisma.account.findUnique({
+          where: { id: dbUser.accountId },
+          include: { transactions: true }
+        });
+        if (!account) return { success: false, error: 'Staff account not found' };
+
+        let cashBalance = Number(account.openingBalance || 0);
+        let bankBalance = 0;
+
+        account.transactions.forEach(t => {
+          if (t.category !== 'SALARY') {
+            if (t.transactionMode === 'CASH') {
+              if (t.type === 'CREDIT') cashBalance += Number(t.amount);
+              else if (t.type === 'DEBIT') cashBalance -= Number(t.amount);
+            } else if (t.transactionMode === 'BANK') {
+              if (t.type === 'CREDIT') bankBalance += Number(t.amount);
+              else if (t.type === 'DEBIT') bankBalance -= Number(t.amount);
+            }
+          }
+        });
+
+        const availableCash = cashBalance < 0 ? Math.abs(cashBalance) : 0;
+        const availableBank = bankBalance < 0 ? Math.abs(bankBalance) : 0;
+
+        if (requestedCash > availableCash) {
+          return { success: false, error: `not available balance. Your available CASH Upad is only ₹${availableCash.toLocaleString('en-IN')}.` };
+        }
+        if (requestedBank > availableBank) {
+          return { success: false, error: `not available balance. Your available BANK Upad is only ₹${availableBank.toLocaleString('en-IN')}.` };
+        }
       }
     } else {
       for (let i = 0; i < paymentModes.length; i++) {
@@ -331,8 +345,8 @@ export async function addExpense(formData) {
       });
 
       // 2. Auto-Deduct/Add from Rojmel (ONLY if Admin directly adds it, or if no approval needed)
-        if (paymentDataStr) {
-          const data = JSON.parse(paymentDataStr);
+      if (paymentDataStr && !isStaff) {
+        const data = JSON.parse(paymentDataStr);
           
           if (expenseType === 'INCOME') {
             for (const p of data.payments) {
@@ -473,7 +487,7 @@ export async function approveExpense(formData) {
           // EXPENSE Mode processing
           for (const p of data.payments) {
             let isStaffAccount = false;
-            if (p.mode === 'CASH' && p.accountId) {
+            if (p.accountId) {
               const acc = await tx.account.findUnique({ where: { id: p.accountId } });
               isStaffAccount = acc?.type === 'STAFF';
             }

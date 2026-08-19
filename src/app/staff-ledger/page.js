@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { BookOpen, Wallet, Clock, Car, Building2 } from 'lucide-react';
+import { getAccountBalances } from '@/actions/accounts';
 
 export const metadata = {
   title: 'My Monthly Ledger | Hariram Accounting',
@@ -39,6 +40,16 @@ export default async function StaffLedgerPage() {
   const startDate = new Date(year, month, 1);
   const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
+  const { accounts } = await getAccountBalances(year, month);
+  let previousCarryOver = 0;
+  if (dbUser?.accountId) {
+    const acc = accounts.find(a => a.id === dbUser.accountId);
+    if (acc) {
+      // In this system, negative balance means they owe us money (Upad)
+      previousCarryOver = (Number(acc.openingBalance) || 0) * -1;
+    }
+  }
+
   const expensesRaw = await prisma.expense.findMany({
     where: {
       submittedById: session.userId,
@@ -62,6 +73,7 @@ export default async function StaffLedgerPage() {
           OR: [
             { category: 'INTERNAL_TRANSFER', type: 'CREDIT' },
             { category: 'UPAD_WITHDRAWAL', type: 'DEBIT' },
+            { category: 'UPAD_REPAYMENT', type: 'CREDIT' },
             { category: 'SALARY' }
           ],
           date: {
@@ -73,82 +85,110 @@ export default async function StaffLedgerPage() {
       });
     }
 
-    const allTransactions = [
-      ...expensesRaw.map(exp => ({
-        ...exp,
-        amount: Number(exp.amount),
-        _type: 'EXPENSE'
-      })),
+    const baseTransactions = [
+      ...expensesRaw.map(exp => {
+        let expMode = 'CASH';
+        try {
+          if (exp.requestedMode) {
+            const parsed = JSON.parse(exp.requestedMode);
+            if (parsed.payments && parsed.payments.length > 0) {
+              expMode = parsed.payments[0].mode || 'CASH';
+            }
+          }
+        } catch(e) {}
+        return {
+          ...exp,
+          amount: Number(exp.amount),
+          _type: 'EXPENSE',
+          mode: expMode
+        };
+      }),
       ...advancesRaw.map(adv => ({
         id: adv.id,
         date: adv.date,
-        expenseType: adv.category === 'SALARY' ? 'SALARY' : 'ADVANCE',
+        expenseType: adv.category === 'SALARY' ? 'SALARY' : adv.category === 'UPAD_REPAYMENT' ? 'REPAYMENT' : 'ADVANCE',
         amount: Number(adv.amount),
         description: adv.description,
-        status: 'APPROVED', // Advances are instantly approved transfers
-        _type: adv.category === 'SALARY' ? 'SALARY' : 'ADVANCE'
+        status: 'APPROVED', // Advances/Repayments are instantly approved transfers
+        _type: adv.category === 'SALARY' ? 'SALARY' : adv.category === 'UPAD_REPAYMENT' ? 'REPAYMENT' : 'ADVANCE',
+        mode: adv.transactionMode || 'CASH'
       }))
-    ].sort((a, b) => new Date(b.date) - new Date(a.date));
+    ];
+
+    if (previousCarryOver > 0) {
+      baseTransactions.push({
+        id: 'carryover',
+        date: new Date(year, month, 1, 0, 0, 1), // First second of the month
+        expenseType: 'ADVANCE', // Renders as a blue wallet icon
+        amount: previousCarryOver,
+        description: 'Previous Month Carryover',
+        status: 'APPROVED',
+        _type: 'ADVANCE',
+        mode: 'CASH', // Defaulting carryover to cash visually
+        isCarryOver: true
+      });
+    }
+
+    const allTransactions = baseTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     // Calculate totals
     const totalApproved = allTransactions
-      .filter(e => e._type === 'EXPENSE' && e.status === 'APPROVED')
+      .filter(e => e._type === 'EXPENSE' && e.status === 'APPROVED' && !e.isCarryOver)
+      .reduce((sum, e) => sum + e.amount, 0);
+      
+    const cashApproved = allTransactions
+      .filter(e => e._type === 'EXPENSE' && e.status === 'APPROVED' && e.mode === 'CASH' && !e.isCarryOver)
+      .reduce((sum, e) => sum + e.amount, 0);
+      
+    const bankApproved = allTransactions
+      .filter(e => e._type === 'EXPENSE' && e.status === 'APPROVED' && e.mode === 'BANK' && !e.isCarryOver)
       .reduce((sum, e) => sum + e.amount, 0);
 
     const totalPending = allTransactions
-      .filter(e => e._type === 'EXPENSE' && e.status === 'PENDING')
+      .filter(e => e._type === 'EXPENSE' && e.status === 'PENDING' && !e.isCarryOver)
       .reduce((sum, e) => sum + e.amount, 0);
 
     const totalAdvances = allTransactions
-      .filter(e => e._type === 'ADVANCE')
+      .filter(e => e._type === 'ADVANCE' && !e.isCarryOver)
+      .reduce((sum, e) => sum + e.amount, 0);
+      
+    const cashAdvances = allTransactions
+      .filter(e => e._type === 'ADVANCE' && e.mode === 'CASH' && !e.isCarryOver)
+      .reduce((sum, e) => sum + e.amount, 0);
+      
+    const bankAdvances = allTransactions
+      .filter(e => e._type === 'ADVANCE' && e.mode === 'BANK' && !e.isCarryOver)
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const totalRepayments = allTransactions
+      .filter(e => e._type === 'REPAYMENT' && !e.isCarryOver)
+      .reduce((sum, e) => sum + e.amount, 0);
+      
+    const cashRepayments = allTransactions
+      .filter(e => e._type === 'REPAYMENT' && e.mode === 'CASH' && !e.isCarryOver)
+      .reduce((sum, e) => sum + e.amount, 0);
+      
+    const bankRepayments = allTransactions
+      .filter(e => e._type === 'REPAYMENT' && e.mode === 'BANK' && !e.isCarryOver)
       .reduce((sum, e) => sum + e.amount, 0);
 
     const totalSalary = allTransactions
-      .filter(e => e._type === 'SALARY')
+      .filter(e => e._type === 'SALARY' && !e.isCarryOver)
       .reduce((sum, e) => sum + e.amount, 0);
 
-    // Group by Upad Cycles
-    const sortedAsc = [...allTransactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const netUpadAvailable = previousCarryOver + totalAdvances - totalApproved - totalRepayments;
     
-    let cycles = [];
-    let currentCycle = null;
+    // We assume previousCarryOver is fully Cash because historical data didn't track it.
+    const netCashUpad = previousCarryOver + cashAdvances - cashApproved - cashRepayments;
+    const netBankUpad = bankAdvances - bankApproved - bankRepayments;
 
-    for (const tx of sortedAsc) {
-      if (tx._type === 'ADVANCE') {
-        if (currentCycle && (currentCycle.advanceTx || currentCycle.events.length > 0)) {
-          cycles.push(currentCycle);
-        }
-        currentCycle = { 
-          id: tx.id,
-          advanceTx: tx, 
-          amount: tx.amount, 
-          events: [] 
-        };
-      } else {
-        if (!currentCycle) {
-          // Orphan expenses before the first advance in the month
-          currentCycle = {
-            id: 'orphan-cycle',
-            advanceTx: null,
-            amount: 0,
-            events: []
-          };
-        }
-        currentCycle.events.push(tx);
-      }
-    }
-    if (currentCycle && (currentCycle.advanceTx || currentCycle.events.length > 0)) {
-      cycles.push(currentCycle);
-    }
-
-    // Sort events within each cycle by descending date, then reverse the cycles to show newest cycle first
-    cycles.forEach(c => c.events.sort((a, b) => new Date(b.date) - new Date(a.date)));
-    cycles.reverse();
+    // Sort all transactions by date descending
+    const sortedTransactions = [...allTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const monthName = new Date(year, month).toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
     return (
-    <div className="w-full max-w-5xl mx-auto px-4 pt-1 pb-4 md:p-8 flex flex-col gap-6 text-slate-900">
+    <div className="w-full px-4 pt-1 pb-4 md:p-8 flex flex-col gap-6 text-slate-900">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-5">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -178,6 +218,10 @@ export default async function StaffLedgerPage() {
         <div className="col-span-2 md:col-span-1 bg-blue-50 border border-blue-200 rounded-xl p-3 md:p-5 shadow-sm flex flex-col justify-center gap-1">
           <div className="text-[9px] md:text-xs font-bold uppercase tracking-widest text-blue-600">Upad/Advance Received</div>
           <div className="text-lg md:text-2xl font-black text-blue-700 leading-none">₹{totalAdvances.toLocaleString('en-IN')}</div>
+          <div className="flex justify-between items-center mt-1.5 text-[9px] md:text-[10px] font-bold text-blue-800 bg-blue-100/50 p-1.5 rounded">
+            <span>Cash: ₹{cashAdvances.toLocaleString('en-IN')}</span>
+            <span>Bank: ₹{bankAdvances.toLocaleString('en-IN')}</span>
+          </div>
         </div>
 
         {/* Total Spent */}
@@ -193,160 +237,174 @@ export default async function StaffLedgerPage() {
         </div>
 
         {/* Remaining Balance (Cash in Hand / Due) */}
-        <div className={`col-span-2 md:col-span-1 border rounded-xl p-3 md:p-5 shadow-sm flex items-center gap-3 ${totalAdvances - totalApproved < 0 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
-          <div className={`p-2 md:p-3 rounded-lg ${totalAdvances - totalApproved < 0 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
-            <Wallet size={20} className="md:w-6 md:h-6" />
+        <div className={`col-span-2 md:col-span-1 border rounded-xl p-3 md:p-5 shadow-sm flex flex-col justify-center gap-1 ${netUpadAvailable < 0 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+          <div className={`text-[9px] md:text-xs font-bold uppercase tracking-widest ${netUpadAvailable < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            {netUpadAvailable < 0 ? 'Reimbursement Due' : 'Available Upad'}
           </div>
-          <div>
-            <div className={`text-[10px] md:text-xs font-bold uppercase tracking-widest mb-0.5 ${totalAdvances - totalApproved < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-              {totalAdvances - totalApproved < 0 ? 'Reimbursement Due' : 'Available Upad'}
-            </div>
-            <div className={`text-xl md:text-2xl font-black leading-none ${totalAdvances - totalApproved < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-              ₹{Math.abs(totalAdvances - totalApproved).toLocaleString('en-IN')}
-            </div>
+          <div className={`text-lg md:text-2xl font-black leading-none ${netUpadAvailable < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+            ₹{Math.abs(netUpadAvailable).toLocaleString('en-IN')}
+          </div>
+          <div className={`flex justify-between items-center mt-1.5 text-[9px] md:text-[10px] font-bold p-1.5 rounded ${netUpadAvailable < 0 ? 'text-rose-800 bg-rose-100/50' : 'text-emerald-800 bg-emerald-100/50'}`}>
+            <span>Cash: ₹{netCashUpad.toLocaleString('en-IN')}</span>
+            <span>Bank: ₹{netBankUpad.toLocaleString('en-IN')}</span>
           </div>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-col gap-8">
-        {cycles.length === 0 ? (
+      <div className="mt-4">
+        {sortedTransactions.length === 0 ? (
           <div className="text-center py-16 bg-white border border-slate-200 rounded-xl shadow-sm">
             <BookOpen size={48} className="mx-auto text-slate-300 mb-4" />
             <h3 className="text-lg font-semibold text-slate-700">No Transactions Found</h3>
             <p className="text-slate-500 mt-2">You haven't submitted any expenses in {monthName}.</p>
           </div>
         ) : (
-          cycles.map((cycle, cycleIndex) => {
-            const cycleSpent = cycle.events
-              .filter(e => e._type === 'EXPENSE' && e.status === 'APPROVED')
-              .reduce((sum, e) => sum + e.amount, 0);
-              
-            const cyclePending = cycle.events
-              .filter(e => e._type === 'EXPENSE' && e.status === 'PENDING')
-              .reduce((sum, e) => sum + e.amount, 0);
+          <div className="flex flex-col gap-3">
+            {/* Mobile Card Layout */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {(() => {
+                const grouped = sortedTransactions.reduce((acc, exp) => {
+                  const dateStr = new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                  if (!acc[dateStr]) acc[dateStr] = [];
+                  acc[dateStr].push(exp);
+                  return acc;
+                }, {});
+                
+                return Object.entries(grouped).map(([dateStr, items]) => (
+                  <div key={dateStr} className="mb-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-2">{dateStr}</h3>
+                    <div className="bg-white rounded-xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 overflow-hidden flex flex-col">
+                      {items.map((exp, index) => (
+                        <div key={exp.id || index} className="p-3 border-b border-slate-100 last:border-0 active:bg-slate-50 transition-colors flex justify-between items-start gap-3">
+                          <div className="flex flex-col gap-1 flex-1 min-w-0">
+                            <span className="text-[13px] font-bold text-slate-900 leading-tight line-clamp-2">{exp.description}</span>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                                exp.expenseType === 'SALARY' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                exp.expenseType === 'REPAYMENT' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-orange-50 text-orange-700 border-orange-200'
+                              }`}>
+                                {exp.expenseType.replace('_', ' ')}
+                              </span>
+                              
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-slate-100 text-slate-600 border-slate-200">
+                                {exp.mode}
+                              </span>
 
-            const remainingInCycle = cycle.amount - cycleSpent;
-
-            return (
-            <div key={cycle.id || cycleIndex} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-              {/* CYCLE HEADER */}
-              <div className="bg-slate-50 border-b border-slate-200 p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-100 text-blue-600 p-2 rounded-lg border border-blue-200">
-                    <Wallet size={20} />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-slate-800 text-lg md:text-xl m-0 leading-none">
-                      {cycle.advanceTx ? `Upad Received` : `Unallocated / Previous Balance`}
-                    </h3>
-                    {cycle.advanceTx && (
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                        {new Date(cycle.advanceTx.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">Advance Amount</div>
-                  <div className="font-black text-2xl text-blue-700 leading-none">
-                    ₹{cycle.amount.toLocaleString('en-IN')}
-                  </div>
-                </div>
-              </div>
-
-              {/* CYCLE BODY (EVENTS) */}
-              <div className="p-4 md:p-5 flex flex-col gap-3">
-                {cycle.events.length === 0 ? (
-                  <div className="text-center py-6 text-sm font-medium text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                    No expenses logged in this cycle yet.
-                  </div>
-                ) : (
-                  cycle.events.map(exp => (
-                    <div key={exp.id} className="bg-white rounded-xl p-3 md:p-4 flex justify-between items-start gap-2 md:gap-4 border border-slate-100 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-md">
-                      <div className="flex items-start gap-3 md:gap-4 flex-1 min-w-0">
-                        <div className={`mt-0.5 p-2 md:p-2.5 rounded-xl border flex-shrink-0 ${
-                          exp.expenseType === 'SALARY' ? 'bg-indigo-50 text-indigo-600 border-indigo-100 shadow-sm' :
-                          exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-600 border-red-100 shadow-sm' : 'bg-orange-50 text-orange-600 border-orange-100 shadow-sm'
-                        }`}>
-                          {exp.expenseType === 'SALARY' ? <BookOpen size={18} className="md:w-5 md:h-5" /> :
-                           exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={18} className="md:w-5 md:h-5" /> : <Car size={18} className="md:w-5 md:h-5" />}
-                        </div>
-                        <div className="min-w-0 pt-0.5">
-                          <div className="font-bold text-slate-800 text-sm md:text-base truncate leading-tight mb-1.5">{exp.description}</div>
-                          <div className="flex items-center flex-wrap gap-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                              {new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                            </span>
-                            <span className="text-slate-300 text-[10px]">•</span>
-                            <span className={`text-[9px] md:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                              exp.expenseType === 'SALARY' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                              exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-orange-50 text-orange-700 border-orange-200'
+                              {exp.vehicle && (
+                                <span className="text-[10px] font-semibold text-slate-500 w-full mt-0.5">
+                                  Vehicle: <span className="text-slate-700">{exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration})</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end shrink-0 mt-0.5 gap-1.5">
+                            <span className={`text-[14px] font-black tracking-tight whitespace-nowrap ${
+                              exp.expenseType === 'SALARY' || exp.expenseType === 'ADVANCE' ? 'text-blue-600' : 
+                              exp.expenseType === 'REPAYMENT' ? 'text-emerald-600' : 'text-slate-900'
                             }`}>
-                              {exp.expenseType.replace('_', ' ')}
+                              {exp.expenseType === 'SALARY' || exp.expenseType === 'ADVANCE' ? '+' : '-'}₹{exp.amount.toLocaleString('en-IN')}
                             </span>
-                            
-                            {exp.vehicle && (
-                              <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                                {exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration})
+                            {exp.expenseType !== 'SALARY' && exp.expenseType !== 'ADVANCE' && exp.expenseType !== 'REPAYMENT' && (
+                              <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                                exp.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 
+                                exp.status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 
+                                'bg-rose-100 text-rose-800'
+                              }`}>
+                                {exp.status}
                               </span>
                             )}
                           </div>
                         </div>
-                      </div>
-                      <div className="flex flex-col items-end justify-center gap-1.5 flex-shrink-0 text-right pt-0.5">
-                        <div className={`font-black text-base md:text-lg whitespace-nowrap leading-none ${exp.expenseType === 'SALARY' ? 'text-indigo-600' : 'text-slate-900'}`}>
-                          {exp.expenseType === 'SALARY' ? '+' : '-'}₹{exp.amount.toLocaleString('en-IN')}
-                        </div>
-                        {exp.expenseType !== 'SALARY' && (
-                          <div className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md ${
-                            exp.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 
-                            exp.status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 
-                            'bg-rose-100 text-rose-800'
-                          }`}>
-                            {exp.status}
-                          </div>
-                        )}
-                      </div>
+                      ))}
                     </div>
-                  ))
-                )}
-              </div>
-
-              {/* CYCLE FOOTER (SUMMARY) */}
-              <div className="bg-slate-50 border-t border-slate-200 p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Spent</span>
-                    <span className="font-bold text-red-600">₹{cycleSpent.toLocaleString('en-IN')}</span>
                   </div>
-                  <div className="w-px h-8 bg-slate-300"></div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pending</span>
-                    <span className="font-bold text-amber-600">₹{cyclePending.toLocaleString('en-IN')}</span>
-                  </div>
-                </div>
-
-                <div className={`w-full md:w-auto flex items-center justify-between md:justify-end gap-4 px-4 py-2.5 rounded-xl border ${
-                  remainingInCycle < 0 ? 'bg-rose-50 border-rose-200' :
-                  remainingInCycle === 0 ? 'bg-slate-100 border-slate-300' : 'bg-emerald-50 border-emerald-200'
-                }`}>
-                  <span className={`text-[10px] md:text-xs font-bold uppercase tracking-widest ${
-                    remainingInCycle < 0 ? 'text-rose-600' :
-                    remainingInCycle === 0 ? 'text-slate-600' : 'text-emerald-600'
-                  }`}>
-                    {remainingInCycle < 0 ? 'Reimbursement Due' : remainingInCycle === 0 ? 'Fully Settled' : 'Cycle Balance'}
-                  </span>
-                  <span className={`font-black text-lg md:text-xl leading-none ${
-                    remainingInCycle < 0 ? 'text-rose-700' :
-                    remainingInCycle === 0 ? 'text-slate-700' : 'text-emerald-700'
-                  }`}>
-                    ₹{Math.abs(remainingInCycle).toLocaleString('en-IN')}
-                  </span>
-                </div>
-              </div>
+                ));
+              })()}
             </div>
-            );
-          })
+
+            {/* Desktop Table Layout */}
+            <div className="hidden md:block w-full overflow-hidden bg-white border border-slate-200 rounded-xl shadow-sm">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200">
+                    <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                    <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Description</th>
+                    <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Details</th>
+                    <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Source</th>
+                    <th className="py-4 px-5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sortedTransactions.map((exp, index) => (
+                    <tr key={exp.id || index} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="py-4 px-5 text-[12px] font-bold text-slate-600 whitespace-nowrap align-top">
+                        {new Date(exp.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="py-4 px-5 align-top">
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-0.5 p-2 rounded-lg border flex-shrink-0 ${
+                            exp.expenseType === 'SALARY' ? 'bg-indigo-50 text-indigo-600 border-indigo-100 shadow-sm' :
+                            exp.expenseType === 'REPAYMENT' ? 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm' :
+                            exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-600 border-blue-100 shadow-sm' :
+                            exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-600 border-red-100 shadow-sm' : 'bg-orange-50 text-orange-600 border-orange-100 shadow-sm'
+                          }`}>
+                            {exp.expenseType === 'SALARY' ? <BookOpen size={16} /> :
+                             exp.expenseType === 'REPAYMENT' ? <Wallet size={16} /> :
+                             exp.expenseType === 'ADVANCE' ? <Wallet size={16} /> :
+                             exp.expenseType === 'OFFICE_EXPENSE' ? <Building2 size={16} /> : <Car size={16} />}
+                          </div>
+                          <div className="flex flex-col pt-0.5">
+                            <span className="text-[14px] font-bold text-slate-900">{exp.description}</span>
+                            {exp.vehicle && (
+                              <span className="text-[11px] font-medium text-slate-500 mt-1">
+                                Linked to: <span className="font-bold text-slate-700">{exp.vehicle.make} {exp.vehicle.model} ({exp.vehicle.registration})</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-5 align-top pt-5">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border ${
+                          exp.expenseType === 'SALARY' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                          exp.expenseType === 'REPAYMENT' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          exp.expenseType === 'ADVANCE' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                          exp.expenseType === 'OFFICE_EXPENSE' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-orange-50 text-orange-700 border-orange-200'
+                        }`}>
+                          {exp.expenseType.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="py-4 px-5 align-top pt-5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border bg-slate-100 text-slate-600 border-slate-200">
+                          {exp.mode}
+                        </span>
+                      </td>
+                      <td className="py-4 px-5 align-top text-right pt-4">
+                        <div className="flex flex-col items-end gap-1.5">
+                          <span className={`text-[15px] font-black tracking-tight whitespace-nowrap ${
+                            exp.expenseType === 'SALARY' || exp.expenseType === 'ADVANCE' ? 'text-blue-600' : 
+                            exp.expenseType === 'REPAYMENT' ? 'text-emerald-600' : 'text-slate-900'
+                          }`}>
+                            {exp.expenseType === 'SALARY' || exp.expenseType === 'ADVANCE' ? '+' : '-'}₹{exp.amount.toLocaleString('en-IN')}
+                          </span>
+                          {exp.expenseType !== 'SALARY' && exp.expenseType !== 'ADVANCE' && exp.expenseType !== 'REPAYMENT' && (
+                            <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                              exp.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 
+                              exp.status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 
+                              'bg-rose-100 text-rose-800'
+                            }`}>
+                              {exp.status}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -466,7 +466,14 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
                 </div>
                 <div className="flex-[1.5]">
                   <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block tracking-wider">Account</label>
-                  {p.mode === 'CASH' ? (
+                  {(!isAdmin && (p.mode === 'CASH' || p.mode === 'BANK')) ? (
+                    <>
+                      <div className={`p-2 rounded-md border text-xs font-bold flex items-center gap-1.5 ${p.mode === 'CASH' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-sky-50 border-sky-200 text-sky-700'}`}>
+                        {p.mode === 'CASH' ? '💵 Cash' : '🏦 Bank'} (Auto-selected)
+                      </div>
+                      <input type="hidden" name="paymentAccountIds" value="staff_auto" />
+                    </>
+                  ) : p.mode === 'CASH' ? (
                     <>
                       <div className="p-2 rounded-md bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 flex items-center gap-1.5">
                         💵 Cash (Auto-selected)

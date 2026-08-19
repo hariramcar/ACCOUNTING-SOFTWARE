@@ -62,7 +62,7 @@ export async function getAccountBalances(year, month) {
       
       acc.transactions.forEach(t => {
         const amt = Number(t.amount);
-        const isOpeningInjection = (t.category === 'CAPITAL_INJECTION');
+        const isOpeningInjection = (t.category === 'CAPITAL_INJECTION' || t.description === 'Opening Balance' || t.description === 'Capital Introduced / Opening Balance');
 
         if (acc.type === 'STAFF') {
           if (t.category === 'SALARY') {

@@ -53,8 +53,34 @@ export default async function ExpensesPage({ searchParams }) {
       if (acc) {
         // Calculate total spent by staff (approved + pending expenses submitted by them)
         const totalSpent = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+        
+        // Calculate breakdown of Cash vs Bank Upad
+        const staffTxs = await prisma.transaction.findMany({
+          where: { accountId: dbUser.accountId }
+        });
+        
+        let cashBalance = Number(acc.openingBalance || 0) * -1;
+        let bankBalance = 0;
+        
+        staffTxs.forEach(t => {
+          if (t.category !== 'SALARY') {
+            const isDebtIncrease = t.type === 'DEBIT'; // advance received
+            const isDebtDecrease = t.type === 'CREDIT'; // expense spent
+            
+            if (t.transactionMode === 'CASH') {
+              if (isDebtIncrease) cashBalance += Number(t.amount);
+              else if (isDebtDecrease) cashBalance -= Number(t.amount);
+            } else if (t.transactionMode === 'BANK') {
+              if (isDebtIncrease) bankBalance += Number(t.amount);
+              else if (isDebtDecrease) bankBalance -= Number(t.amount);
+            }
+          }
+        });
+        
         staffWallet = {
           balance: Number(acc.currentBalance || 0) * -1,
+          cashBalance: Math.max(0, cashBalance),
+          bankBalance: Math.max(0, bankBalance),
           spent: totalSpent,
           diaryNote: dbUser?.diaryNote || ''
         };
@@ -131,7 +157,7 @@ export default async function ExpensesPage({ searchParams }) {
             />
 
             {isAdmin && (
-              <PendingApprovalsModal pendingExpenses={pendingExpenses} />
+              <PendingApprovalsModal pendingExpenses={pendingExpenses} accounts={accounts} />
             )}
           </div>
 
@@ -149,14 +175,18 @@ export default async function ExpensesPage({ searchParams }) {
           )}
 
           {!isAdmin && staffWallet && (
-            <div className="flex bg-indigo-900 border border-indigo-800 rounded-xl p-3 shadow-md w-full sm:w-auto">
+            <div className="flex bg-indigo-900 border border-indigo-800 rounded-xl p-3 shadow-md w-full sm:w-auto flex-wrap gap-y-3">
               <div className="pr-4 border-r border-indigo-700/50 flex-1 sm:flex-none">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-0.5 truncate">My Wallet Balance</div>
-                <div className="text-xl font-black text-white">₹{staffWallet.balance.toLocaleString('en-IN')}</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-0.5 truncate">Cash Available</div>
+                <div className="text-lg font-black text-emerald-300">₹{staffWallet.cashBalance.toLocaleString('en-IN')}</div>
+              </div>
+              <div className="px-4 border-r border-indigo-700/50 flex-1 sm:flex-none">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-0.5 truncate">Bank Available</div>
+                <div className="text-lg font-black text-emerald-300">₹{staffWallet.bankBalance.toLocaleString('en-IN')}</div>
               </div>
               <div className="pl-4 flex-1 sm:flex-none">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-0.5 truncate">Total Spent</div>
-                <div className="text-xl font-black text-emerald-400">₹{staffWallet.spent.toLocaleString('en-IN')}</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-0.5 truncate">Total Spent Today</div>
+                <div className="text-lg font-black text-white">₹{staffWallet.spent.toLocaleString('en-IN')}</div>
               </div>
             </div>
           )}

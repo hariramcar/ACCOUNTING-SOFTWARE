@@ -198,6 +198,7 @@ export async function receiveAgentCarPayment(formData) {
 
       // 3. Credit Agent/Uchak Account (Settle their balance)
       if (agentAcc) {
+        const isStaff = agentAcc.type === 'STAFF';
         await tx.transaction.create({
           data: {
             date,
@@ -205,9 +206,11 @@ export async function receiveAgentCarPayment(formData) {
             type: 'CREDIT',
             amount,
             accountId: agentAccountId,
-            category: 'INTERNAL_TRANSFER',
+            category: isStaff ? 'UPAD_REPAYMENT' : 'INTERNAL_TRANSFER',
             referenceId: ledgerAccountId, // Internal link back to bank
-            description: `Auto-Entry: Agent Car Payment Settled - ${description || 'Money Received'}${vehicleDetails}`
+            description: isStaff 
+              ? `Payment Received (Money In) - ${description || ''}`
+              : `Auto-Entry: Agent Car Payment Settled - ${description || 'Money Received'}${vehicleDetails}`
           }
         });
       }
