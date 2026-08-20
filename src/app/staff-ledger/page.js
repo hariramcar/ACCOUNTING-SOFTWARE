@@ -87,20 +87,30 @@ export default async function StaffLedgerPage() {
 
     const baseTransactions = [
       ...expensesRaw.map(exp => {
-        let expMode = 'CASH';
+        let splits = [];
         try {
           if (exp.requestedMode) {
             const parsed = JSON.parse(exp.requestedMode);
             if (parsed.payments && parsed.payments.length > 0) {
-              expMode = parsed.payments[0].mode || 'CASH';
+              splits = parsed.payments.map(p => ({ mode: p.mode, amount: Number(p.amount), accountId: p.accountId }));
+            }
+          } else if (exp.paymentSource && exp.paymentSource.startsWith('{')) {
+            const parsed = JSON.parse(exp.paymentSource);
+            if (parsed.payments && parsed.payments.length > 0) {
+              splits = parsed.payments.map(p => ({ mode: p.mode, amount: Number(p.amount), accountId: p.accountId }));
             }
           }
         } catch(e) {}
+        
+        let expMode = splits.length > 0 ? splits[0].mode : 'CASH';
+        if (splits.length === 0) splits = [{ mode: expMode, amount: Number(exp.amount) }];
+
         return {
           ...exp,
           amount: Number(exp.amount),
           _type: 'EXPENSE',
-          mode: expMode
+          mode: expMode,
+          splits: splits
         };
       }),
       ...advancesRaw.map(adv => ({
@@ -111,42 +121,50 @@ export default async function StaffLedgerPage() {
         description: adv.description,
         status: 'APPROVED', // Advances/Repayments are instantly approved transfers
         _type: adv.category === 'SALARY' ? 'SALARY' : adv.category === 'UPAD_REPAYMENT' ? 'REPAYMENT' : 'ADVANCE',
-        mode: adv.transactionMode || 'CASH'
+        mode: adv.transactionMode || 'CASH',
+        splits: [{ mode: adv.transactionMode || 'CASH', amount: Number(adv.amount) }]
       }))
     ];
 
     if (previousCarryOver > 0) {
       baseTransactions.push({
         id: 'carryover',
-        date: new Date(year, month, 1, 0, 0, 1), // First second of the month
-        expenseType: 'ADVANCE', // Renders as a blue wallet icon
+        date: new Date(year, month, 1, 0, 0, 1),
+        expenseType: 'ADVANCE',
         amount: previousCarryOver,
         description: 'Previous Month Carryover',
         status: 'APPROVED',
         _type: 'ADVANCE',
-        mode: 'CASH', // Defaulting carryover to cash visually
-        isCarryOver: true
+        mode: 'CASH',
+        isCarryOver: true,
+        splits: [{ mode: 'CASH', amount: previousCarryOver }]
       });
     }
 
     const allTransactions = baseTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // Calculate totals
+    // Calculate totals using splits
     const totalApproved = allTransactions
       .filter(e => e._type === 'EXPENSE' && e.status === 'APPROVED' && !e.isCarryOver)
-      .reduce((sum, e) => sum + e.amount, 0);
+      .reduce((sum, e) => {
+        const staffSplitsSum = e.splits?.filter(s => s.mode === 'CASH' || s.mode === 'BANK').reduce((acc, s) => acc + s.amount, 0) || 0;
+        return sum + staffSplitsSum;
+      }, 0);
       
     const cashApproved = allTransactions
-      .filter(e => e._type === 'EXPENSE' && e.status === 'APPROVED' && e.mode === 'CASH' && !e.isCarryOver)
-      .reduce((sum, e) => sum + e.amount, 0);
+      .filter(e => e._type === 'EXPENSE' && e.status === 'APPROVED' && !e.isCarryOver)
+      .reduce((sum, e) => sum + (e.splits?.filter(s => s.mode === 'CASH').reduce((acc, s) => acc + s.amount, 0) || 0), 0);
       
     const bankApproved = allTransactions
-      .filter(e => e._type === 'EXPENSE' && e.status === 'APPROVED' && e.mode === 'BANK' && !e.isCarryOver)
-      .reduce((sum, e) => sum + e.amount, 0);
+      .filter(e => e._type === 'EXPENSE' && e.status === 'APPROVED' && !e.isCarryOver)
+      .reduce((sum, e) => sum + (e.splits?.filter(s => s.mode === 'BANK').reduce((acc, s) => acc + s.amount, 0) || 0), 0);
 
     const totalPending = allTransactions
       .filter(e => e._type === 'EXPENSE' && e.status === 'PENDING' && !e.isCarryOver)
-      .reduce((sum, e) => sum + e.amount, 0);
+      .reduce((sum, e) => {
+        const staffSplitsSum = e.splits?.filter(s => s.mode === 'CASH' || s.mode === 'BANK').reduce((acc, s) => acc + s.amount, 0) || 0;
+        return sum + staffSplitsSum;
+      }, 0);
 
     const totalAdvances = allTransactions
       .filter(e => e._type === 'ADVANCE' && !e.isCarryOver)
@@ -288,9 +306,24 @@ export default async function StaffLedgerPage() {
                                 {exp.expenseType.replace('_', ' ')}
                               </span>
                               
-                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-slate-100 text-slate-600 border-slate-200">
-                                {exp.mode}
-                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                {exp.splits?.map((split, i) => {
+                                  let displayName = split.mode;
+                                  if (split.mode === 'UGHRANI') displayName = 'MARKET PLACE';
+                                  
+                                  if (split.accountId) {
+                                    const accName = accounts?.find(a => a.id === split.accountId)?.name;
+                                    if (accName) displayName = accName;
+                                  }
+                                  
+                                  return (
+                                    <span key={i} className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-slate-100 text-slate-600 border-slate-200 inline-flex items-center gap-1">
+                                      {displayName}
+                                      {exp.splits.length > 1 && <span className="text-slate-400 font-medium">({split.amount.toLocaleString('en-IN')})</span>}
+                                    </span>
+                                  );
+                                })}
+                              </div>
 
                               {exp.vehicle && (
                                 <span className="text-[10px] font-semibold text-slate-500 w-full mt-0.5">
@@ -376,9 +409,24 @@ export default async function StaffLedgerPage() {
                         </span>
                       </td>
                       <td className="py-4 px-5 align-top pt-5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border bg-slate-100 text-slate-600 border-slate-200">
-                          {exp.mode}
-                        </span>
+                        <div className="flex flex-col gap-1.5 items-start">
+                          {exp.splits?.map((split, i) => {
+                            let displayName = split.mode;
+                            if (split.mode === 'UGHRANI') displayName = 'MARKET PLACE';
+                            
+                            if (split.accountId) {
+                              const accName = accounts?.find(a => a.id === split.accountId)?.name;
+                              if (accName) displayName = accName;
+                            }
+                            
+                            return (
+                              <span key={i} className="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded border bg-slate-50 text-slate-600 border-slate-200 inline-flex whitespace-nowrap items-center gap-1">
+                                {displayName}
+                                {exp.splits.length > 1 && <span className="text-slate-400">({split.amount.toLocaleString('en-IN')})</span>}
+                              </span>
+                            );
+                          })}
+                        </div>
                       </td>
                       <td className="py-4 px-5 align-top text-right pt-4">
                         <div className="flex flex-col items-end gap-1.5">

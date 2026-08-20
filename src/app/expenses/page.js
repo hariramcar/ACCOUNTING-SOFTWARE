@@ -52,7 +52,23 @@ export default async function ExpensesPage({ searchParams }) {
       const acc = accounts.find(a => a.id === dbUser.accountId);
       if (acc) {
         // Calculate total spent by staff (approved + pending expenses submitted by them)
-        const totalSpent = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+        const totalSpent = expenses.reduce((sum, exp) => {
+          let staffSplitsSum = 0;
+          try {
+            if (exp.requestedMode && exp.requestedMode.startsWith('{')) {
+              const parsed = JSON.parse(exp.requestedMode);
+              if (parsed.payments && parsed.payments.length > 0) {
+                staffSplitsSum = parsed.payments
+                  .filter(p => p.mode === 'CASH' || p.mode === 'BANK')
+                  .reduce((acc, p) => acc + Number(p.amount || 0), 0);
+                return sum + staffSplitsSum;
+              }
+            } else if (exp.requestedMode === 'CASH' || exp.requestedMode === 'BANK') {
+               return sum + Number(exp.amount);
+            }
+          } catch(e) {}
+          return sum + Number(exp.amount);
+        }, 0);
         
         // Calculate breakdown of Cash vs Bank Upad
         const staffTxs = await prisma.transaction.findMany({
