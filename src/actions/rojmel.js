@@ -81,23 +81,30 @@ export async function addTransaction(formData) {
     const description = formData.get('description');
     const category = formData.get('category') || 'GENERAL';
 
-    await prisma.transaction.create({
-      data: {
-        amount,
-        type,
-        transactionMode,
-        accountId,
-        description,
-        category,
-        date: new Date()
+    await prisma.$transaction(async (tx) => {
+      // Validate balance
+      if (type === 'DEBIT') {
+        await checkSufficientBalance(tx, accountId, amount);
       }
+      
+      await tx.transaction.create({
+        data: {
+          amount,
+          type,
+          transactionMode,
+          accountId,
+          description,
+          category,
+          date: new Date()
+        }
+      });
     });
 
     revalidatePath('/rojmel');
     return { success: true };
   } catch (error) {
     console.error('Failed to add transaction:', error);
-    return { success: false, error: 'Failed to save transaction.' };
+    return { success: false, error: error.message || 'Failed to save transaction.' };
   }
 }
 

@@ -27,8 +27,7 @@ export async function checkSufficientBalance(tx, accountId, requiredAmount, excl
     if (agg.type === 'DEBIT') totalDebit = Number(agg._sum.amount ? agg._sum.amount.toString() : 0);
   });
 
-  const openingBalance = account.openingBalance ? Number(account.openingBalance.toString()) : 0;
-  const currentBalance = openingBalance + totalCredit - totalDebit;
+  const currentBalance = totalCredit - totalDebit;
   const amountToDeduct = Number(requiredAmount || 0);
 
   // 4. Validate if there's enough money

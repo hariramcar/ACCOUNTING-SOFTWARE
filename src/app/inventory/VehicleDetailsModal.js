@@ -192,7 +192,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
         <div className="px-6 py-5 border-b border-slate-200 bg-white flex justify-between items-start shrink-0">
           <div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight m-0 mb-1">
-              {car.make} {car.model} ({car.registration})
+              {car.make} {car.model}
             </h2>
             <div className="flex gap-2 items-center">
               <span className="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-bold text-slate-500 uppercase tracking-widest">
