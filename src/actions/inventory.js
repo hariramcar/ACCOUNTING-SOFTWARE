@@ -188,6 +188,16 @@ export async function addVehicle(formData) {
     const purchaseDate = new Date(formData.get('purchaseDate') || Date.now());
     const isLegacy = formData.get('isLegacy') === 'on';
     const legacyExpenses = isLegacy ? parseFloat(formData.get('legacyExpenses') || '0') : 0;
+    
+    const receivedDocsJson = formData.get('receivedDocsJson');
+    let receivedDocs = [];
+    if (receivedDocsJson) {
+      try {
+        receivedDocs = JSON.parse(receivedDocsJson);
+      } catch (e) {
+        console.error('Failed to parse receivedDocsJson:', e);
+      }
+    }
 
     if (registration) {
       const regRegex = /^[A-Za-z]{2}[ -]?[0-9]{2}[ -]?[A-Za-z]{0,3}[ -]?[0-9]{4}$/;
@@ -317,7 +327,8 @@ export async function addVehicle(formData) {
           payableAccountId: (payableAccountId && pendingAmount > 0) ? payableAccountId : null,
           status: 'IN_STOCK',
           isLegacy,
-          legacyExpenses
+          legacyExpenses,
+          receivedDocs
         }
       });
 
@@ -980,5 +991,21 @@ export async function payPartnerProfit(formData) {
   } catch (error) {
     console.error('Failed to pay partner profit:', error);
     return { success: false, error: error.message || 'Failed to pay partner profit.' };
+  }
+}
+
+export async function updateVehicleDocuments(vehicleId, receivedDocsArray) {
+  try {
+    await prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: {
+        receivedDocs: receivedDocsArray
+      }
+    });
+    revalidatePath('/inventory');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update documents:', error);
+    return { success: false, error: 'Failed to update documents.' };
   }
 }

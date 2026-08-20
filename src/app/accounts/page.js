@@ -41,7 +41,7 @@ export default async function AccountsPage() {
   const agentAccounts = accounts?.filter(a => a.type === 'DSA_AGENT' || a.type === 'FINANCIER') || [];
   const ughraniAccounts = accounts?.filter(a => a.type === 'UGHRANI') || [];
   const staffAccounts = accounts?.filter(a => a.type === 'STAFF') || [];
-  const partnerAccounts = accounts?.filter(a => a.type === 'PARTNER') || [];
+  const partnerAccounts = accounts?.filter(a => a.type === 'PARTNER' && !['bhaudip', 'afeel'].includes(a.name.toLowerCase())) || [];
   
   // Only show Uchak accounts that have a non-zero balance
   const uchakAccounts = accounts?.filter(a => a.type === 'UCHAK' && Number(a.balance) !== 0) || [];
@@ -224,11 +224,11 @@ export default async function AccountsPage() {
           </div>
         )}
 
-        {/* BUSINESS PARTNERS */}
+        {/* CAR PARTNERS */}
         <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
             <Handshake size={18} className="text-teal-500" />
-            <h3 className="text-base font-bold text-slate-800 m-0">Business Partners</h3>
+            <h3 className="text-base font-bold text-slate-800 m-0">Car Partner</h3>
           </div>
           <p className="text-xs font-medium text-slate-500 mb-3 mt-1">Partners who co-invest in vehicles. Track their capital, profit shares, and payouts.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
@@ -237,7 +237,7 @@ export default async function AccountsPage() {
                 key={acc.id} account={acc} colorClass="bg-teal-50/30 border-teal-200 text-teal-800" 
               />
             ))}
-            {partnerAccounts.length === 0 && <p className="text-slate-400 text-sm font-medium italic col-span-full">No business partners added.</p>}
+            {partnerAccounts.length === 0 && <p className="text-slate-400 text-sm font-medium italic col-span-full">No car partners added.</p>}
           </div>
         </div>
 

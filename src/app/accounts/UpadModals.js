@@ -31,6 +31,7 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [mounted, setMounted] = useState(false);
+  const [selectedBillAccountId, setSelectedBillAccountId] = useState('');
 
   const isSubmittingRef = useRef(false);
 
@@ -64,6 +65,16 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
 
   const handleSettleSubmit = async (e) => {
     e.preventDefault();
+    
+    const accountId = e.currentTarget.accountId.value;
+    const payAmount = Number(e.currentTarget.amount.value.replace(/,/g, ''));
+    const selectedAcc = upadAccounts.find(a => a.id === accountId);
+    
+    if (selectedAcc && payAmount > (selectedAcc.currentBalance || 0)) {
+      setError(`Payment amount (₹${payAmount.toLocaleString('en-IN')}) cannot exceed the pending amount owed (₹${Number(selectedAcc.currentBalance || 0).toLocaleString('en-IN')}).`);
+      return;
+    }
+    
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     
@@ -78,6 +89,7 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
       } else {
         setActiveModal(null);
         setAmount('');
+        setSelectedBillAccountId('');
         e.target.reset();
       }
     } finally {
@@ -275,7 +287,7 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
                 <h2 className="text-lg font-bold text-slate-900 m-0">Pay Bill</h2>
               </div>
               <button 
-                onClick={() => { setActiveModal(null); setAmount(''); setError(null); }}
+                onClick={() => { setActiveModal(null); setAmount(''); setError(null); setSelectedBillAccountId(''); }}
                 className="text-slate-400 hover:text-slate-700 bg-transparent border-none cursor-pointer p-1 rounded-md hover:bg-slate-200 transition-colors"
               >
                 <X size={20} />
@@ -293,12 +305,30 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
               <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-4">
                 <div>
                   <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 block">Select Person / Vendor</label>
-                  <select name="accountId" required className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer">
+                  <select 
+                    name="accountId" 
+                    required 
+                    value={selectedBillAccountId}
+                    onChange={(e) => setSelectedBillAccountId(e.target.value)}
+                    className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer"
+                  >
                     <option value="">Select Account...</option>
                     {upadAccounts.filter(acc => acc.type === 'UGHRANI').map(acc => (
                       <option key={acc.id} value={acc.id}>{acc.name} ({formatAccountType(acc.type)})</option>
                     ))}
                   </select>
+                  {selectedBillAccountId && (
+                    <div className="mt-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">
+                      Pending Amount Owed:{' '}
+                      <span className={`text-[13px] ${
+                        (upadAccounts.find(a => a.id === selectedBillAccountId)?.currentBalance || 0) > 0 
+                          ? 'text-rose-600' 
+                          : 'text-emerald-600'
+                      }`}>
+                        ₹{Number(upadAccounts.find(a => a.id === selectedBillAccountId)?.currentBalance || 0).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div>

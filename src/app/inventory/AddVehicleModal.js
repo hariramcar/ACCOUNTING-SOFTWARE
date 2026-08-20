@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { PlusCircle, X, AlertCircle } from 'lucide-react';
+import { PlusCircle, X, AlertCircle, FolderCheck, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 function getLocalDateString() {
   const d = new Date();
@@ -11,15 +11,31 @@ function getLocalDateString() {
   return `${year}-${month}-${day}`;
 }
 
+const REQUIRED_DOCS = [
+  'RC Book',
+  'Aadhar Card',
+  'PAN Card',
+  'NOC',
+  'Second Key',
+  'TTO'
+];
+
 export default function AddVehicleModal({ accounts, addVehicleAction }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [receivedDocs, setReceivedDocs] = useState([]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const toggleDocument = (docName) => {
+    setReceivedDocs(prev => 
+      prev.includes(docName) ? prev.filter(d => d !== docName) : [...prev, docName]
+    );
+  };
 
   const [purchasePrice, setPurchasePrice] = useState('');
   const [isLegacy, setIsLegacy] = useState(false);
@@ -148,6 +164,8 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
       amount: parseFloat((p.amount || '0').replace(/,/g, ''))
     })).filter(p => p.amount > 0);
     formData.append('firmPaymentsJson', JSON.stringify(firmPaymentsData));
+    
+    formData.append('receivedDocsJson', JSON.stringify(receivedDocs));
 
     formData.append('partnerInvestment', (partnerInvestment || '0').replace(/,/g, ''));
 
@@ -369,7 +387,7 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                 <div className="grid grid-cols-1 gap-3">
                   <select name="partnerAccountId" className="w-full text-[13px] font-bold p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all">
                     <option value="">Select Partner / Dealer</option>
-                    {accounts?.filter(a => a.type === 'PARTNER').map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                    {accounts?.filter(a => a.type === 'PARTNER' && !['bhaudip', 'afeel'].includes(a.name.toLowerCase())).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
                   </select>
                   <div className="flex gap-3">
                     <input 
@@ -466,6 +484,43 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Document Verification Section */}
+              <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200 flex flex-col gap-3">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="m-0 text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                    <FolderCheck size={14} className="text-slate-500" /> Document Verification
+                  </h3>
+                  <div className="text-[10px] font-bold uppercase tracking-widest bg-white border border-slate-200 text-slate-500 px-2 py-0.5 rounded-full shadow-sm">
+                    {receivedDocs.length} / {REQUIRED_DOCS.length} Received
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {REQUIRED_DOCS.map(doc => {
+                    const isReceived = receivedDocs.includes(doc);
+                    return (
+                      <button
+                        type="button"
+                        key={doc}
+                        onClick={() => toggleDocument(doc)}
+                        className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left shadow-sm ${
+                          isReceived 
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-inner' 
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="text-[11px] font-bold tracking-tight">{doc}</span>
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${
+                          isReceived ? 'bg-emerald-500 border-emerald-600 text-white' : 'border-slate-300 bg-slate-100'
+                        }`}>
+                          {isReceived && <CheckCircle2 size={10} strokeWidth={4} />}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

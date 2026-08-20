@@ -1,9 +1,10 @@
-import { getMonthlyProfitData, getPendingPayables } from '@/actions/profit';
+import { getMonthlyProfitData, getPendingPayables, getFoundersData } from '@/actions/profit';
 import { getAccountBalances } from '@/actions/accounts';
-import { BarChart3, TrendingDown, ReceiptText, CircleDollarSign, Car, Building2, Landmark, Wallet, TrendingUp } from 'lucide-react';
+import { BarChart3, TrendingDown, ReceiptText, CircleDollarSign, Car, Building2, Landmark, Wallet, TrendingUp, Users } from 'lucide-react';
 import PendingPayablesModal from './PendingPayablesModal';
 import ProfitCharts from './ProfitCharts';
 import VehiclesSoldTable from './VehiclesSoldTable';
+import FoundersUpadModal from './FoundersUpadModal';
 import { cookies } from 'next/headers';
 
 export default async function ProfitDashboard() {
@@ -21,16 +22,20 @@ export default async function ProfitDashboard() {
     month = d.getMonth();
   }
 
-  const [result, payablesResult, balancesResult] = await Promise.all([
+  const [result, payablesResult, balancesResult, foundersResult] = await Promise.all([
     getMonthlyProfitData(year, month),
     getPendingPayables(),
-    getAccountBalances()
+    getAccountBalances(),
+    getFoundersData()
   ]);
 
   const data = result.success ? result.data : null;
   const payables = payablesResult.success ? payablesResult.payables : [];
   const receivables = payablesResult.success ? (payablesResult.receivables || []) : [];
   const accounts = payablesResult.success ? payablesResult.accounts : [];
+  const foundersList = foundersResult?.success ? foundersResult.founders : [];
+  
+  const firmNetProfit = data ? (data.totalLedgerIncome - data.totalLedgerExpenses) : 0;
 
   let capitalMetrics = { cash: 0, bank: 0, total: 0 };
   let udhariAccounts = [];
@@ -150,6 +155,7 @@ export default async function ProfitDashboard() {
               {(data.totalLedgerIncome - data.totalLedgerExpenses) >= 0 ? '₹' : '-₹'}{Math.abs(data.totalLedgerIncome - data.totalLedgerExpenses).toLocaleString('en-IN')}
             </div>
           </div>
+
         </div>
 
         {/* RIGHT COLUMN: CHARTS (Order 1 on Mobile, Order 2 on Desktop) */}
@@ -184,6 +190,85 @@ export default async function ProfitDashboard() {
               <ProfitCharts data={data} />
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* FOUNDERS & PROFIT DISTRIBUTION (FULL WIDTH) */}
+      <div className="w-full bg-white border border-slate-200 rounded-2xl p-6 shadow-sm mb-2 mt-4 relative overflow-hidden group">
+        <div className="absolute right-0 top-0 w-64 h-64 bg-indigo-50/50 rounded-bl-full -mr-10 -mt-10 pointer-events-none"></div>
+        <div className="flex items-center justify-between mb-6 relative z-10 border-b border-slate-100 pb-4">
+          <div>
+            <h2 className="text-xl md:text-2xl font-black text-slate-800 flex items-center gap-3 uppercase tracking-tight m-0">
+              <Users size={26} className="text-indigo-600" /> Founders & Profit Distribution
+            </h2>
+            <p className="text-xs text-slate-500 mt-1 font-medium">Auto-calculated profit stakes and capital drawings (Upar)</p>
+          </div>
+          {foundersList.length > 0 && <FoundersUpadModal founders={foundersList} ledgerAccounts={accounts} />}
+        </div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10">
+          {foundersList.map(founder => {
+            const sharePercent = founder.name.toLowerCase() === 'bhaudip' ? 0.90 : 0.10;
+            const profitShare = Math.floor(firmNetProfit * sharePercent);
+            const retained = profitShare - founder.upadTaken;
+            const recent = founder.recentUpar || [];
+            
+            return (
+              <div key={founder.id} className="bg-slate-50 border border-slate-200 rounded-xl p-5 hover:shadow-md transition-all flex flex-col h-full">
+                {/* Header */}
+                <div className="flex justify-between items-start mb-5 pb-5 border-b border-slate-200">
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight leading-none mb-2">{founder.name}</h3>
+                    <div className="text-[11px] font-bold uppercase tracking-widest text-indigo-700 bg-indigo-100 px-3 py-1 rounded-full inline-block">{sharePercent * 100}% Ownership Stake</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-1">Total Profit Share</div>
+                    <div className="text-2xl font-black text-slate-800 leading-none">₹{profitShare.toLocaleString('en-IN')}</div>
+                  </div>
+                </div>
+                
+                {/* Metrics */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-white p-4 rounded-xl border border-rose-100 shadow-sm flex flex-col justify-center">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-rose-500 mb-1">Total Upar Withdrawn</div>
+                    <div className="text-xl font-bold text-rose-600">-₹{founder.upadTaken.toLocaleString('en-IN')}</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm flex flex-col justify-center">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-1">Current Retained Balance</div>
+                    <div className={`text-xl font-black ${retained >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {retained >= 0 ? '₹' : '-₹'}{Math.abs(retained).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent Upar */}
+                <div className="mt-auto pt-2">
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                    Recent Upar Transactions
+                    <span className="flex-1 h-px bg-slate-200"></span>
+                  </h4>
+                  {recent.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      {recent.map((tx, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-sm">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-700">{new Date(tx.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                            <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">{tx.mode} • {tx.description}</span>
+                          </div>
+                          <span className="font-bold text-rose-600">-₹{tx.amount.toLocaleString('en-IN')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs font-medium text-slate-400 italic text-center py-4 bg-white rounded-lg border border-slate-100 border-dashed">
+                      No recent upar withdrawn
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {foundersList.length === 0 && <div className="col-span-full p-8 bg-slate-50 border border-slate-100 rounded-xl text-sm text-slate-500 font-bold italic text-center">No founders data available</div>}
         </div>
       </div>
 

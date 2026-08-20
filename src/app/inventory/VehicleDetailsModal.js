@@ -4,8 +4,18 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, User, IndianRupee, MapPin, Wrench, Calendar, Banknote, ShieldCheck, PenSquare, Trash2, CheckCircle2, FileText, BadgeCent, Handshake, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { payVehiclePendingBalance, payPartnerPendingInvestment, payPartnerProfit } from '@/actions/inventory';
+import { payVehiclePendingBalance, payPartnerPendingInvestment, payPartnerProfit, updateVehicleDocuments } from '@/actions/inventory';
 import { forfeitToken } from '@/actions/tokens';
+import { FolderCheck } from 'lucide-react';
+
+const REQUIRED_DOCS = [
+  'RC Book',
+  'Aadhar Card',
+  'PAN Card',
+  'NOC',
+  'Second Key',
+  'TTO'
+];
 
 export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [], onReceiveToken }) {
   const router = useRouter();
@@ -35,12 +45,30 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
   const [profitError, setProfitError] = useState(null);
   const isSubmittingRef = useRef(false);
   const [mounted, setMounted] = useState(false);
+  
+  const [receivedDocs, setReceivedDocs] = useState([]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (car) {
+      setReceivedDocs(Array.isArray(car.receivedDocs) ? car.receivedDocs : []);
+    }
+  }, [car]);
+
   if (!isOpen || !car || !mounted) return null;
+
+  const toggleDocument = async (docName) => {
+    const isCurrentlyReceived = receivedDocs.includes(docName);
+    const newDocs = isCurrentlyReceived 
+      ? receivedDocs.filter(d => d !== docName)
+      : [...receivedDocs, docName];
+    
+    setReceivedDocs(newDocs); // optimistic update
+    await updateVehicleDocuments(car.id, newDocs);
+  };
 
   const handlePayPending = async (e) => {
     e.preventDefault();
@@ -690,6 +718,42 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
               </div>
             </div>
           )}
+
+          {/* Document Verification */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 m-0">
+                <FolderCheck size={14} /> Document Verification
+              </h3>
+              <div className="text-[10px] font-bold uppercase tracking-widest bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                {receivedDocs.length} / {REQUIRED_DOCS.length} Received
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {REQUIRED_DOCS.map(doc => {
+                const isReceived = receivedDocs.includes(doc);
+                return (
+                  <button
+                    key={doc}
+                    onClick={() => toggleDocument(doc)}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                      isReceived 
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-inner' 
+                        : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="text-xs font-bold tracking-tight">{doc}</span>
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${
+                      isReceived ? 'bg-emerald-500 border-emerald-600 text-white' : 'border-slate-300 bg-white'
+                    }`}>
+                      {isReceived && <CheckCircle2 size={10} strokeWidth={4} />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Repair Details */}
           <div>

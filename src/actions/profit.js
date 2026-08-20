@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import { getAllExpenses, getAllIncome } from './history';
 import { checkSufficientBalance } from '@/lib/balanceCheck';
+import { getSession } from '@/lib/session';
 
 export async function getMonthlyProfitData(year, monthIndex) {
   try {
@@ -363,5 +364,71 @@ export async function payPendingBalance(formData) {
   } catch (error) {
     console.error('Failed to process pending balance:', error);
     return { success: false, error: error.message || 'Failed to process payment.' };
+  }
+}
+
+export async function getFoundersData() {
+  const session = await getSession();
+  if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+
+  try {
+    const names = ['Bhaudip', 'Afeel'];
+    const founders = [];
+
+    for (const name of names) {
+      let acc = await prisma.account.findFirst({
+        where: { 
+          name: { equals: name, mode: 'insensitive' }, 
+          type: 'PARTNER' 
+        }
+      });
+      
+      if (!acc) {
+        acc = await prisma.account.create({
+          data: { name, type: 'PARTNER' }
+        });
+      }
+      founders.push(acc);
+    }
+    
+    const result = [];
+    for (const acc of founders) {
+      const txs = await prisma.transaction.findMany({
+        where: { accountId: acc.id },
+        orderBy: { date: 'desc' }
+      });
+      
+      let currentBalance = Number(acc.openingBalance) || 0;
+      txs.forEach(t => {
+        if (t.type === 'CREDIT') currentBalance += Number(t.amount);
+        else if (t.type === 'DEBIT') currentBalance -= Number(t.amount);
+      });
+      
+      // Filter recent UPAR transactions (DEBIT)
+      const recentUpar = txs
+        .filter(t => t.type === 'DEBIT')
+        .slice(0, 5)
+        .map(t => ({
+          id: t.id,
+          date: t.date,
+          amount: Number(t.amount),
+          mode: t.transactionMode,
+          description: t.description || 'Upad'
+        }));
+      
+      result.push({
+        id: acc.id,
+        name: acc.name,
+        // Negative balance means firm paid them (UPAD/Drawings)
+        upadTaken: currentBalance < 0 ? Math.abs(currentBalance) : 0,
+        capitalDeposited: currentBalance > 0 ? currentBalance : 0,
+        recentUpar
+      });
+    }
+
+    return { success: true, founders: result };
+  } catch (error) {
+    console.error('Error fetching founders data:', error);
+    return { success: false, error: error.message };
   }
 }
