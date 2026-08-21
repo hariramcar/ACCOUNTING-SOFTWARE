@@ -5,6 +5,7 @@ import PendingPayablesModal from './PendingPayablesModal';
 import ProfitCharts from './ProfitCharts';
 import VehiclesSoldTable from './VehiclesSoldTable';
 import FoundersUpadModal from './FoundersUpadModal';
+import EditPartnersModal from './EditPartnersModal';
 import { cookies } from 'next/headers';
 
 export default async function ProfitDashboard() {
@@ -203,7 +204,10 @@ export default async function ProfitDashboard() {
             </h2>
             <p className="text-xs text-slate-500 mt-1 font-medium">Auto-calculated profit stakes and capital drawings (Upar)</p>
           </div>
-          {foundersList.length > 0 && <FoundersUpadModal founders={foundersList} ledgerAccounts={accounts} />}
+          <div className="flex items-center gap-2 md:gap-3">
+            {foundersList.length > 0 && <EditPartnersModal partners={foundersList} />}
+            {foundersList.length > 0 && <FoundersUpadModal founders={foundersList} ledgerAccounts={accounts} />}
+          </div>
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10">

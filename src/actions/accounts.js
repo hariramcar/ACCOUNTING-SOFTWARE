@@ -22,6 +22,29 @@ export async function getAccountsList() {
   }
 }
 
+export async function updatePartners(partnersData) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const partner of partnersData) {
+        await tx.account.update({
+          where: { id: partner.id },
+          data: {
+            name: partner.name,
+            profitShare: parseFloat(partner.profitShare || 0)
+          }
+        });
+      }
+    });
+
+    revalidatePath('/profit');
+    revalidatePath('/accounts');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update partners:', error);
+    return { success: false, error: error.message || 'Failed to update partners.' };
+  }
+}
+
 export async function getAccountBalances(year, month) {
   try {
     const now = new Date();
