@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Pencil, Trash2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import VehicleSearchSelect from '@/components/VehicleSearchSelect';
 
 export default function TransactionActions({ expense, deleteExpenseAction, updateExpenseAction, isRawTx, hideDelete = false, accounts = [], vehicles = [] }) {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -244,18 +245,14 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
                 <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
                   <div className="flex-1 w-full">
                     <label className={`text-xs uppercase font-bold ${theme.text} mb-1.5 block tracking-wider`}>Select Vehicle</label>
-                    <select
+                    <VehicleSearchSelect
+                      vehicles={vehicles.filter(v => v.status !== 'SOLD')}
                       value={editData.vehicleId}
-                      onChange={e => setEditData({...editData, vehicleId: e.target.value})}
-                      className={`w-full p-2.5 rounded-lg border ${theme.border} bg-white text-sm font-medium outline-none ${theme.focusBorder} focus:ring-1 ${theme.focusRing} text-slate-700 transition-all shadow-sm`}
-                    >
-                      <option value="">-- No Specific Vehicle --</option>
-                      {vehicles.filter(v => v.status !== 'SOLD').map(v => (
-                        <option key={v.id} value={v.id}>
-                          {v.make} {v.model} - {v.registration || 'Unregistered'}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={id => setEditData({...editData, vehicleId: id})}
+                      placeholder="-- No Specific Vehicle --"
+                      className={`w-full p-2.5 rounded-lg border ${theme.border} bg-white text-sm font-medium outline-none ${theme.focusBorder} focus-within:ring-1 ${theme.focusRing} text-slate-700 transition-all shadow-sm`}
+                      showCost={false}
+                    />
                   </div>
                 </div>
               )}

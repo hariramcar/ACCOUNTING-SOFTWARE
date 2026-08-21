@@ -63,7 +63,8 @@ export async function getAccounts() {
       name: acc.name,
       type: acc.type,
       openingBalance: Number(acc.openingBalance || 0),
-      currentAdvance: Number(acc.currentAdvance || 0)
+      currentAdvance: Number(acc.currentAdvance || 0),
+      profitShare: Number(acc.profitShare || 0)
     }));
 
     return { success: true, accounts };

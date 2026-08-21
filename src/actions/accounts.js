@@ -11,7 +11,8 @@ export async function getAccountsList() {
     
     const processedAccounts = accounts.map(acc => ({
       ...acc,
-      openingBalance: Number(acc.openingBalance)
+      openingBalance: Number(acc.openingBalance),
+      profitShare: Number(acc.profitShare || 0)
     }));
 
     return { success: true, accounts: processedAccounts };
@@ -119,6 +120,7 @@ export async function getAccountBalances(year, month) {
         name: acc.name,
         type: acc.type,
         openingBalance: Number(acc.openingBalance || 0),
+        profitShare: Number(acc.profitShare || 0),
         createdAt: acc.createdAt,
         updatedAt: acc.updatedAt,
         currentBalance,
@@ -144,6 +146,7 @@ export async function createAccount(formData) {
     const name = formData.get('name');
     const type = formData.get('type');
     const openingBalance = parseFloat(formData.get('openingBalance') || '0');
+    const profitShare = parseFloat(formData.get('profitShare') || '0');
 
     // Enforce: only 1 CASH account allowed
     if (type === 'CASH') {
@@ -157,7 +160,8 @@ export async function createAccount(formData) {
       data: {
         name,
         type,
-        openingBalance
+        openingBalance,
+        profitShare
       }
     });
 

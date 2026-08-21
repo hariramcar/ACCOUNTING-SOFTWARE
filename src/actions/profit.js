@@ -89,11 +89,14 @@ export async function getMonthlyProfitData(year, monthIndex) {
     });
 
     const processedVehicles = soldVehicles.map(v => {
-      // The profit column in DB already has SalePrice - TotalCost (including repairs/legacy)
+      // carProfit is the Net Profit for this specific car (Sale - Cost - Repairs)
       const carProfit = Number(v.profit || 0);
-      totalGrossProfit += carProfit;
+      
+      // We calculate the Gross Profit (Sale - Purchase) for Ledger / UI purposes
+      const carGrossProfit = Number(v.salePrice || 0) - Number(v.purchasePrice || 0);
+      totalGrossProfit += carGrossProfit;
 
-      // Calculate Partner Share for this car
+      // Calculate Partner Share for this car (usually based on Net Profit)
       let carPartnerShare = 0;
       if (v.partnerships && v.partnerships.length > 0) {
         v.partnerships.forEach(p => {
@@ -126,7 +129,8 @@ export async function getMonthlyProfitData(year, monthIndex) {
           paidAmount: Number(p.paidAmount || 0),
           partnerAccount: p.partnerAccount ? {
             ...p.partnerAccount,
-            openingBalance: Number(p.partnerAccount.openingBalance)
+            openingBalance: Number(p.partnerAccount.openingBalance),
+            profitShare: Number(p.partnerAccount.profitShare || 0)
           } : undefined
         })) || []
       };
@@ -142,7 +146,8 @@ export async function getMonthlyProfitData(year, monthIndex) {
       };
     });
 
-    const netProfit = totalGrossProfit - totalOfficeExpenseAmount;
+    // Net Profit is Gross Profit minus ALL expenses for the month
+    const netProfit = totalGrossProfit - totalOfficeExpenseAmount - totalCarExpenseAmount;
 
     // 6. Fetch Ledger History Totals for Summary
     const { expenses: ledgerExpenses } = await getAllExpenses(year, monthIndex);
@@ -268,7 +273,8 @@ export async function getPendingPayables() {
 
     const accounts = accountsRaw.map(acc => ({
       ...acc,
-      openingBalance: Number(acc.openingBalance)
+      openingBalance: Number(acc.openingBalance),
+      profitShare: Number(acc.profitShare || 0)
     }));
 
     return { success: true, payables, receivables, accounts };
@@ -372,24 +378,9 @@ export async function getFoundersData() {
   if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
 
   try {
-    const names = ['Bhaudip', 'Afeel'];
-    const founders = [];
-
-    for (const name of names) {
-      let acc = await prisma.account.findFirst({
-        where: { 
-          name: { equals: name, mode: 'insensitive' }, 
-          type: 'PARTNER' 
-        }
-      });
-      
-      if (!acc) {
-        acc = await prisma.account.create({
-          data: { name, type: 'PARTNER' }
-        });
-      }
-      founders.push(acc);
-    }
+    const founders = await prisma.account.findMany({
+      where: { type: 'PARTNER' }
+    });
     
     const result = [];
     for (const acc of founders) {
@@ -416,9 +407,20 @@ export async function getFoundersData() {
           description: t.description || 'Upad'
         }));
       
+      // Auto-heal legacy founder percentages
+      let finalProfitShare = Number(acc.profitShare || 0);
+      if (acc.name.toLowerCase() === 'bhaudip' && finalProfitShare === 0) {
+        await prisma.account.update({ where: { id: acc.id }, data: { profitShare: 90 } });
+        finalProfitShare = 90;
+      } else if (acc.name.toLowerCase() === 'afeel' && finalProfitShare === 0) {
+        await prisma.account.update({ where: { id: acc.id }, data: { profitShare: 10 } });
+        finalProfitShare = 10;
+      }
+
       result.push({
         id: acc.id,
         name: acc.name,
+        profitShare: finalProfitShare,
         // Negative balance means firm paid them (UPAD/Drawings)
         upadTaken: currentBalance < 0 ? Math.abs(currentBalance) : 0,
         capitalDeposited: currentBalance > 0 ? currentBalance : 0,

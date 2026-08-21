@@ -162,7 +162,18 @@ export async function getAllExpenses(year, month) {
     });
 
     const combined = [...expenses, ...filteredAdditional]
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
+      .sort((a, b) => {
+        const aIsOpening = a.description === 'Opening Balance' || a.description === 'Capital Introduced / Opening Balance';
+        const bIsOpening = b.description === 'Opening Balance' || b.description === 'Capital Introduced / Opening Balance';
+        
+        if (aIsOpening && !bIsOpening) return 1;
+        if (!aIsOpening && bIsOpening) return -1;
+        
+        const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
 
     return { success: true, expenses: combined };
   } catch (error) {
@@ -236,9 +247,23 @@ export async function getAllIncome(year, month) {
                           : false,
         account: t.account ? {
           ...t.account,
-          openingBalance: Number(t.account.openingBalance)
+          openingBalance: Number(t.account.openingBalance),
+          profitShare: Number(t.account.profitShare || 0)
         } : null
       };
+    });
+
+    income.sort((a, b) => {
+      const aIsOpening = a.description === 'Opening Balance' || a.description === 'Capital Introduced / Opening Balance';
+      const bIsOpening = b.description === 'Opening Balance' || b.description === 'Capital Introduced / Opening Balance';
+      
+      if (aIsOpening && !bIsOpening) return 1;
+      if (!aIsOpening && bIsOpening) return -1;
+      
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
 
     return { success: true, income };

@@ -41,7 +41,7 @@ export default async function AccountsPage() {
   const agentAccounts = accounts?.filter(a => a.type === 'DSA_AGENT' || a.type === 'FINANCIER') || [];
   const ughraniAccounts = accounts?.filter(a => a.type === 'UGHRANI') || [];
   const staffAccounts = accounts?.filter(a => a.type === 'STAFF') || [];
-  const partnerAccounts = accounts?.filter(a => a.type === 'PARTNER' && !['bhaudip', 'afeel'].includes(a.name.toLowerCase())) || [];
+  const partnerAccounts = accounts?.filter(a => a.type === 'PARTNER') || [];
   
   // Only show Uchak accounts that have a non-zero balance
   const uchakAccounts = accounts?.filter(a => a.type === 'UCHAK' && Number(a.balance) !== 0) || [];

@@ -74,6 +74,8 @@ const PaymentSource = ({ source, accounts, inline = false }) => {
 
 const isIncomeCounted = (inc) => {
   if (inc.rawCategory === 'VEHICLE_SALE') return false;
+  if (inc.rawCategory === 'CAPITAL_INJECTION') return false;
+  if (inc.description === 'Opening Balance' || inc.description === 'Capital Introduced / Opening Balance') return false;
   if (inc.description?.startsWith('Token Received:') && !inc.isForfeitedToken) return false;
   if (inc.description?.startsWith('Income: Received from')) return false;
   if (inc.description?.startsWith('Auto-Entry: Received Pending Capital')) return false;

@@ -13,6 +13,7 @@ import { ArrowLeftRight, Building2, Car, PlusCircle, Trash2 } from 'lucide-react
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import VehicleSearchSelect from '@/components/VehicleSearchSelect';
 
 function ExpenseSubmitButton({ txType, expenseSubType }) {
   const { pending } = useFormStatus();
@@ -325,14 +326,12 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
           {finalExpenseType === 'CAR_EXPENSE' && (
             <div className="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 flex flex-col gap-2">
               <label className="text-indigo-700 font-bold text-[11px] uppercase tracking-wider">Link to Specific Car</label>
-              <select name="vehicleId" required className="p-2.5 rounded-lg border border-indigo-200 bg-white text-slate-900 text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-medium">
-                <option value="">Select a Car...</option>
-                {vehicles.map(v => (
-                  <option key={v.id} value={v.id}>
-                    {v.make} {v.model} ({v.registration || 'UNREGISTERED'}) {v.status === 'SOLD' ? '- SOLD' : ''}
-                  </option>
-                ))}
-              </select>
+              <VehicleSearchSelect 
+                vehicles={vehicles}
+                name="vehicleId"
+                required={true}
+                placeholder="Select a Car..."
+              />
             </div>
           )}
 
@@ -340,19 +339,16 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
             <>
               <div className="mb-2">
                 <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Select Vehicle (Optional)</label>
-                <select 
-                  name="vehicleId" 
+                <VehicleSearchSelect 
+                  vehicles={vehicles.filter(v => v.status !== 'SOLD')}
+                  name="vehicleId"
                   value={incomeVehicleId}
-                  onChange={(e) => setIncomeVehicleId(e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm text-slate-700"
-                >
-                  <option value="">-- No Specific Vehicle --</option>
-                  {vehicles.filter(v => v.status !== 'SOLD').map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.make} {v.model} {v.registration ? `(${v.registration})` : ''} - Total Cost: ₹{(v.totalCost || 0).toLocaleString('en-IN')}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setIncomeVehicleId}
+                  placeholder="-- No Specific Vehicle --"
+                  required={false}
+                  showCost={true}
+                  className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 transition-all shadow-sm text-slate-700"
+                />
               </div>
 
               {incomeVehicleId && (

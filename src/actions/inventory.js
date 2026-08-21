@@ -112,23 +112,24 @@ export async function getInventory(year, month) {
           paidAmount: Number(p.paidAmount || 0),
           partnerAccount: p.partnerAccount ? {
             ...p.partnerAccount,
-            openingBalance: Number(p.partnerAccount.openingBalance)
+            openingBalance: Number(p.partnerAccount.openingBalance),
+            profitShare: Number(p.partnerAccount.profitShare || 0)
           } : null
         })),
         salePendingBalance: Number(v.salePendingBalance || 0),
-        receivableAccount: v.receivableAccount ? { ...v.receivableAccount, openingBalance: Number(v.receivableAccount.openingBalance) } : null,
-        payableAccount: v.payableAccount ? { ...v.payableAccount, openingBalance: Number(v.payableAccount.openingBalance) } : null,
+        receivableAccount: v.receivableAccount ? { ...v.receivableAccount, openingBalance: Number(v.receivableAccount.openingBalance), profitShare: Number(v.receivableAccount.profitShare || 0) } : null,
+        payableAccount: v.payableAccount ? { ...v.payableAccount, openingBalance: Number(v.payableAccount.openingBalance), profitShare: Number(v.payableAccount.profitShare || 0) } : null,
         saleTransactions: saleTransactions.filter(t => t.referenceId === v.id).map(t => ({
           ...t,
           amount: Number(t.amount),
           accountName: t.account ? t.account.name : null,
-          account: t.account ? { ...t.account, openingBalance: Number(t.account.openingBalance) } : null
+          account: t.account ? { ...t.account, openingBalance: Number(t.account.openingBalance), profitShare: Number(t.account.profitShare || 0) } : null
         })),
         purchaseTransactions: purchaseTransactions.filter(t => t.referenceId === v.id).map(t => ({
           ...t,
           amount: Number(t.amount),
           accountName: t.account ? t.account.name : null,
-          account: t.account ? { ...t.account, openingBalance: Number(t.account.openingBalance) } : null
+          account: t.account ? { ...t.account, openingBalance: Number(t.account.openingBalance), profitShare: Number(t.account.profitShare || 0) } : null
         })),
         partnerTransactions: partnerTransactions.filter(t => t.referenceId === v.id).map(t => ({
           id: t.id,

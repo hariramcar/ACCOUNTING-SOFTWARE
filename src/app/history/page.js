@@ -81,7 +81,8 @@ export default async function HistoryPage() {
 
   const firmCarProfitThisMonth = soldVehiclesRaw.reduce((acc, car) => {
     const partnerProfitShare = (car.partnerships || []).reduce((sum, p) => sum + (Math.round((Number(car.profit || 0) * (Number(p.profitSharePercentage) / 100)) * 100) / 100), 0);
-    return acc + Math.max(0, (Number(car.profit || 0) - partnerProfitShare));
+    const grossProfit = Number(car.salePrice || 0) - Number(car.purchasePrice || 0);
+    return acc + Math.max(0, (grossProfit - partnerProfitShare));
   }, 0);
 
   // Calculate totals (exclude internal transfers, Market Place, Staff Advances, and Asset Exchanges from totals)

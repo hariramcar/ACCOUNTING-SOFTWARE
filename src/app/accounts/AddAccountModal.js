@@ -81,7 +81,7 @@ export default function AddAccountModal() {
                     <option value="BANK">Bank Account / UPI</option>
                     <option value="DSA_AGENT">Loan Agent</option>
                     <option value="UGHRANI">Market Place</option>
-                    <option value="PARTNER">Car Partner</option>
+                    <option value="PARTNER">Founder / Business Partner</option>
                     <option value="UCHAK">Uchak (Temporary)</option>
                   </select>
                 </div>
@@ -90,6 +90,13 @@ export default function AddAccountModal() {
                   <div className="animate-in fade-in slide-in-from-top-2 duration-200">
                     <label className="text-[11px] font-bold uppercase tracking-wider text-indigo-700 mb-1.5 block">Opening Balance / Money (₹)</label>
                     <IndianNumberInput name="openingBalance" step="0.01" defaultValue="0" className="w-full p-4 rounded-xl border border-indigo-100 bg-white shadow-[0_2px_10px_-4px_rgba(79,70,229,0.15)] text-indigo-950 text-[16px] font-black outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-indigo-200" />
+                  </div>
+                )}
+
+                {accountType === 'PARTNER' && (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-1.5 block">Firm Profit Share Percentage (%)</label>
+                    <input type="number" name="profitShare" step="0.01" min="0" max="100" defaultValue="0" required className="w-full p-4 rounded-xl border border-emerald-100 bg-white shadow-[0_2px_10px_-4px_rgba(16,185,129,0.15)] text-emerald-950 text-[16px] font-black outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-emerald-200" />
                   </div>
                 )}
               </div>

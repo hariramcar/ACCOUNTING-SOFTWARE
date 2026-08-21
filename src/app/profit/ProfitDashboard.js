@@ -208,7 +208,7 @@ export default async function ProfitDashboard() {
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10">
           {foundersList.map(founder => {
-            const sharePercent = founder.name.toLowerCase() === 'bhaudip' ? 0.90 : 0.10;
+            const sharePercent = (founder.profitShare || 0) / 100;
             const profitShare = Math.floor(firmNetProfit * sharePercent);
             const retained = profitShare - founder.upadTaken;
             const recent = founder.recentUpar || [];

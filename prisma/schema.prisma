@@ -12,6 +12,7 @@ model Account {
   name            String
   type            AccountType
   openingBalance  Decimal       @default(0.0)
+  profitShare     Decimal       @default(0.0)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   partnerships    Partnership[]

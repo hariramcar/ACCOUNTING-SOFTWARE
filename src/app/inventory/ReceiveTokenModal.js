@@ -6,6 +6,7 @@ import { X, User, Phone, IndianRupee, CreditCard, CarFront } from 'lucide-react'
 import { useRouter } from 'next/navigation';
 import { addToken } from '@/actions/tokens';
 import { handleAmountFormat } from '@/lib/amountHelper';
+import VehicleSearchSelect from '@/components/VehicleSearchSelect';
 
 function getLocalDateString() {
   const d = new Date();
@@ -102,19 +103,15 @@ export default function ReceiveTokenModal({ isOpen, onClose, vehicle, inStock = 
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                     <CarFront size={16} />
                   </div>
-                  <select 
-                    required 
+                  <VehicleSearchSelect
+                    vehicles={inStock}
                     value={selectedVehicleId}
-                    onChange={(e) => setSelectedVehicleId(e.target.value)}
-                    className="w-full pl-10 p-3.5 rounded-xl border border-transparent bg-slate-100 shadow-inner text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 transition-all appearance-none"
-                  >
-                    <option value="">Choose a car in stock...</option>
-                    {inStock.map(v => (
-                      <option key={v.id} value={v.id}>
-                        {v.make} {v.model} ({v.registration || 'UNREG'}) - Total Cost: ₹{Number(v.totalCost || v.purchasePrice || 0).toLocaleString('en-IN')}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setSelectedVehicleId}
+                    placeholder="Choose a car in stock..."
+                    required={true}
+                    showCost={true}
+                    className="w-full pl-10 pr-3.5 py-3.5 rounded-xl border-transparent bg-slate-100 shadow-inner text-sm font-bold text-slate-800 outline-none focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/15 transition-all"
+                  />
                 </div>
               </div>
             )}

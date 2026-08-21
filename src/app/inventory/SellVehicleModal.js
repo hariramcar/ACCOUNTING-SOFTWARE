@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { PlusCircle, Trash2, HandCoins, X, ChevronDown, Check } from 'lucide-react';
 import { sellVehicle } from '@/actions/inventory';
 import toast from 'react-hot-toast';
+import VehicleSearchSelect from '@/components/VehicleSearchSelect';
 
 function getLocalDateString() {
   const d = new Date();
@@ -52,10 +53,24 @@ export default function SellVehicleModal({ inStock, accounts }) {
   const [payments, setPayments] = useState([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
   const [appliedTokenId, setAppliedTokenId] = useState('');
   const [pendingBalance, setPendingBalance] = useState(0);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [warningState, setWarningState] = useState(null); // null, 'UDHARI', 'UDHARI_ACCEPTED'
+  const [vehicleNeedingTokenConfirm, setVehicleNeedingTokenConfirm] = useState(null);
 
   // Derive the currently selected vehicle object to access its tokens
   const selectedVehicle = inStock.find(v => v.id === selectedVehicleId);
+
+  const handleVehicleSelect = (car) => {
+    setIsDropdownOpen(false);
+    
+    const hasActiveTokens = car.tokens && car.tokens.some(t => t.status === 'ACTIVE');
+    
+    if (!hasActiveTokens) {
+      setVehicleNeedingTokenConfirm(car);
+    } else {
+      setSelectedVehicleId(car.id);
+      setAppliedTokenId('');
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -74,7 +89,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
     
     const pending = Math.round((price - (totalPayments + appliedTokenAmount)) * 100) / 100;
     setPendingBalance(pending);
-    setShowConfirm(false); // Reset confirm state if anything changes
+    setWarningState(null); // Reset confirm state if anything changes
   }, [salePrice, payments, appliedTokenId, selectedVehicle]);
 
   const addPayment = () => {
@@ -119,10 +134,11 @@ export default function SellVehicleModal({ inStock, accounts }) {
     }
     
     const formData = new FormData(e.currentTarget);
-    // Warn if keeping udhari on customer
+    
+    // Udhari Warning Check
     const receivableAccountId = formData.get('receivableAccountId');
-    if (pendingBalance > 0 && !receivableAccountId && !showConfirm) {
-      setShowConfirm(true);
+    if (pendingBalance > 0 && !receivableAccountId && warningState !== 'UDHARI_ACCEPTED') {
+      setWarningState('UDHARI');
       return;
     }
     
@@ -179,12 +195,53 @@ export default function SellVehicleModal({ inStock, accounts }) {
                   setSalePrice('');
                   setAppliedTokenId('');
                   setSelectedVehicleId('');
+                  setVehicleNeedingTokenConfirm(null);
                 }}
                 className="text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 border-none cursor-pointer p-2 rounded-full transition-colors"
               >
                 <X size={20} strokeWidth={2.5} />
               </button>
             </div>
+
+            {vehicleNeedingTokenConfirm && (
+                <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-300">
+                  <div className="bg-white max-w-md w-full rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border border-slate-100 overflow-hidden flex flex-col">
+                    <div className="p-6 pb-0 flex flex-col items-center text-center">
+                      <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-4 border border-blue-100">
+                        <HandCoins size={32} />
+                      </div>
+                      <h3 className="text-xl font-black text-slate-900 tracking-tight mb-2">No Token Received</h3>
+                      <p className="text-slate-500 text-sm font-medium mb-6">
+                        The vehicle <strong className="text-slate-700">{vehicleNeedingTokenConfirm.make} {vehicleNeedingTokenConfirm.model}</strong> has not received any token yet. 
+                        Do you want to continue selling it directly, or wait and add a token first?
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-2">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setSelectedVehicleId(vehicleNeedingTokenConfirm.id);
+                          setAppliedTokenId('');
+                          setVehicleNeedingTokenConfirm(null);
+                        }}
+                        className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+                      >
+                        <Check size={18} /> Continue Without Token
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setVehicleNeedingTokenConfirm(null);
+                          setIsOpen(false);
+                        }}
+                        className="w-full py-3.5 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 text-slate-600 font-bold rounded-xl transition-all shadow-sm"
+                      >
+                        Cancel & Add Token
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto min-h-0 p-6 flex flex-col gap-6 text-sm" style={{ scrollbarWidth: 'thin' }}>
               
@@ -194,61 +251,23 @@ export default function SellVehicleModal({ inStock, accounts }) {
                   <label className="text-[11px] uppercase font-bold text-slate-500 mb-2 block tracking-wider">Select Vehicle from Stock</label>
                   
                   {/* Custom Dropdown */}
-                  <div 
-                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className={`w-full p-4 rounded-xl border ${isDropdownOpen ? 'border-emerald-500 bg-white ring-4 ring-emerald-500/15' : 'border-transparent bg-slate-100 shadow-inner'} text-slate-900 cursor-pointer flex justify-between items-center transition-all`}
-                  >
-                    {selectedVehicleId ? (
-                      (() => {
-                        const car = inStock?.find(c => c.id === selectedVehicleId);
-                        return car ? (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-bold text-[15px]">{car.make} {car.model} ({car.registration})</span>
-                            <span className="text-xs text-slate-500 font-medium">Cost: ₹{car.totalCost.toLocaleString('en-IN')} {car.registration ? `• ${car.registration}` : ''}</span>
-                          </div>
-                        ) : <span className="text-slate-400 font-medium text-[15px]">-- Choose a Vehicle --</span>;
-                      })()
-                    ) : (
-                      <span className="text-slate-400 font-medium text-[15px]">-- Choose a Vehicle --</span>
-                    )}
-                    <ChevronDown size={18} className={`text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                  </div>
-
-                  {/* Dropdown Options */}
-                  {isDropdownOpen && (
-                    <div className="absolute z-30 top-full mt-2 left-0 right-0 max-h-64 overflow-y-auto bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-slate-100 p-2 flex flex-col gap-1">
-                      {inStock?.length === 0 ? (
-                        <div className="p-4 text-center text-sm font-medium text-slate-500">No vehicles in stock</div>
-                      ) : (
-                        inStock?.map(car => (
-                          <div 
-                            key={car.id} 
-                            onClick={() => {
-                              setSelectedVehicleId(car.id);
-                              setIsDropdownOpen(false);
-                            }}
-                            className={`p-3 rounded-lg cursor-pointer flex flex-col gap-1.5 transition-colors ${selectedVehicleId === car.id ? 'bg-emerald-50 border border-emerald-100' : 'hover:bg-slate-50 border border-transparent'}`}
-                          >
-                            <div className="flex justify-between items-start gap-2">
-                              <span className={`font-bold text-sm ${selectedVehicleId === car.id ? 'text-emerald-900' : 'text-slate-900'}`}>{car.make} {car.model} ({car.registration})</span>
-                              <span className="text-xs font-black text-emerald-600 shrink-0">₹{car.totalCost.toLocaleString('en-IN')}</span>
-                            </div>
-                            {car.registration && (
-                              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded w-fit">{car.registration}</span>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  {/* Hidden Input for Form Submission */}
-                  <input type="hidden" name="vehicleId" value={selectedVehicleId} required />
-                  
-                  {/* Invisible overlay to close dropdown when clicking outside */}
-                  {isDropdownOpen && (
-                    <div className="fixed inset-0 z-20" onClick={() => setIsDropdownOpen(false)}></div>
-                  )}
+                  <VehicleSearchSelect 
+                    vehicles={inStock}
+                    value={selectedVehicleId}
+                    onChange={(id) => {
+                      if (!id) {
+                        setSelectedVehicleId('');
+                        setVehicleNeedingTokenConfirm(null);
+                        return;
+                      }
+                      const car = inStock.find(v => v.id === id);
+                      if (car) handleVehicleSelect(car);
+                    }}
+                    placeholder="-- Choose a Vehicle --"
+                    className="w-full p-4 rounded-xl text-slate-900 bg-slate-100 border-transparent shadow-inner focus-within:ring-4 focus-within:ring-emerald-500/15 focus-within:border-emerald-500 focus-within:bg-white transition-all"
+                    required={true}
+                    showCost={true}
+                  />
                 </div>
 
                 {selectedVehicle && selectedVehicle.tokens && selectedVehicle.tokens.filter(t => t.status === 'ACTIVE').length > 0 && (
@@ -420,7 +439,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex justify-end gap-3 mt-2 shrink-0 bg-white sticky bottom-0 -mx-6 -mb-6 p-6">
-                {!showConfirm ? (
+                {!warningState || warningState === 'UDHARI_ACCEPTED' ? (
                   <>
                     <button 
                       type="button" 
@@ -455,7 +474,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
                     <div className="flex gap-2 w-full sm:w-auto shrink-0">
                       <button 
                         type="button" 
-                        onClick={() => setShowConfirm(false)}
+                        onClick={() => setWarningState(null)}
                         className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg font-bold text-amber-800 bg-amber-200/50 hover:bg-amber-200 transition-colors text-sm"
                       >
                         Wait, Go Back
@@ -463,6 +482,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
                       <button
                         type="submit"
                         disabled={isSubmitting}
+                        onClick={() => setWarningState('UDHARI_ACCEPTED')}
                         className="flex-1 sm:flex-none px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold transition-all shadow-sm text-sm flex items-center gap-2"
                       >
                         {isSubmitting ? 'Confirming...' : (
