@@ -417,15 +417,17 @@ export async function getFoundersData() {
         finalProfitShare = 10;
       }
 
-      result.push({
-        id: acc.id,
-        name: acc.name,
-        profitShare: finalProfitShare,
-        // Negative balance means firm paid them (UPAD/Drawings)
-        upadTaken: currentBalance < 0 ? Math.abs(currentBalance) : 0,
-        capitalDeposited: currentBalance > 0 ? currentBalance : 0,
-        recentUpar
-      });
+      if (finalProfitShare > 0) {
+        result.push({
+          id: acc.id,
+          name: acc.name,
+          profitShare: finalProfitShare,
+          // Negative balance means firm paid them (UPAD/Drawings)
+          upadTaken: currentBalance < 0 ? Math.abs(currentBalance) : 0,
+          capitalDeposited: currentBalance > 0 ? currentBalance : 0,
+          recentUpar
+        });
+      }
     }
 
     return { success: true, founders: result };
