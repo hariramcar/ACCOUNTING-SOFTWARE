@@ -34,7 +34,8 @@ export default async function HistoryPage() {
   });
   const accounts = accountsRaw.map(acc => ({
     ...acc,
-    openingBalance: Number(acc.openingBalance)
+    openingBalance: Number(acc.openingBalance),
+    profitShare: Number(acc.profitShare || 0)
   }));
   
   const vehiclesRaw = await prisma.vehicle.findMany({

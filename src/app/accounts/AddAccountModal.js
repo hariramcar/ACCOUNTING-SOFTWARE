@@ -29,6 +29,14 @@ export default function AddAccountModal() {
     isSubmittingRef.current = true;
     setIsSubmitting(true);
     try {
+      const type = formData.get('type');
+      if (type === 'CAR_PARTNER') {
+        formData.set('type', 'PARTNER');
+        formData.set('profitShare', '0');
+      } else if (type === 'BUSINESS_PARTNER') {
+        formData.set('type', 'PARTNER');
+      }
+
       await createAccount(formData);
       setIsOpen(false);
     } finally {
@@ -81,7 +89,8 @@ export default function AddAccountModal() {
                     <option value="BANK">Bank Account / UPI</option>
                     <option value="DSA_AGENT">Loan Agent</option>
                     <option value="UGHRANI">Market Place</option>
-                    <option value="PARTNER">Founder / Business Partner</option>
+                    <option value="CAR_PARTNER">Car Partner</option>
+                    <option value="BUSINESS_PARTNER">Founder / Business Partner</option>
                     <option value="UCHAK">Uchak (Temporary)</option>
                   </select>
                 </div>
@@ -93,7 +102,7 @@ export default function AddAccountModal() {
                   </div>
                 )}
 
-                {accountType === 'PARTNER' && (
+                {accountType === 'BUSINESS_PARTNER' && (
                   <div className="animate-in fade-in slide-in-from-top-2 duration-200">
                     <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-1.5 block">Firm Profit Share Percentage (%)</label>
                     <input type="number" name="profitShare" step="0.01" min="0" max="100" defaultValue="0" required className="w-full p-4 rounded-xl border border-emerald-100 bg-white shadow-[0_2px_10px_-4px_rgba(16,185,129,0.15)] text-emerald-950 text-[16px] font-black outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-emerald-200" />

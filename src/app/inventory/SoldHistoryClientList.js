@@ -58,7 +58,7 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
                 </div>
               </div>
 
-              {(car.salePendingBalance > 0 || car.purchasePendingBalance > 0) && (
+              {(car.salePendingBalance > 0 || (!car.isLegacy && car.purchasePendingBalance > 0)) && (
                 <div className="col-span-2 flex flex-col gap-1 mt-1">
                   {car.salePendingBalance > 0 && car.receivableAccount && (
                     <div className="text-[10px] font-bold text-amber-700 flex items-center justify-between bg-amber-50 px-2 py-1 rounded">
@@ -66,7 +66,7 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
                       <span>₹{car.salePendingBalance.toLocaleString('en-IN')}</span>
                     </div>
                   )}
-                  {car.purchasePendingBalance > 0 && (
+                  {(!car.isLegacy && car.purchasePendingBalance > 0) && (
                     <div className="text-[10px] font-bold text-red-700 flex items-center justify-between bg-red-50 px-2 py-1 rounded">
                       <span>Pending Pay</span>
                       <span>₹{car.purchasePendingBalance.toLocaleString('en-IN')}</span>
@@ -116,7 +116,7 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
                         Pending Receive: ₹{car.salePendingBalance.toLocaleString('en-IN')} ({car.receivableAccount.name})
                       </div>
                     )}
-                    {car.purchasePendingBalance > 0 && (
+                    {(!car.isLegacy && car.purchasePendingBalance > 0) && (
                       <div className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200/50 px-2 py-0.5 rounded w-max">
                         Pending Pay: ₹{car.purchasePendingBalance.toLocaleString('en-IN')}
                         {car.payableAccount && ` (${car.payableAccount.name})`}

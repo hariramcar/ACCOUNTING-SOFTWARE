@@ -12,6 +12,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ArrowDownRight, AlertCircle } from 'lucide-react';
 import { receiveAgentCarPayment } from '@/actions/upad';
+import VehicleSearchSelect from '@/components/VehicleSearchSelect';
 
 const formatIndianNumber = (num) => {
   if (!num) return '';
@@ -112,6 +113,16 @@ export default function AgentPaymentModal({ agentAccounts = [], ledgerAccounts =
                   {error}
                 </div>
               )}
+
+              <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">Select Vehicle (Optional)</label>
+                  <VehicleSearchSelect 
+                    vehicles={vehicles}
+                    value={selectedVehicleId}
+                    onChange={(val) => setSelectedVehicleId(val)}
+                  />
+                  <input type="hidden" name="vehicleId" value={selectedVehicleId} />
+              </div>
 
               <div className="flex flex-col gap-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">Select Person / Account</label>

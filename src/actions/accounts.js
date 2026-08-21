@@ -156,6 +156,14 @@ export async function createAccount(formData) {
       }
     }
 
+    if (type === 'PARTNER' && profitShare > 0) {
+      const allPartners = await prisma.account.findMany({ where: { type: 'PARTNER' } });
+      const currentTotal = allPartners.reduce((sum, p) => sum + Number(p.profitShare || 0), 0);
+      if (currentTotal + profitShare > 100) {
+        throw new Error(`Cannot add partner. Total profit share would exceed 100% (Current total is ${currentTotal}%). Please edit existing partners first.`);
+      }
+    }
+
     const account = await prisma.account.create({
       data: {
         name,
@@ -180,11 +188,40 @@ export async function createAccount(formData) {
     }
 
     revalidatePath('/accounts');
+    revalidatePath('/profit');
     revalidatePath('/rojmel');
     return { success: true };
   } catch (error) {
     console.error('Failed to create account:', error);
-    return { success: false, error: 'Failed to create account.' };
+    return { success: false, error: error.message || 'Failed to create account.' };
+  }
+}
+
+export async function editProfitShare(accountId, newProfitShare) {
+  try {
+    const account = await prisma.account.findUnique({ where: { id: accountId } });
+    if (!account) throw new Error('Account not found');
+
+    const allPartners = await prisma.account.findMany({ where: { type: 'PARTNER' } });
+    const otherPartnersTotal = allPartners
+      .filter(p => p.id !== accountId)
+      .reduce((sum, p) => sum + Number(p.profitShare || 0), 0);
+
+    if (otherPartnersTotal + newProfitShare > 100) {
+      throw new Error(`Cannot update share to ${newProfitShare}%. It would cause the total to exceed 100% (Other partners use ${otherPartnersTotal}%).`);
+    }
+
+    await prisma.account.update({
+      where: { id: accountId },
+      data: { profitShare: newProfitShare }
+    });
+
+    revalidatePath('/accounts');
+    revalidatePath('/profit');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to edit profit share:', error);
+    return { success: false, error: error.message || 'Failed to edit profit share.' };
   }
 }
 

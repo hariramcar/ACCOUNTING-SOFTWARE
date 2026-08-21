@@ -480,7 +480,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                 </div>
               )}
 
-              {Number(car.purchasePendingBalance) > 0 && (
+              {(!car.isLegacy && Number(car.purchasePendingBalance) > 0) && (
                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200/60 w-full shadow-sm mt-1">
                   <div className="flex justify-between items-center mb-1">
                     <div className="text-[9px] font-bold text-amber-600 uppercase tracking-widest">Pending (Not Paid)</div>
@@ -501,6 +501,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                       <div className="flex gap-2 mb-2">
                         <button type="button" onClick={() => { setPayMode('CASH'); setSourceAccountId(accounts.find(a => a.type === 'CASH')?.id || ''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${payMode === 'CASH' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>💵 Cash</button>
                         <button type="button" onClick={() => { setPayMode('BANK'); setSourceAccountId(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${payMode === 'BANK' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>🏦 Bank</button>
+                        <button type="button" onClick={() => { setPayMode('AGENT'); setSourceAccountId(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${payMode === 'AGENT' ? 'bg-amber-600 text-white border-amber-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>👤 Agent</button>
                       </div>
                       {payMode === 'CASH' ? (
                         <>
@@ -513,8 +514,8 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                           onChange={(e) => setSourceAccountId(e.target.value)}
                           className="text-sm p-2 rounded-lg border border-amber-300 bg-white font-medium outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500"
                         >
-                          <option value="">Select Bank Account...</option>
-                          {accounts.filter(a => a.type === 'BANK').map(acc => (
+                          <option value="">Select {payMode === 'AGENT' ? 'Agent' : 'Bank'} Account...</option>
+                          {accounts.filter(a => payMode === 'AGENT' ? (a.type === 'DSA_AGENT' || a.type === 'FINANCIER') : a.type === 'BANK').map(acc => (
                             <option key={acc.id} value={acc.id}>{acc.name}</option>
                           ))}
                         </select>

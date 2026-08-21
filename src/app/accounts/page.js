@@ -6,9 +6,10 @@ import AccountHistoryModal from './AccountHistoryModal';
 import UpadModals from './UpadModals';
 import AgentPaymentModal from './AgentPaymentModal';
 import { cookies } from 'next/headers';
-import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/session';
 import prisma from '@/lib/prisma';
+import EditProfitShareModal from './EditProfitShareModal';
 export default async function AccountsPage() {
   const session = await getSession();
   if (!session || session.role !== 'ADMIN') {
@@ -43,6 +44,9 @@ export default async function AccountsPage() {
   const staffAccounts = accounts?.filter(a => a.type === 'STAFF') || [];
   const partnerAccounts = accounts?.filter(a => a.type === 'PARTNER') || [];
   
+  const carPartners = partnerAccounts.filter(a => Number(a.profitShare || 0) === 0);
+  const businessPartners = partnerAccounts.filter(a => Number(a.profitShare || 0) > 0);
+  
   // Only show Uchak accounts that have a non-zero balance
   const uchakAccounts = accounts?.filter(a => a.type === 'UCHAK' && Number(a.balance) !== 0) || [];
 
@@ -66,7 +70,7 @@ export default async function AccountsPage() {
             vehicles={vehicles} 
           />
           <UpadModals 
-            upadAccounts={[...staffAccounts, ...ughraniAccounts, ...uchakAccounts]} 
+            upadAccounts={[...staffAccounts, ...ughraniAccounts, ...uchakAccounts, ...agentAccounts]} 
             ledgerAccounts={[...cashAccounts, ...bankAccounts]} 
           />
           <AddAccountModal />
@@ -224,20 +228,21 @@ export default async function AccountsPage() {
           </div>
         )}
 
+
         {/* CAR PARTNERS */}
         <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col w-full">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
             <Handshake size={18} className="text-teal-500" />
-            <h3 className="text-base font-bold text-slate-800 m-0">Car Partner</h3>
+            <h3 className="text-base font-bold text-slate-800 m-0">Car Partners</h3>
           </div>
-          <p className="text-xs font-medium text-slate-500 mb-3 mt-1">Partners who co-invest in vehicles. Track their capital, profit shares, and payouts.</p>
+          <p className="text-xs font-medium text-slate-500 mb-3 mt-1">Partners who co-invest in individual vehicles.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
-            {partnerAccounts.map(acc => (
+            {carPartners.map(acc => (
               <PartnerAccountCard 
                 key={acc.id} account={acc} colorClass="bg-teal-50/30 border-teal-200 text-teal-800" 
               />
             ))}
-            {partnerAccounts.length === 0 && <p className="text-slate-400 text-sm font-medium italic col-span-full">No car partners added.</p>}
+            {carPartners.length === 0 && <p className="text-slate-400 text-sm font-medium italic col-span-full">No car partners added.</p>}
           </div>
         </div>
 
@@ -326,17 +331,27 @@ function PartnerAccountCard({ account, colorClass }) {
 
   return (
     <div className={`border rounded-xl shadow-sm flex flex-col h-full bg-white relative ${colorClass}`}>
-      <AccountHistoryModal account={account}>
-        <div className="flex justify-between items-center mb-2 border-b border-black/5 pb-2 p-3 cursor-pointer hover:bg-black/5 rounded-t-xl transition-colors interactive-card">
-          <strong className="text-[15px] tracking-tight flex-1">{account.name}</strong>
-          <div>
-            <DeleteAccountButton accountId={account.id} accountName={account.name} />
+      <div className="flex justify-between items-center mb-2 border-b border-black/5 pb-2 p-3 bg-white hover:bg-black/5 rounded-t-xl transition-colors">
+        <AccountHistoryModal account={account}>
+          <div className="flex flex-col cursor-pointer">
+            <strong className="text-[15px] tracking-tight">{account.name}</strong>
+            {Number(account.profitShare) > 0 && (
+              <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded uppercase tracking-wider w-max mt-0.5 border border-purple-100">{account.profitShare}% Firm Share</span>
+            )}
           </div>
+        </AccountHistoryModal>
+        <div className="flex items-center gap-2">
+          {Number(account.profitShare) > 0 && (
+            <EditProfitShareModal accountId={account.id} currentShare={account.profitShare || 0} accountName={account.name} />
+          )}
+          <DeleteAccountButton accountId={account.id} accountName={account.name} />
         </div>
-      </AccountHistoryModal>
+      </div>
       
       <div className="flex flex-col gap-2 flex-1 px-4 pb-4">
-        {cars.length === 0 ? (
+        {Number(account.profitShare) > 0 ? (
+          <div className="text-xs text-purple-600/70 italic p-3 text-center border border-dashed border-purple-200 rounded-lg bg-purple-50/30">Receives {account.profitShare}% of total firm profits. Tracked on Profit Dashboard.</div>
+        ) : cars.length === 0 ? (
           <div className="text-xs text-teal-600/70 italic p-3 text-center border border-dashed border-teal-200 rounded-lg bg-teal-50/30">No active vehicles.</div>
         ) : (
           <div className="flex flex-col gap-2">

@@ -273,33 +273,7 @@ export async function addVehicle(formData) {
         });
         
         if (agentAcc && (agentAcc.type === 'DSA_AGENT' || agentAcc.type === 'FINANCIER')) {
-          let currentBalance = Number(agentAcc.openingBalance || 0);
-          
-          agentAcc.transactions.forEach(t => {
-            if (t.type === 'CREDIT') currentBalance += Number(t.amount);
-            else if (t.type === 'DEBIT') currentBalance -= Number(t.amount);
-          });
-          
-          // Include UPAD transfers where this agent was used as a reference
-          const refTransactions = await prisma.transaction.findMany({
-            where: { referenceId: p.accountId, category: 'INTERNAL_TRANSFER' }
-          });
-          
-          refTransactions.forEach(t => {
-             // In UPAD, receiving money from agent is logged as CREDIT to cash with referenceId = agent
-             if (t.type === 'CREDIT') currentBalance += Number(t.amount);
-             else if (t.type === 'DEBIT') currentBalance -= Number(t.amount);
-          });
-          
-          // Negative balance means they owe us money (Receivable)
-          const receivableAmount = currentBalance < 0 ? Math.abs(currentBalance) : 0;
-          
-          if (p.amount > receivableAmount) {
-            return { 
-              success: false, 
-              error: `Loan Agent (${agentAcc.name}) only has a pending balance of ₹${receivableAmount.toLocaleString('en-IN')}. You cannot use ₹${p.amount.toLocaleString('en-IN')}.` 
-            };
-          }
+          // Validation removed as per user request: Allow agents to go negative (we owe them) when buying a new car.
         }
       }
     }
@@ -324,8 +298,8 @@ export async function addVehicle(formData) {
           registration,
           purchasePrice,
           purchaseDate,
-          purchasePendingBalance: pendingAmount > 0 ? pendingAmount : 0,
-          payableAccountId: (payableAccountId && pendingAmount > 0) ? payableAccountId : null,
+          purchasePendingBalance: isLegacy ? 0 : (pendingAmount > 0 ? pendingAmount : 0),
+          payableAccountId: (!isLegacy && payableAccountId && pendingAmount > 0) ? payableAccountId : null,
           status: 'IN_STOCK',
           isLegacy,
           legacyExpenses,
@@ -529,17 +503,21 @@ export async function payVehiclePendingBalance(formData) {
         }
       });
 
-      // Debit Source Account (Cash/Bank goes DOWN)
+      // Record Payment Source
+      const isAgent = sourceAcc.type === 'DSA_AGENT' || sourceAcc.type === 'FINANCIER';
+      
       await tx.transaction.create({
         data: {
           date: new Date(),
           transactionMode: sourceAcc.type === 'BANK' ? 'BANK' : 'CASH',
-          type: 'DEBIT',
+          type: isAgent ? 'CREDIT' : 'DEBIT', // If agent pays, we owe them more (Credit). If firm pays, cash goes down (Debit).
           amount,
           accountId: sourceAccountId,
           category: 'VEHICLE_PURCHASE',
           referenceId: vehicleId,
-          description: `Auto-Entry: Paid Pending Udhari for ${vehicle.make} ${vehicle.model}`
+          description: isAgent 
+            ? `Auto-Entry: Paid Pending Udhari for ${vehicle.make} ${vehicle.model} (Paid by ${sourceAcc.name})`
+            : `Auto-Entry: Paid Pending Udhari for ${vehicle.make} ${vehicle.model}`
         }
       });
 

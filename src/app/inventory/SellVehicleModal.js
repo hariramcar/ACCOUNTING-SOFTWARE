@@ -150,7 +150,6 @@ export default function SellVehicleModal({ inStock, accounts }) {
       if (res?.success) {
         toast.success("Vehicle sold successfully!");
         setIsOpen(false);
-        setShowConfirm(false);
         setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
         setSalePrice('');
         setAppliedTokenId('');
