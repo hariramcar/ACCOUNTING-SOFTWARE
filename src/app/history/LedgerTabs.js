@@ -88,7 +88,14 @@ const isIncomeCounted = (inc) => {
 export default function LedgerTabs({ income, expenses, totalIncome, totalExpenses, accounts = [], vehicles = [] }) {
   const [activeTab, setActiveTab] = useState('INCOME');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState('ALL'); // 'ALL', 'CASH', 'BANK', 'TRANSFERS'
+  const [filterType, setFilterType] = useState('ALL');
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
+
+  // Reset page on filter or tab change
+  useMemo(() => {
+    setPage(1);
+  }, [activeTab, filterType, searchQuery]); // 'ALL', 'CASH', 'BANK', 'TRANSFERS'
 
   const applyFilters = (data) => {
     if (!data) return [];
@@ -133,7 +140,12 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
 
   const netProfit = totalIncome - totalExpenses;
 
-  
+  const paginatedIncome = filteredIncome.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const paginatedExpenses = filteredExpenses.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const totalPagesIncome = Math.ceil((filteredIncome?.length || 0) / ITEMS_PER_PAGE);
+  const totalPagesExpenses = Math.ceil((filteredExpenses?.length || 0) / ITEMS_PER_PAGE);
+
+
   const handleAmountFormat = (val) => {
     const rawValue = val.replace(/[^0-9.]/g, '');
     if (!rawValue) return '';
@@ -270,7 +282,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
             <div className="flex flex-col gap-3 md:hidden">
               {(() => {
                 if (!filteredIncome || filteredIncome.length === 0) return null;
-                const grouped = filteredIncome.reduce((acc, inc) => {
+                const grouped = paginatedIncome.reduce((acc, inc) => {
                   const dateStr = new Date(inc.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
                   if (!acc[dateStr]) acc[dateStr] = [];
                   acc[dateStr].push(inc);
@@ -362,6 +374,27 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
               </table>
             </div>
 
+            
+  <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 mt-4 shadow-sm">
+    <button 
+      onClick={() => setPage(p => Math.max(1, p - 1))}
+      disabled={page === 1}
+      className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg disabled:opacity-50"
+    >
+      Previous
+    </button>
+    <span className="text-sm font-bold text-slate-500">
+      Page {page} of {totalPagesIncome}
+    </span>
+    <button 
+      onClick={() => setPage(p => Math.min(totalPagesIncome, p + 1))}
+      disabled={page === totalPagesIncome || totalPagesIncome === 0}
+      className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg disabled:opacity-50"
+    >
+      Next
+    </button>
+  </div>
+
             {(!filteredIncome || filteredIncome.length === 0) && (
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-12 flex flex-col items-center justify-center text-center">
                 <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-400">
@@ -380,7 +413,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
             <div className="flex flex-col gap-3 md:hidden">
               {(() => {
                 if (!filteredExpenses || filteredExpenses.length === 0) return null;
-                const grouped = filteredExpenses.reduce((acc, exp) => {
+                const grouped = paginatedExpenses.reduce((acc, exp) => {
                   const dateStr = new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
                   if (!acc[dateStr]) acc[dateStr] = [];
                   acc[dateStr].push(exp);
@@ -476,6 +509,27 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                 </tbody>
               </table>
             </div>
+
+            
+  <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 mt-4 shadow-sm">
+    <button 
+      onClick={() => setPage(p => Math.max(1, p - 1))}
+      disabled={page === 1}
+      className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg disabled:opacity-50"
+    >
+      Previous
+    </button>
+    <span className="text-sm font-bold text-slate-500">
+      Page {page} of {totalPagesExpenses}
+    </span>
+    <button 
+      onClick={() => setPage(p => Math.min(totalPagesExpenses, p + 1))}
+      disabled={page === totalPagesExpenses || totalPagesExpenses === 0}
+      className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg disabled:opacity-50"
+    >
+      Next
+    </button>
+  </div>
 
             {(!filteredExpenses || filteredExpenses.length === 0) && (
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-12 flex flex-col items-center justify-center text-center">

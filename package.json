@@ -14,6 +14,7 @@
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "bcryptjs": "^3.0.3",
+    "decimal.js": "^10.6.0",
     "jose": "^6.2.8",
     "lucide-react": "^1.28.0",
     "next": "16.2.12",
@@ -21,7 +22,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hot-toast": "^2.6.0",
-    "recharts": "^3.10.1"
+    "recharts": "^3.10.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

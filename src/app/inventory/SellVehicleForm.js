@@ -8,12 +8,13 @@ function getLocalDateString() {
 }
 
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { sellVehicle } from '@/actions/inventory';
 import SubmitButton from '@/components/SubmitButton';
+import toast from 'react-hot-toast';
 
-export default function SellVehicleForm({ car, accounts }) {
+export default function SellVehicleForm({ car, accounts, onSuccess }) {
   const [salePrice, setSalePrice] = useState('');
   const handleAmountFormat = (val) => {
     const rawValue = val.replace(/[^0-9.]/g, '');
@@ -47,8 +48,42 @@ export default function SellVehicleForm({ car, accounts }) {
     setPayments(payments.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    formData.set('salePrice', (salePrice || '0').replace(/,/g, ''));
+    
+    // Also strip commas from payment amounts
+    const paymentAmounts = formData.getAll('paymentAmounts');
+    formData.delete('paymentAmounts');
+    paymentAmounts.forEach(amt => {
+      formData.append('paymentAmounts', (amt || '0').replace(/,/g, ''));
+    });
+
+    try {
+      const res = await sellVehicle(formData);
+      if (res?.error) {
+        toast.error(res.error);
+      } else {
+        toast.success('Vehicle Sold successfully!');
+        if (onSuccess) onSuccess();
+      }
+    } catch (err) {
+      toast.error('An unexpected error occurred');
+    } finally {
+      setIsSubmitting(false);
+      isSubmittingRef.current = false;
+    }
+  };
+
   return (
-    <form action={sellVehicle} className="flex flex-col gap-2 relative z-10 text-xs">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 relative z-10 text-xs">
       <input type="hidden" name="vehicleId" value={car.id} />
       
       {/* Basic Sale Details & Pending Balance */}
@@ -56,11 +91,11 @@ export default function SellVehicleForm({ car, accounts }) {
         <div className="flex-[0.8]">
           <label className="text-[9px] uppercase font-bold text-emerald-700 mb-0.5 block tracking-wider">Sale Price (₹)</label>
           <input 
-            type="number" 
+            type="text" 
+            inputMode="decimal"
             name="salePrice" 
             placeholder="Final Price" 
             required 
-            step="0.01" 
             value={salePrice}
             onChange={(e) => setSalePrice(handleAmountFormat(e.target.value))}
             className="w-full p-1.5 rounded border border-emerald-200 bg-white text-xs font-bold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all" 
@@ -164,9 +199,13 @@ export default function SellVehicleForm({ car, accounts }) {
 
 
 
-      <SubmitButton className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded border-none cursor-pointer text-xs font-bold transition-colors shadow-sm uppercase tracking-wider" pendingText="Confirming...">
-        Confirm Sale
-      </SubmitButton>
+      <button 
+        type="submit" 
+        disabled={isSubmitting}
+        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded border-none cursor-pointer text-xs font-bold transition-colors shadow-sm uppercase tracking-wider disabled:opacity-70 disabled:cursor-not-allowed" 
+      >
+        {isSubmitting ? 'Confirming...' : 'Confirm Sale'}
+      </button>
     </form>
   );
 }

@@ -6,12 +6,17 @@ import VehicleDetailsModal from './VehicleDetailsModal';
 
 export default function SoldHistoryClientList({ sold, accounts = [] }) {
   const [selectedCar, setSelectedCar] = useState(null);
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
+
+  const paginatedData = sold?.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const totalPages = Math.ceil((sold?.length || 0) / ITEMS_PER_PAGE);
 
   return (
     <div className="w-full pb-2">
       {/* Mobile Card Layout */}
       <div className="flex flex-col gap-4 py-2 md:hidden">
-        {sold?.map(car => (
+        {paginatedData?.map(car => (
           <div 
             key={car.id} 
             onClick={() => setSelectedCar(car)}
@@ -92,7 +97,7 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {sold?.map(car => (
+            {paginatedData?.map(car => (
               <tr 
                 key={car.id} 
                 onClick={() => setSelectedCar(car)}
@@ -162,6 +167,26 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
         onClose={() => setSelectedCar(null)}
         accounts={accounts}
       />
+    
+      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 mt-4 shadow-sm w-full">
+        <button 
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={page === 1}
+          className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <span className="text-sm font-bold text-slate-500">
+          Page {page} of {totalPages}
+        </span>
+        <button 
+          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          disabled={page === totalPages || totalPages === 0}
+          className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg disabled:opacity-50"
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 }

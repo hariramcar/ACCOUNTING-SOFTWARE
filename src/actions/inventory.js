@@ -181,15 +181,32 @@ export async function getInventory(year, month) {
 
 export async function addVehicle(formData) {
   try {
-    const make = formData.get('make');
-    const model = formData.get('model');
-    const registration = formData.get('registration') || null;
-    const purchasePriceStr = formData.get('purchasePrice') || '0';
-    const purchasePrice = parseFloat(purchasePriceStr.replace(/,/g, ''));
-    const purchaseDate = new Date(formData.get('purchaseDate') || Date.now());
-    const isLegacy = formData.get('isLegacy') === 'on';
-    const legacyExpenses = isLegacy ? parseFloat(formData.get('legacyExpenses') || '0') : 0;
-    
+    const rawData = {
+      make: formData.get('make'),
+      model: formData.get('model'),
+      registration: formData.get('registration'),
+      purchasePrice: formData.get('purchasePrice'),
+      purchaseDate: formData.get('purchaseDate'),
+      isLegacy: formData.get('isLegacy') === 'on',
+      legacyExpenses: formData.get('legacyExpenses'),
+    };
+
+    const { ZodError } = await import('zod');
+    const { AddVehicleSchema } = await import('@/lib/validations');
+    const { toDecimal, math } = await import('@/lib/math');
+
+    let parsed;
+    try {
+      parsed = AddVehicleSchema.parse(rawData);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return { success: false, error: err.errors.map(e => e.message).join(', ') };
+      }
+      throw err;
+    }
+
+    const { make, model, registration, purchasePrice, purchaseDate, isLegacy, legacyExpenses } = parsed;
+
     const receivedDocsJson = formData.get('receivedDocsJson');
     let receivedDocs = [];
     if (receivedDocsJson) {
@@ -197,13 +214,6 @@ export async function addVehicle(formData) {
         receivedDocs = JSON.parse(receivedDocsJson);
       } catch (e) {
         console.error('Failed to parse receivedDocsJson:', e);
-      }
-    }
-
-    if (registration) {
-      const regRegex = /^[A-Za-z]{2}[ -]?[0-9]{2}[ -]?[A-Za-z]{0,3}[ -]?[0-9]{4}$/;
-      if (!regRegex.test(registration.trim())) {
-        return { success: false, error: 'Invalid Registration Number format. Must use 2-digit RTO and 4-digit number. Example: GJ 01 BS 8801 or GJ 05 0001' };
       }
     }
 
@@ -237,28 +247,28 @@ export async function addVehicle(formData) {
     }
 
     const partnerAccountId = formData.get('partnerAccountId');
-    const partnerInvestment = parseFloat((formData.get('partnerInvestment') || '0').replace(/,/g, ''));
-    const profitSharePercentage = parseFloat(formData.get('profitSharePercentage') || '0');
+    const partnerInvestment = toDecimal(formData.get('partnerInvestment')).toNumber();
+    const profitSharePercentage = toDecimal(formData.get('profitSharePercentage')).toNumber();
 
-    const partnerPaid1Amount = parseFloat((formData.get('partnerPaid1Amount') || '0').replace(/,/g, ''));
+    const partnerPaid1Amount = toDecimal(formData.get('partnerPaid1Amount')).toNumber();
     const partnerPayment1Mode = formData.get('partnerPayment1Mode') || null;
     const partnerPayment1AccountId = formData.get('partnerPayment1AccountId') || null;
 
-    const partnerPaid2Amount = parseFloat((formData.get('partnerPaid2Amount') || '0').replace(/,/g, ''));
+    const partnerPaid2Amount = toDecimal(formData.get('partnerPaid2Amount')).toNumber();
     const partnerPayment2Mode = formData.get('partnerPayment2Mode') || null;
     const partnerPayment2AccountId = formData.get('partnerPayment2AccountId') || null;
     
-    const partnerTotalPaid = partnerPaid1Amount + partnerPaid2Amount;
+    const partnerTotalPaid = math.add(partnerPaid1Amount, partnerPaid2Amount);
 
     const payableAccountId = formData.get('payableAccountId');
     
-    const firmPaymentsTotal = firmPayments.reduce((sum, p) => sum + p.amount, 0);
-    const totalPaidOrInvested = firmPaymentsTotal + partnerInvestment;
+    const firmPaymentsTotal = math.sum(firmPayments.map(p => p.amount));
+    const totalPaidOrInvested = math.add(firmPaymentsTotal, partnerInvestment);
     if (totalPaidOrInvested > purchasePrice) {
       return { success: false, error: 'Your payment amount cannot be greater than your expense amount (purchase price).' };
     }
     
-    const pendingAmount = Math.round((purchasePrice - totalPaidOrInvested) * 100) / 100;
+    const pendingAmount = math.sub(purchasePrice, totalPaidOrInvested);
 
     // Strict validation for missing accounts and agent balances
     for (const p of firmPayments) {
@@ -549,11 +559,31 @@ export async function payVehiclePendingBalance(formData) {
 
 export async function sellVehicle(formData) {
   try {
-    const vehicleId = formData.get('vehicleId');
-    const salePrice = parseFloat((formData.get('salePrice') || '0').toString().replace(/,/g, ''));
-    const saleDate = new Date(formData.get('saleDate') || Date.now());
-    const customerName = formData.get('customerName');
-    const customerMobile = formData.get('customerMobile');
+    const rawData = {
+      vehicleId: formData.get('vehicleId'),
+      salePrice: formData.get('salePrice'),
+      saleDate: formData.get('saleDate'),
+      customerName: formData.get('customerName'),
+      customerMobile: formData.get('customerMobile'),
+      receivableAccountId: formData.get('receivableAccountId') || null,
+      appliedTokenId: formData.get('appliedTokenId') || null,
+    };
+
+    const { ZodError } = await import('zod');
+    const { SellVehicleSchema } = await import('@/lib/validations');
+    const { toDecimal, math } = await import('@/lib/math');
+
+    let parsed;
+    try {
+      parsed = SellVehicleSchema.parse(rawData);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return { success: false, error: err.errors.map(e => e.message).join(', ') };
+      }
+      throw err;
+    }
+
+    const { vehicleId, salePrice, saleDate, customerName, customerMobile, receivableAccountId, appliedTokenId } = parsed;
 
     // Dynamic Payments
     const paymentModes = formData.getAll('paymentModes');
@@ -566,21 +596,19 @@ export async function sellVehicle(formData) {
     for (let i = 0; i < paymentModes.length; i++) {
       const mode = paymentModes[i];
       const accountId = paymentAccountIds[i];
-      const amount = parseFloat((paymentAmounts[i] || '0').toString().replace(/,/g, ''));
+      const amount = toDecimal(paymentAmounts[i]).toNumber();
 
       if (mode && accountId && amount > 0) {
-        totalPaid += amount;
+        totalPaid = math.add(totalPaid, amount);
         payments.push({ mode, accountId, amount });
       }
     }
 
-    const appliedTokenId = formData.get('appliedTokenId');
     let appliedToken = null;
-
     if (appliedTokenId) {
       appliedToken = await prisma.vehicleToken.findUnique({ where: { id: appliedTokenId } });
       if (appliedToken && appliedToken.status === 'ACTIVE') {
-        totalPaid += Number(appliedToken.amount);
+        totalPaid = math.add(totalPaid, appliedToken.amount);
       }
     }
 
@@ -588,8 +616,7 @@ export async function sellVehicle(formData) {
       return { success: false, error: 'Your payment amount (including applied tokens) cannot be greater than your income amount.' };
     }
 
-    const receivableAccountId = formData.get('receivableAccountId');
-    const pendingReceivable = Math.round((salePrice - totalPaid) * 100) / 100;
+    const pendingReceivable = math.sub(salePrice, totalPaid);
 
     await prisma.$transaction(async (tx) => {
       // Get the vehicle with its expenses and partnerships to calculate profit and payouts
@@ -608,10 +635,10 @@ export async function sellVehicle(formData) {
 
       if (!vehicle) throw new Error('Vehicle not found');
 
-      const totalExpenses = vehicle.expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
-      const legacyExp = Number(vehicle.legacyExpenses || 0);
-      const totalCost = Number(vehicle.purchasePrice) + totalExpenses + legacyExp;
-      const profit = Math.round((salePrice - totalCost) * 100) / 100;
+      const totalExpenses = vehicle.expenses.reduce((sum, exp) => math.add(sum, exp.amount), 0);
+      const legacyExp = toDecimal(vehicle.legacyExpenses).toNumber();
+      const totalCost = math.add(math.add(vehicle.purchasePrice, totalExpenses), legacyExp);
+      const profit = math.sub(salePrice, totalCost);
 
       let finalReceivableAccountId = receivableAccountId;
       
