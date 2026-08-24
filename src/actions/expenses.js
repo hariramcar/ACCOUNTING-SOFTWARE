@@ -61,7 +61,9 @@ export async function getRecentExpenses(dateString = null) {
             { category: 'CAPITAL_INJECTION' },
             { description: { in: ['Opening Balance', 'Capital Introduced / Opening Balance'] } },
             { description: { startsWith: 'Auto-Entry: Partnership Investment' } },
+            { description: { startsWith: 'Auto-Entry: Partnership Capital Investment' } },
             { description: { startsWith: 'Auto-Entry: Profit Share' } },
+            { description: { startsWith: 'Auto-Entry: Profit Earned' } },
             { description: { startsWith: 'Auto-Entry: Agent Car Payment Settled' } },
             { description: { startsWith: 'Auto-Entry: Paid Pending Investment Share' } },
             { description: { startsWith: 'Income Received:' } },
@@ -111,7 +113,8 @@ export async function getRecentExpenses(dateString = null) {
         recipient: tx.account ? tx.account.name : null,
         accountId: tx.accountId,
         isRawTx: true,
-        isTransfer: tx.category === 'INTERNAL_TRANSFER'
+        isTransfer: tx.category === 'INTERNAL_TRANSFER',
+        createdAt: tx.createdAt
       };
     });
 
@@ -158,7 +161,8 @@ export async function getRecentExpenses(dateString = null) {
           make: exp.vehicle.make,
           model: exp.vehicle.model,
           registration: exp.vehicle.registration
-        } : null
+        } : null,
+        createdAt: exp.createdAt
       };
     });
 
@@ -198,7 +202,11 @@ export async function getRecentExpenses(dateString = null) {
       }
     }
 
-    finalCombined.sort((a, b) => new Date(b.date) - new Date(a.date));
+    finalCombined.sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
 
     return { success: true, expenses: finalCombined };
   } catch (error) {

@@ -13,7 +13,7 @@ export const ZDecimal = z.preprocess(
 );
 
 export const ZDate = z.preprocess((val) => {
-  if (!val) return undefined;
+  if (val === null || val === undefined || val === '') return new Date();
   return new Date(val);
 }, z.date({ invalid_type_error: "Must be a valid date" }));
 
@@ -30,7 +30,10 @@ export const AddVehicleSchema = z.object({
   purchasePrice: ZDecimal.refine(v => v >= 0, "Purchase price must be positive"),
   purchaseDate: ZDate.default(() => new Date()),
   isLegacy: z.boolean().default(false),
-  legacyExpenses: ZDecimal.default(0),
+  legacyExpenses: z.preprocess((val) => {
+    if (val === '' || val === null || val === undefined) return 0;
+    return val;
+  }, ZDecimal),
 });
 
 export const SellVehicleSchema = z.object({

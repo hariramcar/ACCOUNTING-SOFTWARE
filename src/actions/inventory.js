@@ -109,7 +109,7 @@ export async function getInventory(year, month) {
           ...p,
           investmentAmount: Number(p.investmentAmount),
           profitSharePercentage: Number(p.profitSharePercentage),
-          paidAmount: Number(p.paidAmount || 0),
+          paidAmount: v.isLegacy ? Number(p.investmentAmount) : Number(p.paidAmount || 0),
           partnerAccount: p.partnerAccount ? {
             ...p.partnerAccount,
             openingBalance: Number(p.partnerAccount.openingBalance),
@@ -200,7 +200,7 @@ export async function addVehicle(formData) {
       parsed = AddVehicleSchema.parse(rawData);
     } catch (err) {
       if (err instanceof ZodError) {
-        return { success: false, error: err.errors.map(e => e.message).join(', ') };
+        return { success: false, error: (err.issues || err.errors)?.map(e => e.message).join(', ') || 'Validation failed' };
       }
       throw err;
     }
@@ -376,8 +376,8 @@ export async function addVehicle(formData) {
             investmentAmount: partnerInvestment,
             profitSharePercentage: profitSharePercentage,
             investmentMode: investmentModeStr,
-            isInvestmentPaid: partnerTotalPaid >= partnerInvestment,
-            paidAmount: partnerTotalPaid > 0 ? partnerTotalPaid : 0
+            isInvestmentPaid: isLegacy ? true : (partnerTotalPaid >= partnerInvestment),
+            paidAmount: isLegacy ? partnerInvestment : (partnerTotalPaid > 0 ? partnerTotalPaid : 0)
           }
         });
 
@@ -477,10 +477,11 @@ export async function addVehicle(formData) {
 
     revalidatePath('/inventory');
     revalidatePath('/rojmel');
+
     return { success: true };
   } catch (error) {
     console.error('Failed to add vehicle:', error);
-    return { success: false, error: error.message || 'Failed to add vehicle.' };
+    return { success: false, error: error.stack || error.message || 'Failed to add vehicle.' };
   }
 }
 
@@ -578,7 +579,7 @@ export async function sellVehicle(formData) {
       parsed = SellVehicleSchema.parse(rawData);
     } catch (err) {
       if (err instanceof ZodError) {
-        return { success: false, error: err.errors.map(e => e.message).join(', ') };
+        return { success: false, error: (err.issues || err.errors)?.map(e => e.message).join(', ') || 'Validation failed' };
       }
       throw err;
     }

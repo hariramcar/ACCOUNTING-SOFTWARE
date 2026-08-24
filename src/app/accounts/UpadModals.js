@@ -313,7 +313,7 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
                     className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] font-bold outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer"
                   >
                     <option value="">Select Account...</option>
-                    {upadAccounts.map(acc => (
+                    {upadAccounts.filter(acc => acc.type !== 'STAFF').map(acc => (
                       <option key={acc.id} value={acc.id}>{acc.name} ({formatAccountType(acc.type)})</option>
                     ))}
                   </select>
