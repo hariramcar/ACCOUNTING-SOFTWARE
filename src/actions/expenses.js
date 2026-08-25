@@ -64,6 +64,7 @@ export async function getRecentExpenses(dateString = null) {
             { description: { startsWith: 'Auto-Entry: Partnership Capital Investment' } },
             { description: { startsWith: 'Auto-Entry: Profit Share' } },
             { description: { startsWith: 'Auto-Entry: Profit Earned' } },
+            { description: { startsWith: 'Auto-Entry: Received Full Settlement' } },
             { description: { startsWith: 'Auto-Entry: Agent Car Payment Settled' } },
             { description: { startsWith: 'Auto-Entry: Paid Pending Investment Share' } },
             { description: { startsWith: 'Income Received:' } },
@@ -123,22 +124,6 @@ export async function getRecentExpenses(dateString = null) {
 
       const paymentAccount = allAccounts.find(a => a.id === exp.requestedAccountId);
       let paymentSource = exp.requestedMode || 'PENDING';
-      
-      if (exp.expenseType === 'INCOME' && exp.requestedMode) {
-        try {
-          const parsed = JSON.parse(exp.requestedMode);
-          if (parsed.payments && parsed.payments.length === 1) {
-            paymentSource = parsed.payments[0].mode === 'CASH' ? 'Cash' : 'Bank';
-          } else if (parsed.payments && parsed.payments.length > 1) {
-            paymentSource = 'Split Payment';
-          } else {
-            paymentSource = 'Pending';
-          }
-        } catch (e) {
-          console.warn(`[Ledger] Fallback string used for requestedMode: ${exp.requestedMode}`);
-          // If it's not valid JSON, leave it as is (legacy fallback)
-        }
-      }
       
       if (paymentAccount) {
         if (exp.requestedMode === 'UGHRANI') {
@@ -203,7 +188,12 @@ export async function getRecentExpenses(dateString = null) {
     }
 
     finalCombined.sort((a, b) => {
-      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      dateA.setHours(0, 0, 0, 0);
+      dateB.setHours(0, 0, 0, 0);
+      const dateDiff = dateB.getTime() - dateA.getTime();
+      
       if (dateDiff !== 0) return dateDiff;
       return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
@@ -730,6 +720,55 @@ export async function deleteExpense(expenseId, isRawTx = false) {
                         });
                     }
                 } else {
+                    // Smart Cascade for Settlement Delete
+                    if (txToDelete.category === 'GENERAL' && txToDelete.description.includes('Paid Full Settlement (Capital + Profit Share)')) {
+                        const partnerLedgerDebit = await tx.transaction.findFirst({
+                            where: {
+                                category: 'GENERAL',
+                                type: 'DEBIT',
+                                amount: txToDelete.amount,
+                                referenceId: txToDelete.referenceId,
+                                description: { contains: 'Received Full Settlement' }
+                            }
+                        });
+                        if (partnerLedgerDebit) {
+                            await tx.transaction.delete({ where: { id: partnerLedgerDebit.id } });
+                            const profitCredit = await tx.transaction.findFirst({
+                                where: {
+                                    category: 'GENERAL',
+                                    type: 'CREDIT',
+                                    referenceId: txToDelete.referenceId,
+                                    description: { contains: 'Profit Earned from sale' },
+                                    accountId: partnerLedgerDebit.accountId
+                                }
+                            });
+                            if (profitCredit) {
+                                await tx.transaction.delete({ where: { id: profitCredit.id } });
+                            }
+                        }
+                    }
+                    // Smart Cascade for UPAD / SALARY Delete
+                    if (txToDelete.category === 'UPAD_WITHDRAWAL' || txToDelete.category === 'UPAD_REPAYMENT' || txToDelete.category === 'SALARY') {
+                        const partnerLeg = await tx.transaction.findFirst({
+                            where: {
+                                category: txToDelete.category,
+                                amount: txToDelete.amount,
+                                date: txToDelete.date,
+                                id: { not: txToDelete.id }
+                            }
+                        });
+                        if (partnerLeg) {
+                            await tx.transaction.delete({ where: { id: partnerLeg.id } });
+                        }
+                    }
+                    // Smart Cascade for Token Delete
+                    if (txToDelete.category === 'GENERAL' && txToDelete.description.startsWith('Token Received:') && txToDelete.referenceId) {
+                        try {
+                            await tx.vehicleToken.delete({ where: { id: txToDelete.referenceId } });
+                        } catch(e) {
+                            // Ignored if already deleted
+                        }
+                    }
                     await tx.transaction.delete({ where: { id: expenseId } });
                 }
                 
@@ -919,6 +958,63 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
                    });
                  }
                }
+            }
+
+            // Smart Cascade for Settlement Payout Edits
+            if (txToUpdate.category === 'GENERAL' && txToUpdate.description.includes('Paid Full Settlement (Capital + Profit Share)')) {
+                const diff = updateData.amount - txToUpdate.amount;
+                const partnerLedgerDebit = await tx.transaction.findFirst({
+                    where: {
+                        category: 'GENERAL',
+                        type: 'DEBIT',
+                        amount: txToUpdate.amount,
+                        referenceId: txToUpdate.referenceId,
+                        description: { contains: 'Received Full Settlement' }
+                    }
+                });
+
+                if (partnerLedgerDebit) {
+                    await tx.transaction.update({
+                        where: { id: partnerLedgerDebit.id },
+                        data: { amount: updateData.amount, date: updateData.date }
+                    });
+
+                    const profitCredit = await tx.transaction.findFirst({
+                        where: {
+                            category: 'GENERAL',
+                            type: 'CREDIT',
+                            referenceId: txToUpdate.referenceId,
+                            description: { contains: 'Profit Earned from sale' },
+                            accountId: partnerLedgerDebit.accountId
+                        }
+                    });
+
+                    if (profitCredit) {
+                        const newProfit = Math.max(0, profitCredit.amount + diff);
+                        await tx.transaction.update({
+                            where: { id: profitCredit.id },
+                            data: { amount: newProfit, date: updateData.date }
+                        });
+                    }
+                }
+            }
+            
+            // Smart Cascade for UPAD / SALARY
+            if (txToUpdate.category === 'UPAD_WITHDRAWAL' || txToUpdate.category === 'UPAD_REPAYMENT' || txToUpdate.category === 'SALARY') {
+                const partnerLeg = await tx.transaction.findFirst({
+                    where: {
+                        category: txToUpdate.category,
+                        amount: txToUpdate.amount,
+                        date: txToUpdate.date,
+                        id: { not: txToUpdate.id }
+                    }
+                });
+                if (partnerLeg) {
+                    await tx.transaction.update({
+                        where: { id: partnerLeg.id },
+                        data: { amount: updateData.amount, date: updateData.date }
+                    });
+                }
             }
             
             let isPartnerInvestment = false;

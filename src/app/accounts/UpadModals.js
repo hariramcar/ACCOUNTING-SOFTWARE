@@ -31,7 +31,11 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [mounted, setMounted] = useState(false);
+  
   const [selectedBillAccountId, setSelectedBillAccountId] = useState('');
+  const [selectedAdvanceAccountId, setSelectedAdvanceAccountId] = useState('');
+  const [billAgentSettleMode, setBillAgentSettleMode] = useState('CASH');
+  const [advanceAgentSettleMode, setAdvanceAgentSettleMode] = useState('CASH');
 
   const isSubmittingRef = useRef(false);
 
@@ -184,8 +188,11 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
                   <select 
                     name="accountId" 
                     required 
+                    value={selectedAdvanceAccountId}
                     onChange={(e) => {
-                       const selected = upadAccounts.find(a => a.id === e.target.value);
+                       const val = e.target.value;
+                       setSelectedAdvanceAccountId(val);
+                       const selected = upadAccounts.find(a => a.id === val);
                        if (selected && selected.type === 'STAFF') {
                           document.getElementById('salary-checkbox-container').classList.remove('hidden');
                        } else {
@@ -224,6 +231,23 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
                     className="w-full p-4 rounded-xl border border-blue-100 bg-white shadow-[0_2px_10px_-4px_rgba(37,99,235,0.15)] text-blue-950 text-[16px] font-black outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-blue-200" 
                   />
                 </div>
+                
+                {(() => {
+                  const selectedAcc = upadAccounts.find(a => a.id === selectedAdvanceAccountId);
+                  if (selectedAcc && (selectedAcc.type === 'DSA_AGENT' || selectedAcc.type === 'FINANCIER')) {
+                    return (
+                      <div className="border-t border-slate-200 pt-3 mt-1">
+                        <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 block">Settle Agent's Pending Balance In:</label>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setAdvanceAgentSettleMode('CASH')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${advanceAgentSettleMode === 'CASH' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>💵 Cash Balance</button>
+                          <button type="button" onClick={() => setAdvanceAgentSettleMode('BANK')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${advanceAgentSettleMode === 'BANK' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>🏦 Bank Balance</button>
+                        </div>
+                        <input type="hidden" name="agentBalanceType" value={advanceAgentSettleMode} />
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
               <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-4">
@@ -344,6 +368,23 @@ export default function UpadModals({ upadAccounts, ledgerAccounts = [] }) {
                     className="w-full p-4 rounded-xl border border-emerald-100 bg-white shadow-[0_2px_10px_-4px_rgba(16,185,129,0.15)] text-emerald-950 text-[16px] font-black outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-emerald-200" 
                   />
                 </div>
+                
+                {(() => {
+                  const selectedAcc = upadAccounts.find(a => a.id === selectedBillAccountId);
+                  if (selectedAcc && (selectedAcc.type === 'DSA_AGENT' || selectedAcc.type === 'FINANCIER')) {
+                    return (
+                      <div className="border-t border-slate-200 pt-3 mt-1">
+                        <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 block">Settle Agent's Pending Balance In:</label>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setBillAgentSettleMode('CASH')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${billAgentSettleMode === 'CASH' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>💵 Cash Balance</button>
+                          <button type="button" onClick={() => setBillAgentSettleMode('BANK')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${billAgentSettleMode === 'BANK' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}>🏦 Bank Balance</button>
+                        </div>
+                        <input type="hidden" name="agentBalanceType" value={billAgentSettleMode} />
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
               <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-4">

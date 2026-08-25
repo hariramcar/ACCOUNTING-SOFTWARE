@@ -44,12 +44,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
   const [txType, setTxType] = useState('EXPENSE'); // INCOME, EXPENSE, or TRANSFER
   const [expenseSubType, setExpenseSubType] = useState('OFFICE_EXPENSE'); // OFFICE_EXPENSE or CAR_EXPENSE
   
-  const [incomeVehicleId, setIncomeVehicleId] = useState('');
-  const [customerName, setCustomerName] = useState('');
-  const [customerMobile, setCustomerMobile] = useState('');
 
-  const selectedVehicleForIncome = vehicles?.find(v => v.id === incomeVehicleId);
-  const activeTokensForIncome = selectedVehicleForIncome?.tokens || [];
 
   // Expenses State
   const [mode, setMode] = useState('');
@@ -190,9 +185,6 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
           setAmount('');
           setMode('');
           setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
-          setIncomeVehicleId('');
-          setCustomerName('');
-          setCustomerMobile('');
           document.getElementById('expense-form').reset();
           router.refresh();
           if (onSuccess) onSuccess();
@@ -206,9 +198,6 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
           setAmount('');
           setMode('');
           setPayments([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
-          setIncomeVehicleId('');
-          setCustomerName('');
-          setCustomerMobile('');
           document.getElementById('expense-form').reset();
           router.refresh();
           if (onSuccess) onSuccess();
@@ -342,53 +331,7 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
             </div>
           )}
 
-          {txType === 'INCOME' && (
-            <>
-              <div className="mb-2">
-                <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Select Vehicle (Optional)</label>
-                <VehicleSearchSelect 
-                  vehicles={vehicles.filter(v => v.status !== 'SOLD')}
-                  name="vehicleId"
-                  value={incomeVehicleId}
-                  onChange={setIncomeVehicleId}
-                  placeholder="-- No Specific Vehicle --"
-                  required={false}
-                  showCost={true}
-                  className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 transition-all shadow-sm text-slate-700"
-                />
-              </div>
 
-              {incomeVehicleId && (
-                <>
-                  <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
-                    <div className="flex-1 w-full">
-                      <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Customer Name</label>
-                      <input type="text" name="customerName" required placeholder="Name..." value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm" />
-                    </div>
-                    <div className="flex-1 w-full">
-                      <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Customer Mobile</label>
-                      <input type="tel" name="customerMobile" placeholder="Optional" value={customerMobile} onChange={(e) => setCustomerMobile(e.target.value)} className="w-full p-2.5 rounded-lg border border-emerald-200 bg-white text-sm font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm" />
-                    </div>
-                  </div>
-
-                  {activeTokensForIncome.length > 0 && (
-                    <div className="mb-2">
-                      <label className="text-xs uppercase font-bold text-emerald-700 mb-1.5 block tracking-wider">Apply Active Token (Optional)</label>
-                      <select name="appliedTokenId" className="w-full p-2.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 text-sm font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm">
-                        <option value="">-- Do not apply token --</option>
-                        {activeTokensForIncome.map(t => (
-                          <option key={t.id} value={t.id}>
-                            Token: ₹{t.amount.toLocaleString('en-IN')} (From: {t.customerName})
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-[10px] text-emerald-600 mt-1 font-medium">Applying a token will automatically deduct its amount from the pending receivable balance.</p>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
-          )}
 
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Description</label>

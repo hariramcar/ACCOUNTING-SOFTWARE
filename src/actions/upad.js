@@ -13,6 +13,7 @@ export async function giveAdvance(formData) {
     const description = formData.get('description');
     const sourceAccountId = formData.get('sourceAccountId');
     const isSalary = formData.get('isSalary') === 'true';
+    const agentBalanceType = formData.get('agentBalanceType');
 
     if (!accountId || !sourceAccountId || isNaN(amount) || amount <= 0) {
       throw new Error('Invalid input');
@@ -39,7 +40,7 @@ export async function giveAdvance(formData) {
       await tx.transaction.create({
         data: {
           date: dateStr ? new Date(dateStr) : new Date(),
-          transactionMode: sourceAcc.type === 'BANK' ? 'BANK' : 'CASH',
+          transactionMode: agentBalanceType || (sourceAcc.type === 'BANK' ? 'BANK' : 'CASH'),
           type: 'DEBIT',
           amount,
           accountId, // The STAFF / UPAD person
@@ -80,6 +81,7 @@ export async function settleBill(formData) {
     const dateStr = formData.get('date');
     const description = formData.get('description');
     const sourceAccountId = formData.get('sourceAccountId');
+    const agentBalanceType = formData.get('agentBalanceType');
 
     if (!accountId || !sourceAccountId || isNaN(amount) || amount <= 0) {
       throw new Error('Invalid input');
@@ -104,7 +106,7 @@ export async function settleBill(formData) {
       await tx.transaction.create({
         data: {
           date: dateStr ? new Date(dateStr) : new Date(),
-          transactionMode: sourceAcc.type === 'BANK' ? 'BANK' : 'CASH',
+          transactionMode: agentBalanceType || (sourceAcc.type === 'BANK' ? 'BANK' : 'CASH'),
           type: 'DEBIT',
           amount,
           accountId, // The UPAD person

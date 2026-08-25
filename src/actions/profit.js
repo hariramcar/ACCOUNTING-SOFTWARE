@@ -177,6 +177,22 @@ export async function getMonthlyProfitData(year, monthIndex) {
     
     const totalLedgerIncome = rawOperatingIncome + Math.max(0, totalGrossProfit - totalPartnerDeductions);
 
+    // Pure accrual for Founders Distribution
+    const pureOperatingIncome = ledgerIncome?.reduce((sum, inc) => {
+      if (inc.rawCategory === 'VEHICLE_SALE') return sum;
+      if (inc.rawCategory === 'CAPITAL_INJECTION') return sum; // Exclude
+      if (inc.description === 'Opening Balance' || inc.description === 'Capital Introduced / Opening Balance') return sum; // Exclude
+      if (inc.description?.startsWith('Token Received:') && !inc.isForfeitedToken) return sum;
+      if (inc.description?.startsWith('Income: Received from')) return sum;
+      if (inc.description?.startsWith('Auto-Entry: Received Pending Capital')) return sum;
+      if (inc.description?.startsWith('Auto-Entry: Paid Pending Udhari')) return sum;
+      if (inc.description?.startsWith('Auto-Entry: Partnership Capital Investment')) return sum;
+      return sum + (!inc.isTransfer ? Number(inc.amount) : 0);
+    }, 0) || 0;
+    
+    const pureTotalLedgerIncome = pureOperatingIncome + Math.max(0, totalGrossProfit - totalPartnerDeductions);
+    const founderNetProfit = pureTotalLedgerIncome - totalLedgerExpenses;
+
     return {
       success: true,
       data: {
@@ -191,6 +207,7 @@ export async function getMonthlyProfitData(year, monthIndex) {
         soldCount: soldVehicles.length,
         totalLedgerIncome,
         totalLedgerExpenses,
+        founderNetProfit,
         vehicles: processedVehicles,
         officeExpenses: processedOfficeExpenses
       }
@@ -373,7 +390,7 @@ export async function payPendingBalance(formData) {
   }
 }
 
-export async function getFoundersData() {
+export async function getFoundersData(year, monthIndex) {
   const session = await getSession();
   if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
 
@@ -382,17 +399,29 @@ export async function getFoundersData() {
       where: { type: 'PARTNER' }
     });
     
+    let dateFilter = {};
+    if (year !== undefined && monthIndex !== undefined) {
+      dateFilter = {
+        gte: new Date(year, monthIndex, 1),
+        lte: new Date(year, monthIndex + 1, 0, 23, 59, 59, 999)
+      };
+    }
+
     const result = [];
     for (const acc of founders) {
       const txs = await prisma.transaction.findMany({
-        where: { accountId: acc.id },
+        where: { 
+          accountId: acc.id,
+          ...(year !== undefined ? { date: dateFilter } : {})
+        },
         orderBy: { date: 'desc' }
       });
       
-      let currentBalance = Number(acc.openingBalance) || 0;
+      let monthDebits = 0;
+      let monthCredits = 0;
       txs.forEach(t => {
-        if (t.type === 'CREDIT') currentBalance += Number(t.amount);
-        else if (t.type === 'DEBIT') currentBalance -= Number(t.amount);
+        if (t.type === 'DEBIT') monthDebits += Number(t.amount);
+        else if (t.type === 'CREDIT' && !t.description.startsWith('Auto-Entry: Profit Earned')) monthCredits += Number(t.amount); // Exclude auto-profit so it represents actual capital deposited
       });
       
       // Filter recent UPAR transactions (DEBIT)
@@ -422,9 +451,8 @@ export async function getFoundersData() {
           id: acc.id,
           name: acc.name,
           profitShare: finalProfitShare,
-          // Negative balance means firm paid them (UPAD/Drawings)
-          upadTaken: currentBalance < 0 ? Math.abs(currentBalance) : 0,
-          capitalDeposited: currentBalance > 0 ? currentBalance : 0,
+          upadTaken: monthDebits,
+          capitalDeposited: monthCredits,
           recentUpar
         });
       }

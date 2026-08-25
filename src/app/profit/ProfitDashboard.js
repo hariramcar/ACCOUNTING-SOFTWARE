@@ -27,7 +27,7 @@ export default async function ProfitDashboard() {
     getMonthlyProfitData(year, month),
     getPendingPayables(),
     getAccountBalances(),
-    getFoundersData()
+    getFoundersData(year, month)
   ]);
 
   const data = result.success ? result.data : null;
@@ -213,7 +213,7 @@ export default async function ProfitDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10">
           {foundersList.map(founder => {
             const sharePercent = (founder.profitShare || 0) / 100;
-            const profitShare = Math.floor(firmNetProfit * sharePercent);
+            const profitShare = Math.floor((data.founderNetProfit || 0) * sharePercent);
             const retained = profitShare - founder.upadTaken;
             const recent = founder.recentUpar || [];
             

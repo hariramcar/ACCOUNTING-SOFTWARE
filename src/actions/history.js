@@ -154,7 +154,12 @@ export async function getAllExpenses(year, month) {
         if (aIsOpening && !bIsOpening) return 1;
         if (!aIsOpening && bIsOpening) return -1;
         
-        const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        dateA.setHours(0, 0, 0, 0);
+        dateB.setHours(0, 0, 0, 0);
+        const dateDiff = dateB.getTime() - dateA.getTime();
+        
         if (dateDiff !== 0) return dateDiff;
         
         return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
@@ -245,7 +250,12 @@ export async function getAllIncome(year, month) {
       if (aIsOpening && !bIsOpening) return 1;
       if (!aIsOpening && bIsOpening) return -1;
       
-      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      dateA.setHours(0, 0, 0, 0);
+      dateB.setHours(0, 0, 0, 0);
+      const dateDiff = dateB.getTime() - dateA.getTime();
+      
       if (dateDiff !== 0) return dateDiff;
       
       return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();

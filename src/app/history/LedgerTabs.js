@@ -6,8 +6,10 @@ import TransactionActions from '../expenses/TransactionActions';
 import { updateExpense } from '@/actions/expenses';
 
 const isExpenseCounted = (exp) => {
-  if (exp.isTransfer) return false;
-  if (exp.status === 'REJECTED') return false;
+  if (exp.rawCategory === 'VEHICLE_PURCHASE') return false;
+  if (exp.description?.startsWith('Auto-Entry: Paid Full Settlement')) return false;
+  if (exp.isTransfer || exp.status === 'REJECTED') return false;
+  if (exp.rawCategory === 'UPAD_WITHDRAWAL' || exp.rawCategory === 'UPAD_REPAYMENT') return false;
   return true;
 };
 
@@ -253,7 +255,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search..."
-              className="w-full pl-11 pr-11 py-3.5 bg-slate-50/80 border-0 rounded-xl md:rounded-[1.25rem] focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white text-slate-900 placeholder:text-slate-400 text-[15px] font-semibold transition-all"
+              className="w-full pl-11 pr-11 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl md:rounded-[1.25rem] focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 focus:bg-white text-slate-900 placeholder:text-slate-400 text-[15px] font-semibold transition-all"
             />
             {searchQuery && (
               <button 
@@ -272,7 +274,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="w-full appearance-none bg-slate-50/80 border-0 rounded-xl md:rounded-[1.25rem] py-3.5 pl-4 pr-10 text-[13px] md:text-[14px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all cursor-pointer truncate"
+              className="w-full appearance-none bg-slate-50 border-2 border-slate-200 rounded-xl md:rounded-[1.25rem] py-3.5 pl-4 pr-10 text-[13px] md:text-[14px] font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 focus:bg-white transition-all cursor-pointer truncate"
             >
               {(activeTab === 'EXPENSE' ? [
                 { id: 'ALL', label: 'All' },
