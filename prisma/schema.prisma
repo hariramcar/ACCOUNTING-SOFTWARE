@@ -201,3 +201,12 @@ enum TokenStatus {
   FORFEITED    // 100% Firm Income
   REFUNDED     // Money returned to customer (Future feature)
 }
+
+model VehicleModel {
+  id        String   @id @default(uuid())
+  make      String
+  model     String
+  createdAt DateTime @default(now())
+
+  @@unique([make, model])
+}

@@ -53,6 +53,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
   const [payments, setPayments] = useState([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
   const [appliedTokenId, setAppliedTokenId] = useState('');
   const [pendingBalance, setPendingBalance] = useState(0);
+  const [overpaidAmount, setOverpaidAmount] = useState(0);
   const [warningState, setWarningState] = useState(null); // null, 'UDHARI', 'UDHARI_ACCEPTED'
   const [vehicleNeedingTokenConfirm, setVehicleNeedingTokenConfirm] = useState(null);
 
@@ -88,7 +89,8 @@ export default function SellVehicleModal({ inStock, accounts }) {
     }
     
     const pending = Math.round((price - (totalPayments + appliedTokenAmount)) * 100) / 100;
-    setPendingBalance(pending);
+    setPendingBalance(Math.max(0, pending));
+    setOverpaidAmount(pending < 0 ? Math.abs(pending) : 0);
     setWarningState(null); // Reset confirm state if anything changes
   }, [salePrice, payments, appliedTokenId, selectedVehicle]);
 
@@ -128,7 +130,7 @@ export default function SellVehicleModal({ inStock, accounts }) {
       return;
     }
 
-    if (pendingBalance < 0) {
+    if (overpaidAmount > 0) {
       toast.error("Total payments (including token) cannot exceed the Sale Price.");
       return;
     }
@@ -341,25 +343,44 @@ export default function SellVehicleModal({ inStock, accounts }) {
 
                 </div>
               
-              <div className={`p-3 rounded-lg border flex flex-col md:flex-row md:items-center justify-between gap-3 ${pendingBalance !== 0 ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
+              <div className={`p-3 rounded-lg border flex flex-col md:flex-row md:items-center justify-between gap-3 ${overpaidAmount > 0 ? 'bg-red-50 border-red-200 shadow-sm' : pendingBalance !== 0 ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
                 <div>
-                  <div className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${pendingBalance !== 0 ? 'text-amber-700' : 'text-slate-500'}`}>
-                    {pendingBalance < 0 ? 'Advance (We Owe Customer)' : 'Pending Balance (Customer Owes)'}
+                  <div className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${overpaidAmount > 0 ? 'text-red-700' : pendingBalance !== 0 ? 'text-amber-700' : 'text-slate-500'}`}>
+                    {overpaidAmount > 0 ? 'Payment exceeds total amount' : 'Pending Balance (Customer Owes)'}
                   </div>
-                  <div className={`font-black text-lg ${pendingBalance !== 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                    {pendingBalance < 0 ? '-' : ''}₹{Math.abs(pendingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
+                  {overpaidAmount > 0 ? (
+                    <div className="font-black text-lg text-red-600 bg-red-100 px-2 py-0.5 rounded border border-red-300 w-max">
+                      Exceeds by ₹{overpaidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  ) : (
+                    <div className={`font-black text-lg ${pendingBalance !== 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                      ₹{pendingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  )}
                 </div>
                 
                 {pendingBalance !== 0 && (
                   <div className="flex-1 w-full md:w-auto">
                      <label className="text-[10px] uppercase font-bold text-amber-700 mb-2 block tracking-wider">Select Loan Agent / Financier (Optional for Direct Customer)</label>
-                     <select name="receivableAccountId" className="w-full p-3 rounded-xl border border-amber-200 bg-white shadow-inner text-sm font-bold outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 text-amber-900 transition-all">
-                      <option value="">-- Direct Customer Udhari --</option>
-                      {accounts?.filter(a => a.type === 'DSA_AGENT' || a.type === 'FINANCIER').map(acc => (
-                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.type === 'FINANCIER' ? 'Financier' : 'Agent'})</option>
-                      ))}
-                    </select>
+                     <div className="flex flex-col sm:flex-row gap-2">
+                       <select id="receivableAccountId" name="receivableAccountId" className="flex-[1.5] p-3 rounded-xl border border-amber-200 bg-white shadow-inner text-sm font-bold outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 text-amber-900 transition-all" onChange={(e) => {
+                         const select = document.getElementById('receivablePaymentMode');
+                         if (select) {
+                           select.style.display = e.target.value ? 'block' : 'none';
+                           select.required = !!e.target.value;
+                         }
+                       }}>
+                        <option value="">-- Direct Customer Udhari --</option>
+                        {accounts?.filter(a => a.type === 'DSA_AGENT' || a.type === 'FINANCIER').map(acc => (
+                          <option key={acc.id} value={acc.id}>{acc.name} ({acc.type === 'FINANCIER' ? 'Financier' : 'Agent'})</option>
+                        ))}
+                      </select>
+                      <select id="receivablePaymentMode" name="receivablePaymentMode" style={{ display: 'none' }} className="flex-1 p-3 rounded-xl border border-amber-200 bg-white shadow-inner text-sm font-bold outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 text-amber-900 transition-all">
+                        <option value="">Select Cash/Bank</option>
+                        <option value="CASH">Cash</option>
+                        <option value="BANK">Bank</option>
+                      </select>
+                    </div>
                   </div>
                 )}
               </div>

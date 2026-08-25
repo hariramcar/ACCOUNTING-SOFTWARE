@@ -29,6 +29,7 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
                   <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded-sm">
                     {car.registration || 'UNREG'}
                   </span>
+                  {car.partnerships && car.partnerships.length > 0 && <span className="text-[8px] uppercase tracking-wider bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-bold">Partnered</span>}
                 </h4>
                 <div className="text-[10px] font-medium text-slate-500 mt-1 uppercase tracking-wider flex flex-col gap-0.5">
                   <div>
@@ -67,7 +68,7 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
                 <div className="col-span-2 flex flex-col gap-1 mt-1">
                   {car.salePendingBalance > 0 && car.receivableAccount && (
                     <div className="text-[10px] font-bold text-amber-700 flex items-center justify-between bg-amber-50 px-2 py-1 rounded">
-                      <span>Pending Receive</span>
+                      <span>{car.receivableAccount && ['FINANCIER', 'DSA_AGENT'].includes(car.receivableAccount.type) ? 'Loan Agent Pay' : 'Pending Amount'}</span>
                       <span>₹{car.salePendingBalance.toLocaleString('en-IN')}</span>
                     </div>
                   )}
@@ -105,8 +106,9 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
               >
                 <td className="py-4 px-6 align-top">
                   <h4 className="m-0 mb-1 font-bold text-slate-900 flex items-center gap-2">
-                    {car.make} {car.model} ({car.registration})
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider px-2 py-0.5 bg-white border border-slate-200 rounded-sm">{car.registration}</span>
+                    {car.make} {car.model}
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider px-2 py-0.5 bg-white border border-slate-200 rounded-sm">{car.registration || 'UNREG'}</span>
+                    {car.partnerships && car.partnerships.length > 0 && <span className="text-[9px] uppercase tracking-wider bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold border border-purple-200">Partnered</span>}
                   </h4>
                   <div className="flex flex-wrap items-center gap-2 mt-1">
                     {(car.customerName || car.customerMobile) && (
@@ -118,7 +120,7 @@ export default function SoldHistoryClientList({ sold, accounts = [] }) {
                     )}
                     {car.salePendingBalance > 0 && car.receivableAccount && (
                       <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200/50 px-2 py-0.5 rounded w-max">
-                        Pending Receive: ₹{car.salePendingBalance.toLocaleString('en-IN')} ({car.receivableAccount.name})
+                        {['FINANCIER', 'DSA_AGENT'].includes(car.receivableAccount.type) ? 'Loan Agent Pay' : 'Pending Amount'}: ₹{car.salePendingBalance.toLocaleString('en-IN')} ({car.receivableAccount.name})
                       </div>
                     )}
                     {(!car.isLegacy && car.purchasePendingBalance > 0) && (

@@ -1,18 +1,13 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Building2, Car, ArrowDownRight, ArrowUpRight, TrendingUp, Receipt, Wallet, BookOpen, Search, X, CheckCircle2 } from 'lucide-react';
+import { Building2, Car, ArrowDownRight, ArrowUpRight, TrendingUp, Receipt, Wallet, BookOpen, Search, X, CheckCircle2, ChevronDown } from 'lucide-react';
 import TransactionActions from '../expenses/TransactionActions';
 import { updateExpense } from '@/actions/expenses';
 
 const isExpenseCounted = (exp) => {
-  if (exp.rawCategory === 'VEHICLE_PURCHASE') return false;
-  if (exp.description?.startsWith('Auto-Entry: Paid Full Settlement')) return false;
   if (exp.isTransfer) return false;
   if (exp.status === 'REJECTED') return false;
-  
-  if (exp.rawCategory === 'UPAD_WITHDRAWAL' || exp.rawCategory === 'UPAD_REPAYMENT') return false;
-  
   return true;
 };
 
@@ -104,9 +99,27 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
 
     // Apply Chip Filter
     if (filterType === 'CASH') {
-      filtered = filtered.filter(item => item.paymentSource === 'CASH');
+      filtered = filtered.filter(item => {
+        if (typeof item.paymentSource === 'string' && item.paymentSource.startsWith('{') && item.paymentSource.includes('"payments"')) {
+          try {
+            const parsed = JSON.parse(item.paymentSource);
+            return parsed.payments.some(p => p.mode === 'CASH');
+          } catch(e) {}
+        }
+        return item.paymentSource === 'CASH' || item.paymentSource?.toLowerCase().includes('cash') || item.transactionMode === 'CASH';
+      });
     } else if (filterType === 'BANK') {
-      filtered = filtered.filter(item => item.paymentSource !== 'CASH' && item.paymentSource !== 'UNKNOWN' && !item.isTransfer);
+      filtered = filtered.filter(item => {
+        if (typeof item.paymentSource === 'string' && item.paymentSource.startsWith('{') && item.paymentSource.includes('"payments"')) {
+          try {
+            const parsed = JSON.parse(item.paymentSource);
+            return parsed.payments.some(p => p.mode === 'BANK');
+          } catch(e) {}
+        }
+        const isCash = item.paymentSource === 'CASH' || item.paymentSource?.toLowerCase().includes('cash') || item.transactionMode === 'CASH';
+        const isBank = item.paymentSource === 'BANK' || item.paymentSource?.toLowerCase().includes('bank') || item.transactionMode === 'BANK';
+        return !isCash && !item.isTransfer && item.paymentSource !== 'UNKNOWN' && (isBank || (!isCash && item.paymentSource !== 'PENDING' && item.paymentSource));
+      });
     } else if (filterType === 'TRANSFERS') {
       filtered = filtered.filter(item => item.isTransfer);
     } else if (filterType === 'CAR_EXPENSE') {
@@ -114,9 +127,15 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
     } else if (filterType === 'OFFICE_EXPENSE') {
       filtered = filtered.filter(item => item.expenseType === 'OFFICE_EXPENSE');
     } else if (filterType === 'ADVANCE') {
-      filtered = filtered.filter(item => item.expenseType === 'ADVANCE');
-    } else if (['STAFF', 'PARTNER', 'FINANCIER', 'DSA_AGENT', 'UGHRANI'].includes(filterType)) {
+      filtered = filtered.filter(item => item.isStaffAdvance || item.accountType === 'STAFF');
+    } else if (['STAFF', 'PARTNER'].includes(filterType)) {
       filtered = filtered.filter(item => item.accountType === filterType);
+    } else if (filterType === 'VEHICLE_SALE') {
+      filtered = filtered.filter(item => item.rawCategory === 'VEHICLE_SALE');
+    } else if (filterType === 'CAPITAL_INJECTION') {
+      filtered = filtered.filter(item => item.rawCategory === 'CAPITAL_INJECTION' || item.description?.includes('Capital'));
+    } else if (filterType === 'GENERAL') {
+      filtered = filtered.filter(item => item.rawCategory === 'GENERAL' || (!item.rawCategory && item.expenseType === 'INCOME'));
     }
 
     // Apply Text Search
@@ -160,7 +179,10 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
         {/* Income Card Toggle */}
         <div 
-          onClick={() => setActiveTab('INCOME')}
+          onClick={() => {
+            setActiveTab('INCOME');
+            setFilterType('ALL');
+          }}
           className={`rounded-xl p-3 md:p-6 flex flex-col md:flex-row items-start md:items-center justify-between relative overflow-hidden cursor-pointer transition-all duration-300 ease-out transform ${
             activeTab === 'INCOME' 
               ? 'bg-white border-2 border-emerald-400 shadow-[0_8px_30px_rgb(16,185,129,0.15)] scale-[1.02]' 
@@ -181,7 +203,10 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
         
         {/* Expense Card Toggle */}
         <div 
-          onClick={() => setActiveTab('EXPENSE')}
+          onClick={() => {
+            setActiveTab('EXPENSE');
+            setFilterType('ALL');
+          }}
           className={`rounded-xl p-3 md:p-6 flex flex-col md:flex-row items-start md:items-center justify-between relative overflow-hidden cursor-pointer transition-all duration-300 ease-out transform ${
             activeTab === 'EXPENSE' 
               ? 'bg-white border-2 border-red-400 shadow-[0_8px_30px_rgb(239,68,68,0.15)] scale-[1.02]' 
@@ -217,9 +242,9 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
 
       {/* Premium Search & Filter Bar */}
       <div className="bg-white rounded-2xl md:rounded-[1.5rem] p-2 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-100 relative z-20 ring-1 ring-slate-900/5">
-        <div className="flex flex-col gap-2">
-          {/* Search Input */}
-          <div className="relative group">
+        <div className="flex flex-row items-center gap-2">
+          {/* Search Input (Left side) */}
+          <div className="relative group flex-1">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
               <Search className="w-5 h-5" />
             </div>
@@ -242,34 +267,38 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
             )}
           </div>
           
-          {/* Filter Chips - Premium iOS Style */}
-          <div className="flex overflow-x-auto items-center gap-1.5 pb-1 px-1 scroll-smooth snap-x hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {[
-              { id: 'ALL', label: 'All' },
-              { id: 'CASH', label: 'Cash' },
-              { id: 'BANK', label: 'Bank' },
-              { id: 'TRANSFERS', label: 'Transfers' },
-              { id: 'CAR_EXPENSE', label: 'Car Expenses' },
-              { id: 'OFFICE_EXPENSE', label: 'Office Expenses' },
-              { id: 'ADVANCE', label: 'Advances' },
-              { id: 'STAFF', label: 'Staff' },
-              { id: 'PARTNER', label: 'Partner' },
-              { id: 'FINANCIER', label: 'Financier' },
-              { id: 'DSA_AGENT', label: 'DSA Agent' },
-              { id: 'UGHRANI', label: 'Market Place' }
-            ].map(chip => (
-              <button
-                key={chip.id}
-                onClick={() => setFilterType(chip.id)}
-                className={`flex-shrink-0 snap-start whitespace-nowrap px-5 py-2 rounded-xl text-[13px] font-bold tracking-wide transition-all duration-300 ease-out ${
-                  filterType === chip.id 
-                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20 scale-[1.02]' 
-                    : 'bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-800'
-                }`}
-              >
-                {chip.label}
-              </button>
-            ))}
+          {/* Filter Dropdown (Right side) */}
+          <div className="relative shrink-0 w-36 md:w-48">
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="w-full appearance-none bg-slate-50/80 border-0 rounded-xl md:rounded-[1.25rem] py-3.5 pl-4 pr-10 text-[13px] md:text-[14px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all cursor-pointer truncate"
+            >
+              {(activeTab === 'EXPENSE' ? [
+                { id: 'ALL', label: 'All' },
+                { id: 'CASH', label: 'Cash' },
+                { id: 'BANK', label: 'Bank' },
+                { id: 'TRANSFERS', label: 'Transfers' },
+                { id: 'CAR_EXPENSE', label: 'Car Expenses' },
+                { id: 'OFFICE_EXPENSE', label: 'Office Expenses' },
+                { id: 'ADVANCE', label: 'Advances' },
+                { id: 'STAFF', label: 'Staff' },
+                { id: 'PARTNER', label: 'Partner' }
+              ] : [
+                { id: 'ALL', label: 'All' },
+                { id: 'CASH', label: 'Cash' },
+                { id: 'BANK', label: 'Bank' },
+                { id: 'TRANSFERS', label: 'Transfers' },
+                { id: 'VEHICLE_SALE', label: 'Vehicle Sales' },
+                { id: 'CAPITAL_INJECTION', label: 'Capital / Investment' },
+                { id: 'GENERAL', label: 'General Income' }
+              ]).map(chip => (
+                <option key={chip.id} value={chip.id}>{chip.label}</option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+              <ChevronDown className="w-5 h-5" />
+            </div>
           </div>
         </div>
       </div>

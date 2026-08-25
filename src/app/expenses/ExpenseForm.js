@@ -89,13 +89,15 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
 
   const [payments, setPayments] = useState([{ id: Date.now(), mode: '', accountId: '', amount: '' }]);
   const [pendingBalance, setPendingBalance] = useState(0);
+  const [overpaidAmount, setOverpaidAmount] = useState(0);
 
   useEffect(() => {
     if (txType === 'INCOME' || txType === 'EXPENSE') {
       const total = parseFloat((amount || '').toString().replace(/,/g, '')) || 0;
       const totalPaid = payments.reduce((sum, p) => sum + (parseFloat((p.amount || '').toString().replace(/,/g, '')) || 0), 0);
       const pending = Math.round((total - totalPaid) * 100) / 100;
-      setPendingBalance(pending);
+      setPendingBalance(Math.max(0, pending));
+      setOverpaidAmount(pending < 0 ? Math.abs(pending) : 0);
     }
   }, [amount, payments, txType]);
 
@@ -153,6 +155,11 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
       return;
     }
 
+    if (overpaidAmount > 0) {
+      toast.error('Payment amounts cannot exceed the total amount.');
+      return;
+    }
+
     // 4. Validation: Account Selection Guard
     if (txType === 'INCOME') {
       if (pendingBalance > 0 && !formData.get('receivableAccountId')) {
@@ -160,8 +167,8 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
         return;
       }
     } else {
-      if (pendingBalance !== 0) {
-        toast.error(`For expenses, your payments must exactly match the total amount. You have a difference of ₹${Math.abs(pendingBalance).toLocaleString('en-IN')}`);
+      if (pendingBalance > 0) {
+        toast.error(`For expenses, your payments must exactly match the total amount. You have a difference of ₹${pendingBalance.toLocaleString('en-IN')}`);
         return;
       }
     }
@@ -408,17 +415,23 @@ export default function ExpenseForm({ vehicles, accounts, addExpenseAction, addT
             </div>
           </div>
 
-          <div className={`p-4 rounded-lg border flex flex-col md:flex-row md:items-center gap-4 ${pendingBalance !== 0 ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
+          <div className={`p-4 rounded-lg border flex flex-col md:flex-row md:items-center gap-4 ${overpaidAmount > 0 ? 'bg-red-50 border-red-200 shadow-sm' : pendingBalance !== 0 ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
             <div className="flex-1">
-              <div className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${pendingBalance !== 0 ? 'text-amber-700' : 'text-slate-500'}`}>
-                {pendingBalance !== 0 ? 'Difference / Unallocated' : 'Fully Allocated'}
+              <div className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${overpaidAmount > 0 ? 'text-red-700' : pendingBalance !== 0 ? 'text-amber-700' : 'text-slate-500'}`}>
+                {overpaidAmount > 0 ? 'Payment exceeds total amount' : pendingBalance !== 0 ? 'Difference / Unallocated' : 'Fully Allocated'}
               </div>
-              <div className={`font-black text-lg ${pendingBalance !== 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                {pendingBalance < 0 ? '-' : ''}₹{Math.abs(pendingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
+              {overpaidAmount > 0 ? (
+                <div className="font-black text-lg text-red-600 bg-red-100 px-2 py-0.5 rounded border border-red-300 w-max">
+                  Exceeds by ₹{overpaidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              ) : (
+                <div className={`font-black text-lg ${pendingBalance !== 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                  ₹{pendingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              )}
             </div>
 
-            {txType === 'INCOME' && pendingBalance !== 0 && (
+            {txType === 'INCOME' && pendingBalance !== 0 && overpaidAmount === 0 && (
               <div className="flex-1">
                 <label className="text-[10px] uppercase font-bold text-amber-700 mb-1 block tracking-wider">Select Agent Account (For Pending Baki/Advance)</label>
                 <select name="receivableAccountId" required className="w-full p-2.5 rounded-md border border-amber-300 bg-white text-sm font-medium outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500">

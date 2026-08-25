@@ -282,6 +282,23 @@ function AccountCard({ account, colorClass, creditLabel, debitLabel, balanceLogi
             </div>
           )}
           
+          {(account.type === 'DSA_AGENT' || account.type === 'FINANCIER') && (
+            <div className="grid grid-cols-2 gap-2 mb-1 mt-1">
+              <div className="flex flex-col gap-1 p-2 bg-black/5 rounded border border-black/10">
+                <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">Cash Balance</span>
+                <span className={`text-sm font-bold ${account.cashBalance < 0 ? 'text-emerald-700' : (account.cashBalance > 0 ? 'text-red-700' : 'opacity-80')}`}>
+                  {account.cashBalance < 0 ? '+' : (account.cashBalance > 0 ? '-' : '')}₹{Math.abs(account.cashBalance || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 p-2 bg-black/5 rounded border border-black/10">
+                <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">Bank Balance</span>
+                <span className={`text-sm font-bold ${account.bankBalance < 0 ? 'text-emerald-700' : (account.bankBalance > 0 ? 'text-red-700' : 'opacity-80')}`}>
+                  {account.bankBalance < 0 ? '+' : (account.bankBalance > 0 ? '-' : '')}₹{Math.abs(account.bankBalance || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+          )}
+          
           {account.pendingInvestments > 0 && (
             <div className="flex justify-between items-center bg-red-50 p-2 rounded-md border border-red-100 mb-0.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">Pending Capital (They Owe)</span>

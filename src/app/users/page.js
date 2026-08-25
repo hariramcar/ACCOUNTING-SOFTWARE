@@ -5,7 +5,7 @@ import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import EditUserModal from './EditUserModal';
 import SubmitButton from '@/components/SubmitButton';
-import WipeButton from './WipeButton';
+import VehicleModelsModal from './VehicleModelsModal';
 
 export default async function UsersPage() {
   const session = await getSession();
@@ -17,6 +17,10 @@ export default async function UsersPage() {
     orderBy: { createdAt: 'desc' }
   });
 
+  const vehicleModels = await prisma.vehicleModel.findMany({
+    orderBy: [{ make: 'asc' }, { model: 'asc' }]
+  });
+
   return (
     <div className="px-4 pt-1 pb-4 sm:p-6 md:p-8 max-w-6xl mx-auto text-slate-900">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-5 mb-6 sm:mb-8">
@@ -25,7 +29,7 @@ export default async function UsersPage() {
           <p className="text-slate-500 m-0 font-medium text-sm sm:text-base">Manage access and roles for the Master Ledger.</p>
         </div>
         <div>
-          <WipeButton />
+          <VehicleModelsModal vehicleModels={vehicleModels} />
         </div>
       </div>
 

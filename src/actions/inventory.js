@@ -328,7 +328,7 @@ export async function addVehicle(formData) {
             await tx.transaction.create({
               data: {
                 date: purchaseDate,
-                transactionMode: isInternal ? 'CASH' : p.mode, // Internal ledger uses CASH mode
+                transactionMode: isInternal ? (p.agentPaymentMode || 'CASH') : p.mode,
                 type: isInternal ? 'CREDIT' : 'DEBIT', // Agent pays on our behalf -> We owe them more / they owe us less (CREDIT). Firm pays -> Firm balance decreases (DEBIT)
                 amount: p.amount,
                 accountId: p.accountId,
@@ -643,6 +643,7 @@ export async function sellVehicle(formData) {
 
       let finalReceivableAccountId = receivableAccountId;
       
+      let newCustomerAccountId = null;
       // Auto-create Customer Account if direct customer udhari is chosen
       if (!finalReceivableAccountId && pendingReceivable !== 0) {
         const newCustomerAccount = await tx.account.create({
@@ -652,7 +653,8 @@ export async function sellVehicle(formData) {
             openingBalance: 0
           }
         });
-        finalReceivableAccountId = newCustomerAccount.id;
+        newCustomerAccountId = newCustomerAccount.id;
+        finalReceivableAccountId = newCustomerAccountId;
       }
 
       await tx.vehicle.update({
@@ -688,10 +690,13 @@ export async function sellVehicle(formData) {
 
       // Handle Pending Receivable / Advance (Customer owes us OR We owe Customer)
       if (finalReceivableAccountId && pendingReceivable !== 0) {
+        const isInternalAgent = finalReceivableAccountId !== newCustomerAccountId;
+        const receivablePaymentMode = isInternalAgent ? formData.get('receivablePaymentMode') || 'CASH' : 'CASH';
+        
         await tx.transaction.create({
           data: {
             date: saleDate,
-            transactionMode: 'CASH', // Internal ledger entry
+            transactionMode: receivablePaymentMode,
             type: pendingReceivable > 0 ? 'DEBIT' : 'CREDIT', // DEBIT if they owe us more, CREDIT if they paid an advance
             amount: Math.abs(pendingReceivable),
             accountId: finalReceivableAccountId,

@@ -1,5 +1,6 @@
 import { getInventory, addVehicle } from '@/actions/inventory';
 import { getAccounts } from '@/actions/rojmel';
+import prisma from '@/lib/prisma';
 import { CarFront, History, CheckCircle2 } from 'lucide-react';
 import AddVehicleModal from './AddVehicleModal';
 import SellVehicleModal from './SellVehicleModal';
@@ -31,6 +32,9 @@ export default async function InventoryPage() {
 
   const { inStock, sold, allCurrentStock } = await getInventory(year, month);
   const { accounts } = await getAccounts();
+  const vehicleModels = await prisma.vehicleModel.findMany({
+    orderBy: [{ make: 'asc' }, { model: 'asc' }]
+  });
 
   const firmStockValue = inStock?.reduce((acc, car) => {
     const partnerInvestment = (car.partnerships || []).reduce((sum, p) => sum + Number(p.investmentAmount || 0), 0);
@@ -57,7 +61,7 @@ export default async function InventoryPage() {
         <div className="grid grid-cols-3 gap-2 w-full md:flex md:items-center md:gap-2.5 md:w-auto pb-1 md:pb-0 shrink-0">
           <SellVehicleModal inStock={allCurrentStock} accounts={accounts || []} />
           <TopTokenButton inStock={inStock} accounts={accounts || []} />
-          <AddVehicleModal accounts={accounts || []} addVehicleAction={addVehicle} />
+          <AddVehicleModal accounts={accounts || []} vehicleModels={vehicleModels || []} addVehicleAction={addVehicle} />
         </div>
       </div>
 

@@ -202,7 +202,7 @@ export async function receiveAgentCarPayment(formData) {
         await tx.transaction.create({
           data: {
             date,
-            transactionMode: 'CASH', // Internal ledger link
+            transactionMode: ledgerAcc ? (ledgerAcc.type === 'BANK' ? 'BANK' : 'CASH') : 'CASH',
             type: 'CREDIT',
             amount,
             accountId: agentAccountId,
@@ -271,7 +271,7 @@ export async function receiveAdvancePayment(formData) {
       await tx.transaction.create({
         data: {
           date,
-          transactionMode: 'CASH',
+          transactionMode: destAcc.type === 'BANK' ? 'BANK' : 'CASH',
           type: 'CREDIT',
           amount,
           accountId: accountId,

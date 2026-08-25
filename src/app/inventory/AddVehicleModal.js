@@ -20,9 +20,10 @@ const REQUIRED_DOCS = [
   'TTO'
 ];
 
-export default function AddVehicleModal({ accounts, addVehicleAction }) {
+export default function AddVehicleModal({ accounts, vehicleModels, addVehicleAction }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [selectedMake, setSelectedMake] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [receivedDocs, setReceivedDocs] = useState([]);
@@ -124,13 +125,13 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
     }
   };
 
-  const pendingBalance = Math.max(0, 
-    Math.round((
-      (Number((purchasePrice || '').replace(/,/g, '')) || 0) 
-      - firmPayments.reduce((sum, p) => sum + (Number((p.amount || '').replace(/,/g, '')) || 0), 0)
-      - (Number((partnerInvestment || '').replace(/,/g, '')) || 0)
-    ) * 100) / 100
-  );
+  const totalCost = Number((purchasePrice || '').replace(/,/g, '')) || 0;
+  const totalFirmPaid = firmPayments.reduce((sum, p) => sum + (Number((p.amount || '').replace(/,/g, '')) || 0), 0);
+  const totalPartnerInv = Number((partnerInvestment || '').replace(/,/g, '')) || 0;
+  const rawPendingBalance = Math.round((totalCost - totalFirmPaid - totalPartnerInv) * 100) / 100;
+  
+  const pendingBalance = Math.max(0, rawPendingBalance);
+  const overpaidAmount = rawPendingBalance < 0 ? Math.abs(rawPendingBalance) : 0;
 
   
   
@@ -156,12 +157,20 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
       }
     }
 
+    if (overpaidAmount > 0) {
+      toast.error('Payment amounts cannot exceed the car price.');
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+      return;
+    }
+
     formData.append('purchasePrice', (purchasePrice || '0').replace(/,/g, ''));
     
     const firmPaymentsData = firmPayments.map(p => ({
       mode: p.mode,
       accountId: p.accountId,
-      amount: parseFloat((p.amount || '0').replace(/,/g, ''))
+      amount: parseFloat((p.amount || '0').replace(/,/g, '')),
+      agentPaymentMode: p.agentPaymentMode || 'CASH'
     })).filter(p => p.amount > 0);
     formData.append('firmPaymentsJson', JSON.stringify(firmPaymentsData));
     
@@ -274,12 +283,32 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="flex flex-col gap-2">
-                  <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Make</label>
-                  <input type="text" name="make" required placeholder="e.g. Maruti" className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] outline-none focus:ring-4 focus:ring-indigo-500/15 focus:border-indigo-500 focus:bg-white font-bold transition-all" />
+                  <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Make (Brand)</label>
+                  <select 
+                    name="make" 
+                    required 
+                    value={selectedMake}
+                    onChange={(e) => setSelectedMake(e.target.value)}
+                    className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] outline-none focus:ring-4 focus:ring-indigo-500/15 focus:border-indigo-500 focus:bg-white font-bold transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="">Select Brand</option>
+                    {Array.from(new Set(vehicleModels?.map(m => m.make))).map(make => (
+                      <option key={make} value={make}>{make}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Model</label>
-                  <input type="text" name="model" required placeholder="e.g. Swift" className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] outline-none focus:ring-4 focus:ring-indigo-500/15 focus:border-indigo-500 focus:bg-white font-bold transition-all" />
+                  <select 
+                    name="model" 
+                    required 
+                    className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-900 text-[15px] outline-none focus:ring-4 focus:ring-indigo-500/15 focus:border-indigo-500 focus:bg-white font-bold transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="">Select Model</option>
+                    {vehicleModels?.filter(m => m.make === selectedMake).map(m => (
+                      <option key={m.id} value={m.model}>{m.model}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -315,12 +344,12 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                   <p className="m-0 mb-1 text-xs uppercase tracking-wider font-bold text-slate-700">Auto-Deduct from Rojmel</p>
                   
                   {firmPayments.map((p, idx) => (
-                    <div key={p.id} className="flex gap-2 mb-3">
-                      <div className="grid grid-cols-3 gap-2 flex-1">
+                    <div key={p.id} className="flex gap-2 mb-3 items-start">
+                      <div className="flex flex-col sm:flex-row gap-2 flex-1">
                         <select 
                           value={p.mode}
                           onChange={(e) => updateFirmPayment(p.id, 'mode', e.target.value)}
-                          className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                          className="flex-1 text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                         >
                           <option value="">No Entry</option>
                           <option value="CASH">Cash</option>
@@ -328,16 +357,28 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                           <option value="AGENT">Agent/Financier</option>
                         </select>
                         {p.mode === 'CASH' ? (
-                          <div className="w-full text-xs font-bold p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center">💵 Cash (Auto)</div>
+                          <div className="flex-1 text-xs font-bold p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center">💵 Cash (Auto)</div>
                         ) : (
                           <select 
                             value={p.accountId}
                             onChange={(e) => updateFirmPayment(p.id, 'accountId', e.target.value)}
                             required={!!p.amount || !!p.mode} 
-                            className="w-full text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                            className="flex-[1.5] text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                           >
                             <option value="">Account...</option>
                             {accounts?.filter(acc => p.mode === '' || (p.mode === 'AGENT' ? (acc.type === 'DSA_AGENT' || acc.type === 'FINANCIER') : acc.type === p.mode)).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                          </select>
+                        )}
+                        {p.mode === 'AGENT' && (
+                          <select
+                            value={p.agentPaymentMode || ''}
+                            onChange={(e) => updateFirmPayment(p.id, 'agentPaymentMode', e.target.value)}
+                            required
+                            className="flex-1 text-xs font-bold p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                          >
+                            <option value="">Select Cash/Bank</option>
+                            <option value="CASH">Cash</option>
+                            <option value="BANK">Bank</option>
                           </select>
                         )}
                         <input 
@@ -346,7 +387,7 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                           placeholder="Amount (₹)" 
                           value={p.amount}
                           onChange={(e) => updateFirmPayment(p.id, 'amount', e.target.value)}
-                          className="w-full text-[13px] font-black p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 placeholder:font-semibold transition-all" 
+                          className="flex-1 text-[13px] font-black p-3 rounded-xl border-0 bg-slate-100 shadow-inner text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 placeholder:font-semibold transition-all" 
                         />
                       </div>
                       {idx > 0 && (
@@ -371,12 +412,21 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                   <div className="mt-2 border-t border-slate-200/60 pt-4">
                     <div className="flex justify-between items-end mb-3">
                       <p className="m-0 text-[11px] uppercase tracking-wider font-bold text-amber-600">Pending Balance (Not Paid)</p>
-                      {pendingBalance > 0 ? (
+                      {overpaidAmount > 0 ? (
+                        <strong className="text-red-600 text-sm font-black tracking-tight bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                          Exceeds by ₹{overpaidAmount.toLocaleString('en-IN')}
+                        </strong>
+                      ) : pendingBalance > 0 ? (
                         <strong className="text-amber-600 text-sm font-black tracking-tight">₹{pendingBalance.toLocaleString('en-IN')}</strong>
                       ) : (
                         <span className="text-slate-400 text-sm font-bold">₹0</span>
                       )}
                     </div>
+                    {overpaidAmount > 0 && (
+                      <p className="text-xs font-bold text-red-500 m-0 text-right mb-2 flex justify-end items-center gap-1">
+                        <AlertCircle size={12} /> Payment exceeds Total Price!
+                      </p>
+                    )}
                     <input type="hidden" name="payableAccountId" value="" />
                   </div>
                 </div>
@@ -387,7 +437,7 @@ export default function AddVehicleModal({ accounts, addVehicleAction }) {
                 <div className="grid grid-cols-1 gap-3">
                   <select name="partnerAccountId" className="w-full text-[13px] font-bold p-3 rounded-xl border-0 bg-white shadow-[0_2px_10px_-4px_rgba(168,85,247,0.15)] text-purple-900 outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all">
                     <option value="">Select Partner / Dealer</option>
-                    {accounts?.filter(a => a.type === 'PARTNER' && !['bhaudip', 'afeel'].includes(a.name.toLowerCase())).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                    {accounts?.filter(a => a.type === 'PARTNER' && Number(a.profitShare || 0) === 0 && !['bhaudip', 'afeel'].includes(a.name.toLowerCase())).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
                   </select>
                   <div className="flex gap-3">
                     <input 

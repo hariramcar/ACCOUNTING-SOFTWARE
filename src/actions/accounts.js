@@ -84,6 +84,9 @@ export async function getAccountBalances(year, month) {
       let upadGiven = 0;
       let upadUsed = 0;
       
+      let cashBalance = 0;
+      let bankBalance = 0;
+      
       acc.transactions.forEach(t => {
         const amt = Number(t.amount);
         const isOpeningInjection = (t.category === 'CAPITAL_INJECTION' || t.description === 'Opening Balance' || t.description === 'Capital Introduced / Opening Balance');
@@ -118,8 +121,15 @@ export async function getAccountBalances(year, month) {
         // 3. Current Balance up to the end of the selected month
         if (t.date <= endOfMonth) {
           if (t.category !== 'SALARY') {
-            if (t.type === 'CREDIT') currentBalance += amt;
-            else if (t.type === 'DEBIT') currentBalance -= amt;
+            if (t.type === 'CREDIT') {
+              currentBalance += amt;
+              if (t.transactionMode === 'CASH') cashBalance += amt;
+              else if (t.transactionMode === 'BANK') bankBalance += amt;
+            } else if (t.type === 'DEBIT') {
+              currentBalance -= amt;
+              if (t.transactionMode === 'CASH') cashBalance -= amt;
+              else if (t.transactionMode === 'BANK') bankBalance -= amt;
+            }
           }
         }
       });
@@ -147,6 +157,8 @@ export async function getAccountBalances(year, month) {
         createdAt: acc.createdAt,
         updatedAt: acc.updatedAt,
         currentBalance,
+        cashBalance,
+        bankBalance,
         totalPaid,
         totalExpenses,
         salaryGiven,

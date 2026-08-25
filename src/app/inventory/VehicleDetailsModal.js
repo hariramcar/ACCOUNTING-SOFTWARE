@@ -198,6 +198,11 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
               <span className="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-bold text-slate-500 uppercase tracking-widest">
                 {car.registration || 'UNREGISTERED'}
               </span>
+              {car.partnerships && car.partnerships.length > 0 && (
+                <span className="text-xs uppercase tracking-widest bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold border border-purple-200">
+                  Partnered
+                </span>
+              )}
               {car.isLegacy && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold">Legacy</span>}
               {car.status === 'IN_STOCK' && onReceiveToken && (
                 <button
@@ -250,7 +255,9 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                 </div>
                 {Number(car.salePendingBalance) > 0 && (
                   <div>
-                    <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider mb-1">Pending Balance</div>
+                    <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider mb-1">
+                      {car.receivableAccount && ['FINANCIER', 'DSA_AGENT'].includes(car.receivableAccount.type) ? 'Loan Agent Pay' : 'Pending Amount'}
+                    </div>
                     <div className="font-bold text-sm text-amber-400">₹{Number(car.salePendingBalance).toLocaleString('en-IN')}</div>
                     {car.receivableAccount && (
                       <div className="text-[9px] font-medium text-amber-200 mt-0.5">Owed by: {car.receivableAccount.name}</div>
