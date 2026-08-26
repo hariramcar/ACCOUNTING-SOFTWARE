@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { checkSufficientBalance } from '@/lib/balanceCheck';
+import { getSession } from '@/lib/session';
 
 export async function getInventory(year, month) {
   try {
@@ -92,9 +93,10 @@ export async function getInventory(year, month) {
     });
 
     const processVehicle = (v) => {
-      const totalExpenses = v.expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
       const legacyExp = Number(v.legacyExpenses || 0);
-      const totalCost = Number(v.purchasePrice) + totalExpenses + legacyExp;
+      const standardExpenses = v.expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+      const totalExpenses = standardExpenses + legacyExp;
+      const totalCost = Number(v.purchasePrice) + totalExpenses;
       return {
         ...v,
         legacyExpenses: legacyExp,
@@ -1021,3 +1023,242 @@ export async function updateVehicleDocuments(vehicleId, receivedDocsArray) {
     return { success: false, error: 'Failed to update documents.' };
   }
 }
+
+
+
+
+export async function editVehicleAdvanced(formData) {
+  try {
+    const session = await getSession();
+    if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+
+    const vehicleId = formData.get('vehicleId');
+    const make = formData.get('make');
+    const model = formData.get('model');
+    const registration = formData.get('registration') || null;
+    
+    // Parse financials
+    const purchasePriceRaw = formData.get('purchasePrice');
+    const legacyExpensesRaw = formData.get('legacyExpenses');
+    const purchasePrice = purchasePriceRaw ? Number(purchasePriceRaw.replace(/,/g, '')) : undefined;
+    const legacyExpenses = legacyExpensesRaw ? Number(legacyExpensesRaw.replace(/,/g, '')) : undefined;
+    
+    // Parse Date
+    const purchaseDateRaw = formData.get('purchaseDate');
+    const purchaseDate = purchaseDateRaw ? new Date(purchaseDateRaw) : undefined;
+
+    if (!vehicleId || !make || !model) {
+      return { success: false, error: 'Make and Model are required' };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.vehicle.findUnique({ 
+        where: { id: vehicleId }
+      });
+      
+      if (!existing) throw new Error('Vehicle not found');
+
+      let dataToUpdate = { make, model, registration };
+
+      if (existing.isLegacy) {
+        if (purchasePrice !== undefined) dataToUpdate.purchasePrice = purchasePrice;
+        if (legacyExpenses !== undefined) dataToUpdate.legacyExpenses = legacyExpenses;
+      } else {
+        // NON-LEGACY: Handle Date and Price adjustments perfectly!
+        if (purchaseDate && purchaseDate.getTime() !== existing.purchaseDate.getTime()) {
+          dataToUpdate.purchaseDate = purchaseDate;
+          // Sync ALL purchase-related transactions to the new date!
+          await tx.transaction.updateMany({
+            where: { 
+              referenceId: vehicleId,
+              OR: [
+                { category: 'VEHICLE_PURCHASE' },
+                { description: { contains: 'Payment 1' } },
+                { description: { contains: 'Payment 2' } }
+              ]
+            },
+            data: { date: purchaseDate }
+          });
+        }
+
+        if (purchasePrice !== undefined && purchasePrice !== Number(existing.purchasePrice)) {
+          const delta = purchasePrice - Number(existing.purchasePrice);
+          const newPending = Number(existing.purchasePendingBalance) + delta;
+          
+          if (newPending < 0) {
+            throw new Error('New price is too low, it conflicts with already paid amounts.');
+          }
+          
+          dataToUpdate.purchasePrice = purchasePrice;
+          dataToUpdate.purchasePendingBalance = newPending;
+
+          // Find the Udhari transaction and update it
+          const udhariTx = await tx.transaction.findFirst({
+            where: {
+              referenceId: vehicleId,
+              category: 'VEHICLE_PURCHASE',
+              type: 'CREDIT',
+              transactionMode: 'CASH'
+            }
+          });
+
+          if (udhariTx) {
+            const newTxAmount = Number(udhariTx.amount) + delta;
+            if (newTxAmount > 0) {
+              await tx.transaction.update({
+                where: { id: udhariTx.id },
+                data: { amount: newTxAmount }
+              });
+            } else {
+              // If new pending is 0, delete the udhari transaction
+              await tx.transaction.delete({ where: { id: udhariTx.id } });
+            }
+          } else if (delta > 0) {
+            // We need to increase pending, but there is no Udhari transaction!
+            // We must create one, but we need the payableAccountId...
+            // fallback: find the primary seller account from other transactions
+            const sellerTx = await tx.transaction.findFirst({
+              where: { referenceId: vehicleId, category: 'VEHICLE_PURCHASE', type: 'DEBIT' }
+            });
+            if (sellerTx) {
+               await tx.transaction.create({
+                 data: {
+                   date: purchaseDate || existing.purchaseDate,
+                   transactionMode: 'CASH',
+                   type: 'CREDIT',
+                   amount: delta,
+                   accountId: sellerTx.accountId,
+                   category: 'VEHICLE_PURCHASE',
+                   referenceId: vehicleId,
+                   description: `Auto-Entry: Pending Udhari for ${make} ${model} (${registration || 'Unregistered'})`
+                 }
+               });
+            } else if (existing.payableAccountId) {
+                await tx.transaction.create({
+                 data: {
+                   date: purchaseDate || existing.purchaseDate,
+                   transactionMode: 'CASH',
+                   type: 'CREDIT',
+                   amount: delta,
+                   accountId: existing.payableAccountId,
+                   category: 'VEHICLE_PURCHASE',
+                   referenceId: vehicleId,
+                   description: `Auto-Entry: Pending Udhari for ${make} ${model} (${registration || 'Unregistered'})`
+                 }
+               });
+            } else {
+              throw new Error('Cannot increase price: no known seller account to assign pending balance to.');
+            }
+          }
+        }
+      }
+
+      // Handle Partnership Edits
+      const partnershipCount = Number(formData.get('partnershipCount') || 0);
+      for (let i = 0; i < partnershipCount; i++) {
+        const pId = formData.get(`partnerId_${i}`);
+        if (!pId) continue;
+        
+        const pAccountId = formData.get(`partnerAccountId_${i}`);
+        const pInvestment = Number((formData.get(`partnerInvestment_${i}`) || '0').replace(/,/g, ''));
+        const pProfit = Number((formData.get(`partnerProfitShare_${i}`) || '0').replace(/,/g, ''));
+
+        if (existing.isLegacy) {
+          await tx.partnership.update({
+            where: { id: pId },
+            data: {
+              partnerAccountId: pAccountId,
+              investmentAmount: pInvestment,
+              paidAmount: pInvestment,
+              profitSharePercentage: pProfit
+            }
+          });
+        } else {
+          // Non-Legacy Partnership Edit
+          const oldP = await tx.partnership.findUnique({ where: { id: pId }, include: { partnerAccount: true } });
+          if (!oldP) continue;
+          
+          let updatedData = {
+            partnerAccountId: pAccountId,
+            profitSharePercentage: pProfit
+          };
+          
+          if (pInvestment !== Number(oldP.investmentAmount)) {
+            const diff = pInvestment - Number(oldP.investmentAmount);
+            updatedData.investmentAmount = pInvestment;
+            updatedData.paidAmount = Math.max(0, Number(oldP.paidAmount) + diff);
+            updatedData.isInvestmentPaid = updatedData.paidAmount >= pInvestment;
+
+            const pTx = await tx.transaction.findFirst({
+              where: {
+                referenceId: vehicleId,
+                accountId: oldP.partnerAccountId,
+                category: 'GENERAL',
+                description: { contains: 'Partnership Capital Investment' }
+              }
+            });
+            if (pTx) {
+              await tx.transaction.update({
+                where: { id: pTx.id },
+                data: { 
+                  amount: Math.max(0, Number(pTx.amount) + diff),
+                  accountId: pAccountId
+                }
+              });
+            }
+            
+            const firmTx = await tx.transaction.findFirst({
+              where: {
+                referenceId: vehicleId,
+                category: 'GENERAL',
+                description: { contains: 'Income: Received from' },
+                description: { contains: oldP.partnerAccount.name }
+              }
+            });
+            if (firmTx) {
+              await tx.transaction.update({
+                where: { id: firmTx.id },
+                data: { amount: Math.max(0, Number(firmTx.amount) + diff) }
+              });
+            }
+          } else if (pAccountId !== oldP.partnerAccountId) {
+            const pTx = await tx.transaction.findFirst({
+              where: {
+                referenceId: vehicleId,
+                accountId: oldP.partnerAccountId,
+                category: 'GENERAL',
+                description: { contains: 'Partnership Capital Investment' }
+              }
+            });
+            if (pTx) {
+              await tx.transaction.update({
+                where: { id: pTx.id },
+                data: { accountId: pAccountId }
+              });
+            }
+          }
+          
+          await tx.partnership.update({
+            where: { id: pId },
+            data: updatedData
+          });
+        }
+      }
+
+      await tx.vehicle.update({
+        where: { id: vehicleId },
+        data: dataToUpdate
+      });
+    });
+
+    revalidatePath('/inventory');
+    revalidatePath('/history');
+    revalidatePath('/profit');
+    return { success: true };
+  } catch (err) {
+    console.error('editVehicleAdvanced error:', err);
+    if (err.code === 'P2002') return { success: false, error: 'Registration number already exists' };
+    return { success: false, error: err.message || 'Failed to edit vehicle' };
+  }
+}
+

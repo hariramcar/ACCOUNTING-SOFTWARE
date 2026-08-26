@@ -51,15 +51,21 @@ export default function ExportDataModal({ isOpen, onClose }) {
       });
 
       const vData = vehicles.map(v => {
-        const repairCost = v.expenses?.filter(e => e.expenseType === 'CAR_EXPENSE' && e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount), 0) || 0;
+        const legacyCost = Number(v.legacyExpenses || 0);
+        const standardRepairCost = v.expenses?.filter(e => e.expenseType === 'CAR_EXPENSE' && e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount), 0) || 0;
+        const totalRepairCost = standardRepairCost + legacyCost;
+        const purchasePrice = Number(v.purchasePrice || 0);
+        const totalCost = purchasePrice + totalRepairCost;
+        
         return {
           ID: v.id,
           Make: v.make,
           Model: v.model,
           Registration: v.registration || '-',
           Status: v.status,
-          'Purchase Price': Number(v.purchasePrice || 0),
-          'Repair Cost': repairCost,
+          'Purchase Price': purchasePrice,
+          'Repair Cost': totalRepairCost,
+          'Total Cost': totalCost,
           'Sale Price': Number(v.salePrice || 0),
           Profit: Number(v.profit || 0),
           'Purchase Date (Precise)': v.purchaseDate ? new Date(v.purchaseDate).toISOString() : '',
@@ -133,7 +139,7 @@ export default function ExportDataModal({ isOpen, onClose }) {
         
         autoTable(doc, {
           startY: 25,
-          head: [['Make', 'Model', 'Reg', 'Status', 'Cost', 'Repair', 'Sale', 'Profit', 'Purchase Dt', 'Sale Dt']],
+          head: [['Make', 'Model', 'Reg', 'Status', 'Cost', 'Repair', 'Total', 'Sale', 'Profit', 'Purch Dt']],
           body: vData.map(v => [
             v.Make, 
             v.Model, 
@@ -141,10 +147,10 @@ export default function ExportDataModal({ isOpen, onClose }) {
             v.Status, 
             `Rs ${v['Purchase Price']}`, 
             `Rs ${v['Repair Cost']}`, 
+            `Rs ${v['Total Cost']}`,
             `Rs ${v['Sale Price']}`, 
             `Rs ${v.Profit}`, 
-            v['Purchase Date (Precise)'] ? new Date(v['Purchase Date (Precise)']).toLocaleDateString('en-IN') : '-', 
-            v['Sale Date (Precise)'] ? new Date(v['Sale Date (Precise)']).toLocaleDateString('en-IN') : '-'
+            v['Purchase Date (Precise)'] ? new Date(v['Purchase Date (Precise)']).toLocaleDateString('en-IN') : '-'
           ]),
           theme: 'grid',
           headStyles: { fillColor: [16, 185, 129] },

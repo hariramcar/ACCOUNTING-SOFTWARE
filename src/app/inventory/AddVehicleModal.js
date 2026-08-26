@@ -17,7 +17,8 @@ const REQUIRED_DOCS = [
   'PAN Card',
   'NOC',
   'Second Key',
-  'TTO'
+  'TTO',
+  'Insurance'
 ];
 
 export default function AddVehicleModal({ accounts, vehicleModels, addVehicleAction }) {

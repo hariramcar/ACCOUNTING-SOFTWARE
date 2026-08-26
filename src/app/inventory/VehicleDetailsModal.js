@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, User, IndianRupee, MapPin, Wrench, Calendar, Banknote, ShieldCheck, PenSquare, Trash2, CheckCircle2, FileText, BadgeCent, Handshake, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { payVehiclePendingBalance, payPartnerPendingInvestment, payPartnerProfit, updateVehicleDocuments } from '@/actions/inventory';
+import { payVehiclePendingBalance, payPartnerPendingInvestment, payPartnerProfit, updateVehicleDocuments, editVehicleAdvanced } from '@/actions/inventory';
 import { forfeitToken } from '@/actions/tokens';
 import { FolderCheck } from 'lucide-react';
 
@@ -14,14 +14,43 @@ const REQUIRED_DOCS = [
   'PAN Card',
   'NOC',
   'Second Key',
-  'TTO'
+  'TTO',
+  'Insurance'
 ];
 
 export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [], onReceiveToken }) {
   const router = useRouter();
   const [isPaying, setIsPaying] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editError, setEditError] = useState(null);
   const [payingPartnerId, setPayingPartnerId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    setEditError(null);
+
+    const formData = new FormData(e.target);
+    formData.append('vehicleId', car.id);
+    
+    try {
+      const result = await editVehicleAdvanced(formData);
+      if (result && !result.success) {
+        setEditError(result.error);
+      } else {
+        setIsEditMode(false);
+        onClose();
+        router.refresh();
+      }
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
   const [amount, setAmount] = useState('');
   const handleAmountFormat = (val) => {
     const rawValue = val.replace(/[^0-9.]/g, '');
@@ -191,9 +220,16 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-200 bg-white flex justify-between items-start shrink-0">
           <div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight m-0 mb-1">
-              {car.make} {car.model}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight m-0 mb-1">
+                {car.make} {car.model}
+              </h2>
+              {!isEditMode && (
+                <button onClick={() => setIsEditMode(true)} className="text-slate-400 hover:text-blue-600 transition-colors">
+                  <PenSquare size={16} />
+                </button>
+              )}
+            </div>
             <div className="flex gap-2 items-center">
               <span className="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-bold text-slate-500 uppercase tracking-widest">
                 {car.registration || 'UNREGISTERED'}
@@ -204,14 +240,6 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                 </span>
               )}
               {car.isLegacy && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold">Legacy</span>}
-              {car.status === 'IN_STOCK' && onReceiveToken && (
-                <button
-                  onClick={onReceiveToken}
-                  className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold border border-blue-200 transition-colors flex items-center gap-1"
-                >
-                  <BadgeCent size={12} /> Receive Token
-                </button>
-              )}
             </div>
           </div>
           <button 
@@ -224,8 +252,95 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {isEditMode ? (
+            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+              {editError && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold">{editError}</div>}
+              
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Make (Brand)</label>
+                <input type="text" name="make" defaultValue={car.make} required className="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-sm" />
+              </div>
 
-          {/* Sale Information (If Sold) */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Model</label>
+                <input type="text" name="model" defaultValue={car.model} required className="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-sm" />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Registration</label>
+                <input type="text" name="registration" defaultValue={car.registration || ''} className="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-sm uppercase" />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Purchase Price (₹)</label>
+                <input type="text" name="purchasePrice" defaultValue={car.purchasePrice} required className="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-sm" />
+              </div>
+
+              {car.isLegacy ? (
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Legacy Expenses (₹)</label>
+                  <input type="text" name="legacyExpenses" defaultValue={car.legacyExpenses || 0} className="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-sm" />
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Purchase Date</label>
+                  <input type="date" name="purchaseDate" defaultValue={car.purchaseDate ? new Date(car.purchaseDate).toISOString().split('T')[0] : ''} required className="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-sm" />
+                </div>
+              )}
+              
+              {car.partnerships && car.partnerships.length > 0 && (
+                <div className="mt-2 border-t border-slate-200 pt-4">
+                  <h3 className="text-[11px] uppercase font-black text-purple-700 mb-3 tracking-widest">Edit Partnerships</h3>
+                  {car.partnerships.map((p, idx) => (
+                    <div key={p.id} className="flex flex-col gap-3 bg-purple-50/50 p-3 rounded-lg border border-purple-100 mb-3">
+                      <input type="hidden" name={`partnerId_${idx}`} value={p.id} />
+                      
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Partner</label>
+                        <select name={`partnerAccountId_${idx}`} defaultValue={p.partnerAccountId} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold">
+                           {accounts.filter(a => a.type === 'PARTNER').map(acc => (
+                             <option key={acc.id} value={acc.id}>{acc.name}</option>
+                           ))}
+                        </select>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <div className="flex flex-col gap-1.5 flex-1">
+                           <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Investment (₹)</label>
+                           <input type="text" name={`partnerInvestment_${idx}`} defaultValue={p.investmentAmount} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
+                        </div>
+                        <div className="flex flex-col gap-1.5 flex-[0.7]">
+                           <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Profit (%)</label>
+                           <input type="text" name={`partnerProfitShare_${idx}`} defaultValue={p.profitSharePercentage} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <input type="hidden" name="partnershipCount" value={car.partnerships.length} />
+                </div>
+              )}
+              
+              {!car.isLegacy && (
+                <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-lg flex gap-2 items-start text-indigo-700">
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <p className="text-[10px] m-0 font-medium leading-tight">
+                    <strong>Auto-Sync Active:</strong> Changing the Purchase Price or Date will automatically recalculate the Pending Balance and perfectly sync all related Udhari ledger transactions to preserve 100% accurate accounting.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-4">
+                <button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">
+                  {isSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button type="button" onClick={() => setIsEditMode(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-lg transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              {/* Sale Information (If Sold) */}
           {car.status === 'SOLD' && (
             <div className="bg-indigo-900 rounded-xl border border-indigo-800 shadow-lg overflow-hidden">
               <div className="p-4 border-b border-indigo-800 flex items-center justify-between gap-3">
@@ -813,7 +928,8 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
               </div>
             )}
           </div>
-
+            </>
+          )}
         </div>
       </div>
     </div>,
