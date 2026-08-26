@@ -8,17 +8,24 @@ import { getSession } from '@/lib/session';
 export async function getMonthlyProfitData(year, monthIndex) {
   try {
     // Generate start and end dates for the selected month
-    // monthIndex is 0-11 (0 = January, 11 = December)
-    const startDate = new Date(year, monthIndex, 1);
-    const endDate = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+    let startDate = new Date(year, monthIndex, 1);
+    let endDate = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+    
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      const d = new Date();
+      startDate = new Date(d.getFullYear(), d.getMonth(), 1);
+      endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+      year = d.getFullYear();
+      monthIndex = d.getMonth();
+    }
 
     // 1. Fetch Sold Vehicles for the month
     const soldVehicles = await prisma.vehicle.findMany({
       where: {
         status: 'SOLD',
         saleDate: {
-          gte: startDate,
-          lte: endDate
+          gte: startDate.toISOString(),
+          lte: endDate.toISOString()
         }
       },
       include: {
@@ -39,8 +46,8 @@ export async function getMonthlyProfitData(year, monthIndex) {
       where: {
         expenseType: 'OFFICE_EXPENSE',
         date: {
-          gte: startDate,
-          lte: endDate
+          gte: startDate.toISOString(),
+          lte: endDate.toISOString()
         }
       },
       orderBy: {
@@ -53,8 +60,8 @@ export async function getMonthlyProfitData(year, monthIndex) {
       where: {
         expenseType: 'CAR_EXPENSE',
         date: {
-          gte: startDate,
-          lte: endDate
+          gte: startDate.toISOString(),
+          lte: endDate.toISOString()
         }
       }
     });
@@ -79,14 +86,6 @@ export async function getMonthlyProfitData(year, monthIndex) {
     // 5. Process calculations
     let totalGrossProfit = 0;
     let totalPartnerDeductions = 0;
-    let totalOfficeExpenseAmount = 0;
-    let totalCarExpenseAmount = 0;
-
-    carExpenses.forEach(exp => {
-      if (exp.status !== 'REJECTED') {
-        totalCarExpenseAmount += Number(exp.amount || 0);
-      }
-    });
 
     const processedVehicles = soldVehicles.map(v => {
       // carProfit is the Net Profit for this specific car (Sale - Cost - Repairs)
@@ -136,43 +135,48 @@ export async function getMonthlyProfitData(year, monthIndex) {
       };
     });
 
-    const processedOfficeExpenses = officeExpenses.map(exp => {
-      totalOfficeExpenseAmount += Number(exp.amount);
-      return {
-        id: exp.id,
-        description: exp.description,
-        amount: Number(exp.amount),
-        date: exp.date
-      };
-    });
+    const processedOfficeExpenses = officeExpenses.map(exp => ({
+      id: exp.id,
+      description: exp.description,
+      amount: Number(exp.amount),
+      date: exp.date
+    }));
 
-    // Net Profit is Gross Profit minus ALL expenses for the month
-    const netProfit = totalGrossProfit - totalOfficeExpenseAmount - totalCarExpenseAmount;
-
-    // 6. Fetch Ledger History Totals for Summary
     const { expenses: ledgerExpenses } = await getAllExpenses(year, monthIndex);
     const { income: ledgerIncome } = await getAllIncome(year, monthIndex);
 
-    const totalLedgerExpenses = ledgerExpenses?.reduce((sum, exp) => {
-      // Non-Operating / Asset / Transfer
-      if (exp.rawCategory === 'VEHICLE_PURCHASE') return sum;
-      if (exp.description?.startsWith('Auto-Entry: Paid Full Settlement')) return sum;
-      if (exp.isTransfer || exp.status === 'REJECTED') return sum;
+    // Pure Cash-Basis Calculations for Dashboard
+    let totalOfficeExpenseAmount = 0;
+    let totalCarExpenseAmount = 0;
+    let totalAdvanceAmount = 0;
 
-      // Pure Accrual Basis
-      if (exp.rawCategory === 'UPAD_WITHDRAWAL' || exp.rawCategory === 'UPAD_REPAYMENT') return sum;
+    const { calculateCashBasisExpense, calculateCashBasisIncome } = require('@/lib/cashBasis');
+    const allAccounts = await prisma.account.findMany();
+
+    const totalLedgerExpenses = ledgerExpenses?.reduce((sum, exp) => {
+      const cashBasisAmount = calculateCashBasisExpense(exp, allAccounts);
+      if (cashBasisAmount <= 0) return sum;
+
+      const isAdvance = (exp.rawCategory === 'UPAD_WITHDRAWAL' || exp.rawCategory === 'UPAD_REPAYMENT' || exp.rawCategory === 'SALARY');
       
-      return sum + Number(exp.amount);
+      if (isAdvance) {
+        totalAdvanceAmount += cashBasisAmount;
+      } else if (exp.expenseType === 'OFFICE_EXPENSE') {
+        totalOfficeExpenseAmount += cashBasisAmount;
+      } else if (exp.expenseType === 'CAR_EXPENSE') {
+        totalCarExpenseAmount += cashBasisAmount;
+      } else {
+        totalOfficeExpenseAmount += cashBasisAmount; // Fallback
+      }
+
+      return sum + cashBasisAmount;
     }, 0) || 0;
 
+    // Net Profit is Gross Profit minus ALL expenses for the month
+    const netProfit = totalGrossProfit - totalOfficeExpenseAmount - totalCarExpenseAmount - totalAdvanceAmount;
+
     const rawOperatingIncome = ledgerIncome?.reduce((sum, inc) => {
-      if (inc.rawCategory === 'VEHICLE_SALE') return sum;
-      if (inc.description?.startsWith('Token Received:') && !inc.isForfeitedToken) return sum;
-      if (inc.description?.startsWith('Income: Received from')) return sum;
-      if (inc.description?.startsWith('Auto-Entry: Received Pending Capital')) return sum;
-      if (inc.description?.startsWith('Auto-Entry: Paid Pending Udhari')) return sum;
-      if (inc.description?.startsWith('Auto-Entry: Partnership Capital Investment')) return sum;
-      return sum + (!inc.isTransfer ? Number(inc.amount) : 0);
+      return sum + calculateCashBasisIncome(inc, allAccounts);
     }, 0) || 0;
     
     const totalLedgerIncome = rawOperatingIncome + Math.max(0, totalGrossProfit - totalPartnerDeductions);
@@ -201,6 +205,7 @@ export async function getMonthlyProfitData(year, monthIndex) {
         netCarProfit: totalGrossProfit - totalPartnerDeductions,
         totalOfficeExpenseAmount,
         totalCarExpenseAmount,
+        totalAdvanceAmount,
         netProfit,
         inStockCount,
         inStockValue,
@@ -401,10 +406,11 @@ export async function getFoundersData(year, monthIndex) {
     
     let dateFilter = {};
     if (year !== undefined && monthIndex !== undefined) {
-      dateFilter = {
-        gte: new Date(year, monthIndex, 1),
-        lte: new Date(year, monthIndex + 1, 0, 23, 59, 59, 999)
-      };
+      const gte = new Date(year, monthIndex, 1);
+      const lte = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+      if (!isNaN(gte.getTime()) && !isNaN(lte.getTime())) {
+        dateFilter = { gte: gte.toISOString(), lte: lte.toISOString() };
+      }
     }
 
     const result = [];

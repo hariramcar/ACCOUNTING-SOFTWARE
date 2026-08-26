@@ -10,11 +10,13 @@ import DateSelector from './DateSelector';
 import TransactionActions from './TransactionActions';
 import { Receipt, Building2, Car, Wallet } from 'lucide-react';
 import { getSession } from '@/lib/session';
+import { redirect } from 'next/navigation';
 import DiaryPad from '../components/DiaryPad';
 
 export default async function ExpensesPage({ searchParams }) {
   const session = await getSession();
-  const isAdmin = session?.role === 'ADMIN';
+  if (!session) redirect('/login');
+  const isAdmin = session.role === 'ADMIN';
 
   const awaitedParams = await searchParams;
   let defaultDateStr = '';

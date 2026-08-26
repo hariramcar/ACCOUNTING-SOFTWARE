@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { logout } from '@/actions/auth';
 import GlobalMonthSelector from './GlobalMonthSelector';
+import DownloadDataButton from './DownloadDataButton';
 import {
   LayoutDashboard,
   Car,
@@ -217,6 +218,12 @@ export default function Sidebar({ session }) {
               <div className="h-px bg-slate-800 my-3 mx-2"></div>
 
               <GlobalMonthSelector isExpanded={true} currentDate={globalMonth} onChangeMonth={setGlobalMonth} />
+
+              {session?.role === 'ADMIN' && (
+                <div className="mt-2">
+                  <DownloadDataButton isMobile={true} />
+                </div>
+              )}
 
               <form action={logout} className="mt-2">
                 <button type="submit" className="w-full flex items-center gap-4 p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold transition-all active:scale-95 border border-red-500/20">

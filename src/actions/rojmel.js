@@ -15,8 +15,8 @@ export async function getDailyTransactions(dateString) {
     const transactions = await prisma.transaction.findMany({
       where: {
         date: {
-          gte: date,
-          lt: nextDay,
+          gte: date.toISOString(),
+          lt: nextDay.toISOString(),
         },
       },
       include: {
@@ -126,7 +126,7 @@ export async function getHistoricalCashBalances(targetDateString) {
     const priorTransactions = await prisma.transaction.findMany({
       where: {
         account: { type: 'CASH' },
-        date: { lt: targetDate }
+        date: { lt: targetDate.toISOString() }
       }
     });
 
@@ -140,7 +140,7 @@ export async function getHistoricalCashBalances(targetDateString) {
     const dayTransactions = await prisma.transaction.findMany({
       where: {
         account: { type: 'CASH' },
-        date: { gte: targetDate, lt: nextDay }
+        date: { gte: targetDate.toISOString(), lt: nextDay.toISOString() }
       }
     });
 

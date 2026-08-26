@@ -8,15 +8,20 @@ export async function getAllExpenses(year, month) {
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
 
-    const startDate = new Date(year, month, 1);
-    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    let startDate = new Date(year, month, 1);
+    let endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      const d = new Date();
+      startDate = new Date(d.getFullYear(), d.getMonth(), 1);
+      endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
 
-    const expensesRaw = await prisma.expense.findMany({
+    const allExpenses = await prisma.expense.findMany({
       where: {
-        expenseType: { not: 'INCOME' },
         date: {
-          gte: startDate,
-          lte: endDate
+          gte: startDate.toISOString(),
+          lte: endDate.toISOString()
         }
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
@@ -25,6 +30,8 @@ export async function getAllExpenses(year, month) {
         submittedBy: true
       }
     });
+
+    const expensesRaw = allExpenses.filter(exp => exp.expenseType !== 'INCOME');
 
     const allAccounts = await prisma.account.findMany({
       select: { id: true, name: true, type: true }
@@ -36,6 +43,27 @@ export async function getAllExpenses(year, month) {
       const paymentAccount = allAccounts.find(a => a.id === exp.requestedAccountId);
       let paymentSource = exp.requestedMode || 'PENDING';
       let isStaffAdvance = false;
+      let accountType = paymentAccount ? paymentAccount.type : null;
+
+      // Handle JSON requestedMode (split payments or single JSON payments)
+      if (exp.requestedMode && exp.requestedMode.startsWith('{') && exp.requestedMode.includes('"payments"')) {
+        try {
+          const parsed = JSON.parse(exp.requestedMode);
+          if (parsed.payments && parsed.payments.length > 0) {
+            // Check if ALL payments in the split are non-CASH and non-BANK
+            // We consider the overall expense to be 'UGHRANI' (liability) if NONE of the payments hit cash/bank.
+            const allAccountsForTx = parsed.payments.map(p => allAccounts.find(a => a.id === p.accountId));
+            const hasCashOrBank = allAccountsForTx.some(a => a && (a.type === 'CASH' || a.type === 'BANK'));
+            
+            // If it doesn't touch Cash/Bank, it's essentially an Ughrani/Liability booking
+            if (!hasCashOrBank) {
+               accountType = 'VENDOR'; // Force to a liability type so it gets excluded
+            } else {
+               accountType = 'CASH'; // Force to CASH so it gets included
+            }
+          }
+        } catch (e) {}
+      }
 
       if (paymentAccount) {
         if (exp.requestedMode === 'UGHRANI') {
@@ -51,7 +79,8 @@ export async function getAllExpenses(year, month) {
         amount: finalAmount,
         paymentSource,
         isStaffAdvance,
-        accountType: paymentAccount ? paymentAccount.type : null
+        accountType,
+        rawCategory: 'EXPENSE'
       };
       if (exp.vehicle) {
         processed.vehicle = {
@@ -75,8 +104,8 @@ export async function getAllExpenses(year, month) {
           { type: 'CREDIT', category: 'VEHICLE_PURCHASE' }
         ],
         date: {
-          gte: startDate,
-          lte: endDate
+          gte: startDate.toISOString(),
+          lte: endDate.toISOString()
         }
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
@@ -177,15 +206,21 @@ export async function getAllIncome(year, month) {
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
 
-    const startDate = new Date(year, month, 1);
-    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    let startDate = new Date(year, month, 1);
+    let endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      const d = new Date();
+      startDate = new Date(d.getFullYear(), d.getMonth(), 1);
+      endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
 
     const transactionsRaw = await prisma.transaction.findMany({
       where: {
         type: 'CREDIT', // Only money coming in
         date: {
-          gte: startDate,
-          lte: endDate
+          gte: startDate.toISOString(),
+          lte: endDate.toISOString()
         },
         NOT: [
           // CAPITAL_INJECTION and Opening Balance are intentionally NOT filtered here so they show up in the Ledger list. 

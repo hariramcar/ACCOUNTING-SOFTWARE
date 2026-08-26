@@ -17,7 +17,9 @@ export default async function ProfitDashboard() {
     const parts = globalMonth.split('-');
     year = Number(parts[0]);
     month = Number(parts[1]);
-  } else {
+  }
+  
+  if (isNaN(year) || isNaN(month)) {
     const d = new Date();
     year = d.getFullYear();
     month = d.getMonth();
@@ -176,8 +178,12 @@ export default async function ProfitDashboard() {
                 <div className="text-xl font-bold text-red-500">₹{(data.totalOfficeExpenseAmount || 0).toLocaleString('en-IN')}</div>
               </div>
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Car Repairs</div>
-                <div className="text-xl font-bold text-amber-500">₹{(data.totalCarExpenseAmount || 0).toLocaleString('en-IN')}</div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Car Expenses</div>
+                <div className="text-xl font-bold text-red-500">₹{(data.totalCarExpenseAmount || 0).toLocaleString('en-IN')}</div>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Staff & Advances</div>
+                <div className="text-xl font-bold text-amber-500">₹{(data.totalAdvanceAmount || 0).toLocaleString('en-IN')}</div>
               </div>
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Net Profit</div>

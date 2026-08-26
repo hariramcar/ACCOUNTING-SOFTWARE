@@ -25,6 +25,12 @@ export default async function AccountsPage() {
     year = Number(parts[0]);
     month = Number(parts[1]);
   }
+  
+  if (isNaN(year) || isNaN(month)) {
+    const d = new Date();
+    year = d.getFullYear();
+    month = d.getMonth();
+  }
 
   const { accounts } = await getAccountBalances(year, month);
 

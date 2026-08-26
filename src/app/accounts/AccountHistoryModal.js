@@ -196,11 +196,11 @@ function TransactionItem({ t, className = '' }) {
               {new Date(t.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
             </span>
             <span className={`px-2 py-0.5 rounded-md text-[10px] uppercase font-bold tracking-wider shadow-sm border ${
-              t.transactionMode === 'CASH' ? 'bg-amber-50 text-amber-600 border-amber-200' : 
+              (t.transactionMode === 'CASH' && t.category !== 'EXPENSE') ? 'bg-amber-50 text-amber-600 border-amber-200' : 
               t.transactionMode === 'BANK' ? 'bg-blue-50 text-blue-600 border-blue-200' : 
-              'bg-slate-100 text-slate-600 border-slate-200'
+              'bg-purple-50 text-purple-600 border-purple-200'
             }`}>
-              {t.transactionMode}
+              {t.category === 'EXPENSE' ? 'UGHRANI / PENDING' : t.transactionMode}
             </span>
           </div>
         </div>

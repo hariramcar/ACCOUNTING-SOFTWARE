@@ -24,7 +24,9 @@ export default async function InventoryPage() {
     const parts = globalMonth.split('-');
     year = Number(parts[0]);
     month = Number(parts[1]);
-  } else {
+  }
+  
+  if (isNaN(year) || isNaN(month)) {
     const d = new Date();
     year = d.getFullYear();
     month = d.getMonth();

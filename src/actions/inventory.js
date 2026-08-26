@@ -19,12 +19,12 @@ export async function getInventory(year, month) {
     // 1. Fetch vehicles relevant to this specific month
     const vehicles = await prisma.vehicle.findMany({
       where: {
-        purchaseDate: { lte: endDate },
+        purchaseDate: { lte: endDate.toISOString() },
         OR: [
           { status: 'IN_STOCK' },
           {
             status: 'SOLD',
-            saleDate: { gte: startDate }
+            saleDate: { gte: startDate.toISOString() }
           }
         ]
       },

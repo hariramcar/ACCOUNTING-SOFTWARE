@@ -11,7 +11,7 @@ export const metadata = {
 
 export default async function StaffLedgerPage() {
   const session = await getSession();
-  
+  if (!session) redirect('/login');
   // Only STAFF can access this (or ADMIN checking it out)
   if (!session) {
     redirect('/login');
@@ -31,7 +31,9 @@ export default async function StaffLedgerPage() {
     const parts = globalMonth.split('-');
     year = Number(parts[0]);
     month = Number(parts[1]);
-  } else {
+  }
+  
+  if (isNaN(year) || isNaN(month)) {
     const d = new Date();
     year = d.getFullYear();
     month = d.getMonth();

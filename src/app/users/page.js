@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import EditUserModal from './EditUserModal';
 import SubmitButton from '@/components/SubmitButton';
 import VehicleModelsModal from './VehicleModelsModal';
+import DownloadDataButton from '@/components/DownloadDataButton';
 
 export default async function UsersPage() {
   const session = await getSession();
@@ -28,7 +29,10 @@ export default async function UsersPage() {
           <h1 className="text-2xl sm:text-3xl font-semibold mb-1 tracking-tight text-slate-900">Users & Staff</h1>
           <p className="text-slate-500 m-0 font-medium text-sm sm:text-base">Manage access and roles for the Master Ledger.</p>
         </div>
-        <div>
+        <div className="flex items-center gap-3">
+          <div className="hidden md:block">
+            <DownloadDataButton variant="light" />
+          </div>
           <VehicleModelsModal vehicleModels={vehicleModels} />
         </div>
       </div>

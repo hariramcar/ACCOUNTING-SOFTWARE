@@ -86,28 +86,15 @@ export default async function HistoryPage() {
     return acc + Math.max(0, (grossProfit - partnerProfitShare));
   }, 0);
 
-  // Calculate totals (exclude internal transfers, Market Place, Staff Advances, and Asset Exchanges from totals)
-  const totalExpenses = expenses?.reduce((sum, exp) => {
-    // Non-Operating / Asset / Transfer
-    if (exp.rawCategory === 'VEHICLE_PURCHASE') return sum;
-    if (exp.description?.startsWith('Auto-Entry: Paid Full Settlement')) return sum;
-    if (exp.isTransfer || exp.status === 'REJECTED') return sum;
+  const { calculateCashBasisExpense, calculateCashBasisIncome } = require('@/lib/cashBasis');
 
-    // Pure Accrual Basis: NEVER count Advances or Bill Payments (Ledger Settlements)
-    // We only count actual Expense records (Paint, Belt, etc.) in FULL.
-    if (exp.rawCategory === 'UPAD_WITHDRAWAL' || exp.rawCategory === 'UPAD_REPAYMENT') return sum;
-    
-    return sum + Number(exp.amount);
+  // Calculate totals using the unified Cash-Basis module
+  const totalExpenses = expenses?.reduce((sum, exp) => {
+    return sum + calculateCashBasisExpense(exp, accountsRaw);
   }, 0) || 0;
   
   const rawOperatingIncome = income?.reduce((sum, inc) => {
-    if (inc.rawCategory === 'VEHICLE_SALE') return sum;
-    if (inc.rawCategory === 'CAPITAL_INJECTION') return sum; // Do not count Opening Balance/Capital in Operating Income
-    if (inc.description === 'Opening Balance' || inc.description === 'Capital Introduced / Opening Balance') return sum;
-    if (inc.description?.startsWith('Token Received:') && !inc.isForfeitedToken) return sum; // Exclude applied/active tokens to prevent double-counting
-    if (inc.description?.startsWith('Income: Received from')) return sum;
-    if (inc.description?.startsWith('Auto-Entry: Received Pending Capital')) return sum;
-    return sum + (!inc.isTransfer ? Number(inc.amount) : 0);
+    return sum + calculateCashBasisIncome(inc, accountsRaw);
   }, 0) || 0;
 
   const totalIncome = rawOperatingIncome + firmCarProfitThisMonth;

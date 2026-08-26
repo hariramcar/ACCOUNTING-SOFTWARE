@@ -5,13 +5,7 @@ import { Building2, Car, ArrowDownRight, ArrowUpRight, TrendingUp, Receipt, Wall
 import TransactionActions from '../expenses/TransactionActions';
 import { updateExpense } from '@/actions/expenses';
 
-const isExpenseCounted = (exp) => {
-  if (exp.rawCategory === 'VEHICLE_PURCHASE') return false;
-  if (exp.description?.startsWith('Auto-Entry: Paid Full Settlement')) return false;
-  if (exp.isTransfer || exp.status === 'REJECTED') return false;
-  if (exp.rawCategory === 'UPAD_WITHDRAWAL' || exp.rawCategory === 'UPAD_REPAYMENT') return false;
-  return true;
-};
+import { calculateCashBasisExpense, calculateCashBasisIncome } from '@/lib/cashBasis';
 
 const PaymentSource = ({ source, accounts, inline = false }) => {
   if (!source) return <span className="text-slate-300 font-bold">-</span>;
@@ -69,18 +63,7 @@ const PaymentSource = ({ source, accounts, inline = false }) => {
   );
 };
 
-const isIncomeCounted = (inc) => {
-  if (inc.rawCategory === 'VEHICLE_SALE') return false;
-  if (inc.rawCategory === 'CAPITAL_INJECTION') return false;
-  if (inc.description === 'Opening Balance' || inc.description === 'Capital Introduced / Opening Balance') return false;
-  if (inc.description?.startsWith('Token Received:') && !inc.isForfeitedToken) return false;
-  if (inc.description?.startsWith('Income: Received from')) return false;
-  if (inc.description?.startsWith('Auto-Entry: Received Pending Capital')) return false;
-  if (inc.description?.startsWith('Auto-Entry: Paid Pending Udhari')) return false;
-  if (inc.description?.startsWith('Auto-Entry: Partnership Capital Investment')) return false;
-  if (inc.isTransfer) return false;
-  return true;
-};
+
 
 export default function LedgerTabs({ income, expenses, totalIncome, totalExpenses, accounts = [], vehicles = [] }) {
   const [activeTab, setActiveTab] = useState('INCOME');
@@ -334,7 +317,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                               {inc.paymentSource && (
                                 <span className="text-slate-500 text-[10px] font-semibold flex items-center gap-1">
                                   Source: <PaymentSource source={inc.paymentSource} accounts={accounts} inline={true} />
-                                  {isIncomeCounted(inc) && <CheckCircle2 size={12} className="text-emerald-500" title="Counted in Total Income" />}
+                                  {calculateCashBasisIncome(inc, accounts) > 0 && <CheckCircle2 size={12} className="text-emerald-500" title={`Counted: ₹${calculateCashBasisIncome(inc, accounts).toLocaleString('en-IN')} in Total Income`} />}
                                 </span>
                               )}
                             </div>
@@ -386,7 +369,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                           {inc.paymentSource ? (
                             <PaymentSource source={inc.paymentSource} accounts={accounts} />
                           ) : <span className="text-slate-300 font-bold">-</span>}
-                          {isIncomeCounted(inc) && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" title="Counted in Total Income" />}
+                          {calculateCashBasisIncome(inc, accounts) > 0 && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" title={`Counted: ₹${calculateCashBasisIncome(inc, accounts).toLocaleString('en-IN')} in Total Income`} />}
                         </div>
                       </td>
                       <td className="py-4 px-5 text-right font-black text-lg whitespace-nowrap">
@@ -465,7 +448,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                               {/* Recipient removed */}
                               {exp.paymentSource && (
                                 <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1">Source: <PaymentSource source={exp.paymentSource} accounts={accounts} inline={true} />
-                                {isExpenseCounted(exp) && <CheckCircle2 size={12} className="text-emerald-500" title="Counted in Total Expenses" />}
+                                {calculateCashBasisExpense(exp, accounts) > 0 && <CheckCircle2 size={12} className="text-emerald-500" title={`Counted: ₹${calculateCashBasisExpense(exp, accounts).toLocaleString('en-IN')} in Total Expenses`} />}
                                 </span>
                               )}
                             </div>
@@ -522,7 +505,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
                       <td className="py-4 px-5">
                         <div className="flex items-center gap-2">
                           <PaymentSource source={exp.paymentSource} accounts={accounts} />
-                          {isExpenseCounted(exp) && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" title="Counted in Total Expenses" />}
+                          {calculateCashBasisExpense(exp, accounts) > 0 && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" title={`Counted: ₹${calculateCashBasisExpense(exp, accounts).toLocaleString('en-IN')} in Total Expenses`} />}
                         </div>
                       </td>
                       <td className="py-4 px-5 text-right font-black text-lg whitespace-nowrap">
