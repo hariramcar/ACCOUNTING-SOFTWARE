@@ -26,6 +26,44 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
   const [editError, setEditError] = useState(null);
   const [payingPartnerId, setPayingPartnerId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const getPurchasePrice = () => {
+    const priceInput = document.querySelector('input[name="purchasePrice"]');
+    if (priceInput && priceInput.value) {
+      return Number(priceInput.value.replace(/,/g, ''));
+    }
+    return Number(car?.purchasePrice || 0);
+  };
+
+  const handlePartnerCalc = (e, index, type, isNew = false) => {
+    const val = e.target.value.replace(/[^0-9.]/g, '');
+    const price = getPurchasePrice();
+    if (!price || price <= 0) return;
+    
+    const prefix = isNew ? 'newPartner' : 'partner';
+    
+    if (type === 'investment') {
+      const percentageInput = document.querySelector(`input[name="${prefix}ProfitShare_${index}"]`);
+      if (percentageInput) {
+        if (val === '') {
+           percentageInput.value = '';
+        } else {
+           const percent = (Number(val) / price) * 100;
+           percentageInput.value = percent.toFixed(2).replace(/\.00$/, '');
+        }
+      }
+    } else if (type === 'percentage') {
+      const investmentInput = document.querySelector(`input[name="${prefix}Investment_${index}"]`);
+      if (investmentInput) {
+        if (val === '') {
+           investmentInput.value = '';
+        } else {
+           const investment = (Number(val) / 100) * price;
+           investmentInput.value = investment.toFixed(2).replace(/\.00$/, '');
+        }
+      }
+    }
+  };
   
   const handleEditSubmit = async (e) => {
     e.preventDefault();
@@ -320,11 +358,11 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                         <div className="flex gap-3">
                           <div className="flex flex-col gap-1.5 flex-1">
                              <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Investment (₹)</label>
-                             <input type="text" name={`partnerInvestment_${idx}`} defaultValue={p.investmentAmount} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
+                             <input type="text" name={`partnerInvestment_${idx}`} defaultValue={p.investmentAmount} onChange={(e) => handlePartnerCalc(e, idx, 'investment', false)} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
                           </div>
                           <div className="flex flex-col gap-1.5 flex-[0.7]">
                              <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Profit (%)</label>
-                             <input type="text" name={`partnerProfitShare_${idx}`} defaultValue={p.profitSharePercentage} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
+                             <input type="text" name={`partnerProfitShare_${idx}`} defaultValue={p.profitSharePercentage} onChange={(e) => handlePartnerCalc(e, idx, 'percentage', false)} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
                           </div>
                         </div>
                       </div>
@@ -348,11 +386,11 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                         <div className="flex gap-3">
                           <div className="flex flex-col gap-1.5 flex-1">
                              <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Investment (₹)</label>
-                             <input type="text" name={`newPartnerInvestment_${idx}`} placeholder="e.g. 50,000" className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
+                             <input type="text" name={`newPartnerInvestment_${idx}`} placeholder="e.g. 50,000" onChange={(e) => handlePartnerCalc(e, idx, 'investment', true)} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
                           </div>
                           <div className="flex flex-col gap-1.5 flex-[0.7]">
                              <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Profit (%)</label>
-                             <input type="text" name={`newPartnerProfitShare_${idx}`} placeholder="e.g. 50" className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
+                             <input type="text" name={`newPartnerProfitShare_${idx}`} placeholder="e.g. 50" onChange={(e) => handlePartnerCalc(e, idx, 'percentage', true)} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
                           </div>
                         </div>
                       </div>
