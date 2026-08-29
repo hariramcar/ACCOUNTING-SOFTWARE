@@ -106,8 +106,19 @@ export default async function ExpensesPage({ searchParams }) {
     }
   }
 
+  const sixtyDaysAgo = new Date();
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
   const vehiclesRaw = await prisma.vehicle.findMany({
-    where: { status: 'IN_STOCK' },
+    where: { 
+      OR: [
+        { status: 'IN_STOCK' },
+        { 
+          status: 'SOLD',
+          saleDate: { gte: sixtyDaysAgo }
+        }
+      ]
+    },
     orderBy: { createdAt: 'desc' },
     select: {
       id: true,
