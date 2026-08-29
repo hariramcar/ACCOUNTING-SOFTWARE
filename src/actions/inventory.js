@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { checkSufficientBalance } from '@/lib/balanceCheck';
 import { getSession } from '@/lib/session';
+import { syncVehicleState } from './syncVehicle';
 
 export async function getInventory(year, month) {
   try {
