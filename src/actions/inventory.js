@@ -279,8 +279,13 @@ export async function addVehicle(formData) {
         pendingAmount = 0;
       } else {
         const legacyPaidNum = Number(legacyPaidStr.replace(/,/g, ''));
+        if (legacyPaidNum < 0) {
+            return { success: false, error: 'Amount paid cannot be negative.' };
+        }
+        if (legacyPaidNum > purchasePrice) {
+            return { success: false, error: 'Amount paid cannot be greater than the purchase price.' };
+        }
         pendingAmount = math.sub(purchasePrice, legacyPaidNum);
-        if (pendingAmount < 0) pendingAmount = 0;
       }
     } else {
       pendingAmount = math.sub(purchasePrice, totalPaidOrInvested);
@@ -1074,16 +1079,24 @@ export async function editVehicleAdvanced(formData) {
 
       let dataToUpdate = { make, model, registration };
 
-      if (existing.isLegacy) {
-        if (purchasePrice !== undefined) dataToUpdate.purchasePrice = purchasePrice;
-        if (legacyExpenses !== undefined) dataToUpdate.legacyExpenses = legacyExpenses;
+        if (existing.isLegacy) {
+          if (purchasePrice !== undefined) dataToUpdate.purchasePrice = purchasePrice;
+          if (legacyExpenses !== undefined) dataToUpdate.legacyExpenses = legacyExpenses;
 
-        const purchasePendingBalanceRaw = formData.get('purchasePendingBalance');
-        const purchasePendingBalance = purchasePendingBalanceRaw !== null ? Number(purchasePendingBalanceRaw.replace(/,/g, '')) : undefined;
-        const payableAccountId = formData.get('payableAccountId') || null;
+          const purchasePendingBalanceRaw = formData.get('purchasePendingBalance');
+          const purchasePendingBalance = purchasePendingBalanceRaw !== null ? Number(purchasePendingBalanceRaw.replace(/,/g, '')) : undefined;
+          const payableAccountId = formData.get('payableAccountId') || null;
 
-        if (purchasePendingBalance !== undefined) {
-           dataToUpdate.purchasePendingBalance = purchasePendingBalance;
+          if (purchasePendingBalance !== undefined) {
+             const finalPrice = purchasePrice !== undefined ? purchasePrice : Number(existing.purchasePrice);
+             if (purchasePendingBalance < 0) {
+                 throw new Error("Pending balance cannot be less than zero.");
+             }
+             if (purchasePendingBalance > finalPrice) {
+                 throw new Error(`Critical Error: Pending balance (₹${purchasePendingBalance}) cannot be greater than the total Purchase Price (₹${finalPrice}).`);
+             }
+
+             dataToUpdate.purchasePendingBalance = purchasePendingBalance;
            dataToUpdate.payableAccountId = payableAccountId;
 
            const delta = purchasePendingBalance - Number(existing.purchasePendingBalance || 0);

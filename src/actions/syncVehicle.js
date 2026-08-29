@@ -168,6 +168,16 @@ export async function syncVehicleState(tx, vehicleId) {
   if (!vehicle.isLegacy) {
     dataToUpdate.purchasePrice = purchasePrice > 0 ? purchasePrice : vehicle.purchasePrice;
     dataToUpdate.purchasePendingBalance = purchasePendingBalance >= 0 ? purchasePendingBalance : 0;
+    
+    // Absolute Financial Defense: Pending Balance can NEVER exceed Purchase Price
+    if (dataToUpdate.purchasePendingBalance > dataToUpdate.purchasePrice) {
+       dataToUpdate.purchasePendingBalance = dataToUpdate.purchasePrice;
+    }
+  }
+
+  // Absolute Financial Defense: Sale Pending Balance can NEVER exceed Sale Price
+  if (dataToUpdate.salePendingBalance > dataToUpdate.salePrice) {
+      dataToUpdate.salePendingBalance = dataToUpdate.salePrice;
   }
 
   await tx.vehicle.update({
