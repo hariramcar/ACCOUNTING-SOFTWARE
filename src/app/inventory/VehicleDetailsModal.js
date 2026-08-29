@@ -277,10 +277,16 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
               </div>
 
               {car.isLegacy ? (
-                <div className="flex flex-col gap-2">
-                  <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Legacy Expenses (₹)</label>
-                  <input type="text" name="legacyExpenses" defaultValue={car.legacyExpenses || 0} className="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-sm" />
-                </div>
+                <>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Legacy Expenses (₹)</label>
+                    <input type="text" name="legacyExpenses" defaultValue={car.legacyExpenses || 0} className="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-sm" />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Pending to pay (₹)</label>
+                    <input type="text" name="purchasePendingBalance" defaultValue={car.purchasePendingBalance || 0} className="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-sm" />
+                  </div>
+                </>
               ) : (
                 <div className="flex flex-col gap-2">
                   <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Purchase Date</label>
@@ -602,7 +608,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                 </div>
               )}
 
-              {(!car.isLegacy && Number(car.purchasePendingBalance) > 0) && (
+              {(Number(car.purchasePendingBalance) > 0) && (
                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200/60 w-full shadow-sm mt-1">
                   <div className="flex justify-between items-center mb-1">
                     <div className="text-[9px] font-bold text-amber-600 uppercase tracking-widest">Pending (Not Paid)</div>

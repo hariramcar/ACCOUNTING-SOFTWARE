@@ -269,8 +269,10 @@ export async function addVehicle(formData) {
     if (totalPaidOrInvested > purchasePrice) {
       return { success: false, error: 'Your payment amount cannot be greater than your expense amount (purchase price).' };
     }
-    
-    const pendingAmount = math.sub(purchasePrice, totalPaidOrInvested);
+    const legacyPendingRaw = formData.get('legacyPendingAmount');
+    const pendingAmount = isLegacy 
+      ? (legacyPendingRaw ? Number(legacyPendingRaw.replace(/,/g, '')) : 0)
+      : math.sub(purchasePrice, totalPaidOrInvested);
 
     // Strict validation for missing accounts and agent balances
     for (const p of firmPayments) {
@@ -310,7 +312,7 @@ export async function addVehicle(formData) {
           registration,
           purchasePrice,
           purchaseDate,
-          purchasePendingBalance: isLegacy ? 0 : (pendingAmount > 0 ? pendingAmount : 0),
+          purchasePendingBalance: pendingAmount > 0 ? pendingAmount : 0,
           payableAccountId: (!isLegacy && payableAccountId && pendingAmount > 0) ? payableAccountId : null,
           status: 'IN_STOCK',
           isLegacy,
@@ -1063,6 +1065,68 @@ export async function editVehicleAdvanced(formData) {
       if (existing.isLegacy) {
         if (purchasePrice !== undefined) dataToUpdate.purchasePrice = purchasePrice;
         if (legacyExpenses !== undefined) dataToUpdate.legacyExpenses = legacyExpenses;
+
+        const purchasePendingBalanceRaw = formData.get('purchasePendingBalance');
+        const purchasePendingBalance = purchasePendingBalanceRaw !== null ? Number(purchasePendingBalanceRaw.replace(/,/g, '')) : undefined;
+        const payableAccountId = formData.get('payableAccountId') || null;
+
+        if (purchasePendingBalance !== undefined) {
+           dataToUpdate.purchasePendingBalance = purchasePendingBalance;
+           dataToUpdate.payableAccountId = payableAccountId;
+
+           const delta = purchasePendingBalance - Number(existing.purchasePendingBalance || 0);
+
+           if (delta !== 0) {
+              const udhariTx = await tx.transaction.findFirst({
+                where: {
+                  referenceId: vehicleId,
+                  category: 'VEHICLE_PURCHASE',
+                  type: 'CREDIT',
+                  transactionMode: 'CASH'
+                }
+              });
+
+              if (udhariTx) {
+                 const newTxAmount = Number(udhariTx.amount) + delta;
+                 if (newTxAmount > 0) {
+                   await tx.transaction.update({
+                     where: { id: udhariTx.id },
+                     data: { amount: newTxAmount, accountId: payableAccountId || udhariTx.accountId }
+                   });
+                 } else {
+                   await tx.transaction.delete({ where: { id: udhariTx.id } });
+                 }
+              } else if (purchasePendingBalance > 0 && payableAccountId) {
+                 await tx.transaction.create({
+                   data: {
+                     date: existing.purchaseDate || existing.createdAt,
+                     transactionMode: 'CASH',
+                     type: 'CREDIT',
+                     amount: purchasePendingBalance,
+                     accountId: payableAccountId,
+                     category: 'VEHICLE_PURCHASE',
+                     referenceId: vehicleId,
+                     description: `Auto-Entry: Legacy Pending Udhari for ${make} ${model} (${registration || 'Unregistered'})`
+                   }
+                 });
+              }
+           } else if (payableAccountId !== existing.payableAccountId && payableAccountId) {
+              const udhariTx = await tx.transaction.findFirst({
+                where: {
+                  referenceId: vehicleId,
+                  category: 'VEHICLE_PURCHASE',
+                  type: 'CREDIT',
+                  transactionMode: 'CASH'
+                }
+              });
+              if (udhariTx) {
+                 await tx.transaction.update({
+                   where: { id: udhariTx.id },
+                   data: { accountId: payableAccountId }
+                 });
+              }
+           }
+        }
       } else {
         // NON-LEGACY: Handle Date and Price adjustments perfectly!
         if (purchaseDate && purchaseDate.getTime() !== existing.purchaseDate.getTime()) {

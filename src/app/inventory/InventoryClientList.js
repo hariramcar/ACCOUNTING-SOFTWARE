@@ -109,7 +109,7 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
               <div className="flex flex-col gap-2.5 md:hidden">
                 {filteredStock.map(car => {
                   const partnerPending = (car.partnerships || []).reduce((sum, p) => sum + (Number(p.investmentAmount) - Number(p.paidAmount || 0)), 0);
-                  const hasFirmPending = !car.isLegacy && car.purchasePendingBalance > 0;
+                  const hasFirmPending = Number(car.purchasePendingBalance) > 0;
                   const hasPartnerPending = partnerPending > 0;
                   const daysInStock = calculateDaysInStock(car.purchaseDate);
                   const isBooked = car.tokens?.some(t => t.status === 'ACTIVE');
@@ -228,7 +228,7 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
                     {filteredStock.map(car => {
                       const hasTokens = car.tokens && car.tokens.some(t => t.status === 'ACTIVE');
                       const partnerPending = (car.partnerships || []).reduce((sum, p) => sum + (Number(p.investmentAmount) - Number(p.paidAmount || 0)), 0);
-                      const hasFirmPending = !car.isLegacy && car.purchasePendingBalance > 0;
+                      const hasFirmPending = Number(car.purchasePendingBalance) > 0;
                       const hasPartnerPending = partnerPending > 0;
                       const daysInStock = calculateDaysInStock(car.purchaseDate);
                       const isBooked = car.tokens?.some(t => t.status === 'ACTIVE');
