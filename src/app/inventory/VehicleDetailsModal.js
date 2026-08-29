@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, User, IndianRupee, MapPin, Wrench, Calendar, Banknote, ShieldCheck, PenSquare, Trash2, CheckCircle2, FileText, BadgeCent, Handshake, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { payVehiclePendingBalance, payPartnerPendingInvestment, payPartnerProfit, updateVehicleDocuments, editVehicleAdvanced } from '@/actions/inventory';
+import { payVehiclePendingBalance, payPartnerPendingInvestment, payPartnerProfit, updateVehicleDocuments, editVehicleAdvanced, deleteVehicleAction } from '@/actions/inventory';
 import { forfeitToken } from '@/actions/tokens';
 import { FolderCheck } from 'lucide-react';
 
@@ -26,6 +26,11 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
   const [editError, setEditError] = useState(null);
   const [payingPartnerId, setPayingPartnerId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteError, setDeleteError] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const getPurchasePrice = () => {
     const priceInput = document.querySelector('input[name="purchasePrice"]');
@@ -87,6 +92,27 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteSubmit = async () => {
+    if (deleteConfirmText.toLowerCase() !== 'delete' || isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      const formData = new FormData();
+      formData.append('vehicleId', car.id);
+      const result = await deleteVehicleAction(formData);
+      if (result && !result.success) {
+        setDeleteError(result.error);
+      } else {
+        onClose();
+        router.refresh();
+      }
+    } catch (err) {
+      setDeleteError(err.message || 'Failed to delete vehicle');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -263,10 +289,15 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
               <h2 className="text-2xl font-black text-slate-900 tracking-tight m-0 mb-1">
                 {car.make} {car.model}
               </h2>
-              {!isEditMode && (
-                <button onClick={() => setIsEditMode(true)} className="text-slate-400 hover:text-blue-600 transition-colors">
-                  <PenSquare size={16} />
-                </button>
+              {!isEditMode && !isDeleteMode && (
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => setIsEditMode(true)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit Vehicle">
+                    <PenSquare size={16} />
+                  </button>
+                  <button onClick={() => setIsDeleteMode(true)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Delete Vehicle">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               )}
             </div>
             <div className="flex gap-2 items-center">
@@ -291,7 +322,44 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {isEditMode ? (
+          {isDeleteMode ? (
+            <div className="p-5 bg-red-50 border-2 border-red-200 rounded-xl mb-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center gap-3 mb-3 text-red-700">
+                <Trash2 size={24} />
+                <h3 className="text-lg font-black tracking-tight">Hard Delete Vehicle</h3>
+              </div>
+              <p className="text-sm font-bold text-red-600/90 mb-2 leading-relaxed">
+                This action is <span className="underline">irreversible</span>. It will completely erase this vehicle, along with all of its repair expenses, partnerships, and linked financial transactions from the entire system.
+              </p>
+              <p className="text-[11px] font-black uppercase tracking-wider text-red-800 mb-2 mt-4">
+                Type "delete" below to confirm:
+              </p>
+              <input 
+                type="text" 
+                value={deleteConfirmText} 
+                onChange={(e) => setDeleteConfirmText(e.target.value)} 
+                placeholder="delete"
+                className="w-full p-3 font-bold text-sm border-2 border-red-300 rounded-lg outline-none focus:border-red-600 focus:ring-4 focus:ring-red-600/10 mb-4 bg-white transition-all text-red-900"
+              />
+              {deleteError && <div className="text-xs font-bold text-red-600 mb-3 bg-red-100 p-2 rounded">{deleteError}</div>}
+              
+              <div className="flex gap-3">
+                <button 
+                  disabled={deleteConfirmText.toLowerCase() !== 'delete' || isDeleting}
+                  onClick={handleDeleteSubmit}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3 rounded-lg text-sm transition-all shadow-lg shadow-red-600/20 active:scale-[0.98]"
+                >
+                  {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+                </button>
+                <button 
+                  onClick={() => { setIsDeleteMode(false); setDeleteConfirmText(''); setDeleteError(null); }}
+                  className="flex-[0.5] bg-white border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-3 rounded-lg text-sm transition-all active:scale-[0.98]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : isEditMode ? (
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
               {editError && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold">{editError}</div>}
               

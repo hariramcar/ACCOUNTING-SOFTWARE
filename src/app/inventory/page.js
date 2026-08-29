@@ -41,7 +41,7 @@ export default async function InventoryPage() {
   const firmStockValue = inStock?.reduce((acc, car) => {
     const partnerInvestment = (car.partnerships || []).reduce((sum, p) => sum + Number(p.investmentAmount || 0), 0);
     const firmPending = Number(car.purchasePendingBalance || 0);
-    return acc + Math.max(0, (car.totalCost || 0) - partnerInvestment - firmPending);
+    return acc + Math.max(0, Number(car.purchasePrice || 0) - partnerInvestment - firmPending);
   }, 0) || 0;
 
   const firmProfitMonth = sold?.reduce((acc, car) => {

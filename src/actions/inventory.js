@@ -1376,3 +1376,59 @@ export async function editVehicleAdvanced(formData) {
   }
 }
 
+
+export async function deleteVehicleAction(vehicleId) {
+  try {
+    const session = await getSession();
+    if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+
+    if (!vehicleId) return { success: false, error: 'Vehicle ID is required' };
+
+    await prisma.$transaction(async (tx) => {
+      // Find all linked expenses to delete their specific transactions
+      const expenses = await tx.expense.findMany({
+        where: { vehicleId }
+      });
+      const expenseIds = expenses.map(e => e.id);
+
+      // Delete all linked transactions (purchase, sale, tokens, partnerships, AND expenses)
+      await tx.transaction.deleteMany({
+        where: { 
+          OR: [
+            { referenceId: vehicleId },
+            ...(expenseIds.length > 0 ? [{ referenceId: { in: expenseIds } }] : [])
+          ]
+        }
+      });
+
+      // Delete all linked tokens
+      await tx.vehicleToken.deleteMany({
+        where: { vehicleId }
+      });
+
+      // Delete all linked expenses
+      await tx.expense.deleteMany({
+        where: { vehicleId }
+      });
+
+      // Delete all linked partnerships
+      await tx.partnership.deleteMany({
+        where: { vehicleId }
+      });
+
+      // Delete the vehicle itself
+      await tx.vehicle.delete({
+        where: { id: vehicleId }
+      });
+    });
+
+    revalidatePath('/inventory');
+    revalidatePath('/history');
+    revalidatePath('/profit');
+    revalidatePath('/rojmel');
+    return { success: true };
+  } catch (err) {
+    console.error('deleteVehicleAction error:', err);
+    return { success: false, error: err.message || 'Failed to delete vehicle' };
+  }
+}
