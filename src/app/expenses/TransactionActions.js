@@ -2,13 +2,15 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Pencil, Trash2, X } from 'lucide-react';
+import { Pencil, Trash2, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import VehicleSearchSelect from '@/components/VehicleSearchSelect';
 
 export default function TransactionActions({ expense, deleteExpenseAction, updateExpenseAction, isRawTx, hideDelete = false, accounts = [], vehicles = [] }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [warningType, setWarningType] = useState(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [mounted, setMounted] = useState(false);
   
   useEffect(() => setMounted(true), []);
@@ -112,12 +114,14 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
   }[themeName];
 
 
-  const handleDelete = async () => {
-    const confirmText = prompt(`Are you sure you want to delete this ${expense.amount}? This will affect your bank balance! Type "DELETE" to confirm:`);
-    if (confirmText !== 'DELETE') {
-      toast.error('Deletion cancelled. You must type DELETE precisely.');
-      return;
-    }
+  const handleDeleteClick = () => {
+    setWarningType('delete');
+    setDeleteConfirmText('');
+  };
+
+  const handleConfirmDelete = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+    setWarningType(null);
     
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
@@ -132,14 +136,50 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
     isSubmittingRef.current = false;
   };
 
+  const getImpactAnalysis = () => {
+    const impacts = [];
+    
+    // 1. Vehicle Impact
+    if (expense.vehicle) {
+      const reg = expense.vehicle.registration || 'UNREG';
+      impacts.push(`Vehicle Khata in ${expense.vehicle.make} ${expense.vehicle.model} ${reg} will be recalculated.`);
+    }
+
+    // 2. Global Profit / Ledger History
+    if (isIncome) {
+       impacts.push(`Ledger History in income side will be adjusted.`);
+    } else if (isOffice || expense.vehicle) {
+       impacts.push(`Ledger History in expense side will be adjusted.`);
+    } else {
+       impacts.push(`Global Ledger History will be adjusted.`);
+    }
+    
+    // 3. Account Impact
+    const acc = accounts.find(a => a.id === initialAccountId);
+    if (acc) {
+      impacts.push(`Master Capital Dashboard in ${acc.name} will be updated.`);
+    } else if (!isRawTx && expense.requestedMode === 'UGHRANI') {
+       impacts.push(`Master Capital Dashboard in Market Place / Vendor will be updated.`);
+    }
+
+    // 4. Transfer Specific
+    if (isTransfer) {
+      impacts.push(`Both the Sending and Receiving Master Capital Dashboards will be simultaneously altered.`);
+    }
+
+    if (impacts.length === 0) {
+      impacts.push(`Ledger accounts connected to this transaction will be updated.`);
+    }
+
+    return impacts;
+  };
+
   const handleEditClick = () => {
     if (isSplitPayment) {
       toast.error('Transactions with split payment sources cannot be edited directly yet. Please delete and re-create it.');
       return;
     }
-    if (confirm('WARNING: Editing a transaction is a very powerful action that can alter your ledger and balances across the software. Are you sure you want to edit this?')) {
-      setIsEditing(true);
-    }
+    setWarningType('edit');
   };
 
   const handleEdit = async (e) => {
@@ -175,7 +215,7 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
         </button>
         {!hideDelete && (
           <button 
-            onClick={handleDelete}
+            onClick={handleDeleteClick}
             disabled={isDeleting}
             className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-200 text-slate-500 hover:bg-red-500 hover:text-white hover:border-red-600 hover:shadow-md transition-all focus:ring-2 focus:ring-red-100 outline-none"
             title="Delete Transaction"
@@ -184,6 +224,84 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
           </button>
         )}
       </div>
+
+      {warningType && mounted && createPortal(
+        <div className="fixed inset-0 bg-slate-900/60 flex flex-col justify-center items-center p-4 z-[9999] backdrop-blur-sm">
+          <div className="absolute inset-0" onClick={() => { setWarningType(null); setDeleteConfirmText(''); }}></div>
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative z-[10000] animate-in zoom-in-95 duration-200 border border-amber-200">
+            <div className={`${warningType === 'edit' ? 'bg-amber-50 border-amber-100' : 'bg-red-50 border-red-100'} p-5 border-b flex items-start gap-4`}>
+              <div className={`${warningType === 'edit' ? 'bg-amber-100 text-amber-600' : 'bg-red-100 text-red-600'} p-2.5 rounded-full shrink-0`}>
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className={`font-black text-lg m-0 mb-1 leading-tight ${warningType === 'edit' ? 'text-amber-900' : 'text-red-900'}`}>
+                  {warningType === 'edit' ? 'Critical Ledger Edit Warning' : 'Critical Deletion Impact Warning'}
+                </h3>
+                <p className={`text-xs font-bold leading-relaxed m-0 ${warningType === 'edit' ? 'text-amber-700/80' : 'text-red-700/80'}`}>
+                  {warningType === 'edit' 
+                    ? 'Editing a transaction alters your accounting data globally. Proceeding will trigger cascading updates across your system.' 
+                    : 'Deleting a transaction permanently removes it and reverses its effects globally. Proceeding will trigger cascading updates across your system.'}
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-5 bg-white">
+              <p className="text-xs uppercase tracking-widest font-black text-slate-400 mb-3">Predicted System Impact:</p>
+              <ul className="space-y-3 mb-6">
+                {getImpactAnalysis().map((impact, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm font-bold text-slate-700">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${warningType === 'edit' ? 'bg-amber-500' : 'bg-red-500'}`}></span>
+                    <span>{impact}</span>
+                  </li>
+                ))}
+              </ul>
+              
+              {warningType === 'edit' ? (
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => { setWarningType(null); setIsEditing(true); }}
+                    className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-lg text-sm transition-all shadow-lg shadow-amber-500/20 active:scale-[0.98]"
+                  >
+                    I Understand, Edit Anyhow
+                  </button>
+                  <button 
+                    onClick={() => { setWarningType(null); setDeleteConfirmText(''); }}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-lg text-sm transition-all active:scale-[0.98]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <input 
+                    type="text" 
+                    placeholder='Type "DELETE" to confirm' 
+                    value={deleteConfirmText}
+                    onChange={e => setDeleteConfirmText(e.target.value)}
+                    className="w-full p-3 rounded-lg border border-red-200 text-center font-bold outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 bg-slate-50"
+                  />
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={handleConfirmDelete}
+                      disabled={deleteConfirmText !== 'DELETE' || isDeleting}
+                      className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none text-white font-black py-3 rounded-lg text-sm transition-all shadow-lg shadow-red-500/20 active:scale-[0.98]"
+                    >
+                      {isDeleting ? 'Deleting...' : 'PERMANENTLY DELETE'}
+                    </button>
+                    <button 
+                      onClick={() => { setWarningType(null); setDeleteConfirmText(''); }}
+                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-lg text-sm transition-all active:scale-[0.98]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {isEditing && mounted && createPortal(
         <div className="fixed inset-0 bg-slate-900/50 flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4 z-[9999] backdrop-blur-sm">

@@ -142,6 +142,7 @@ export async function getRecentExpenses(dateString = null) {
         status: exp.status,
         paymentSource,
         accountId: exp.requestedAccountId,
+        requestedMode: exp.requestedMode,
         vehicle: exp.vehicle ? {
           make: exp.vehicle.make,
           model: exp.vehicle.model,
