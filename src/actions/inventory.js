@@ -1334,6 +1334,30 @@ export async function editVehicleAdvanced(formData) {
         }
       }
 
+      // Handle NEW Partnerships added during Edit
+      const newPartnershipCount = Number(formData.get('newPartnershipCount') || 0);
+      for (let j = 0; j < newPartnershipCount; j++) {
+          const pAccountId = formData.get(`newPartnerAccountId_${j}`);
+          const pInvestment = Number((formData.get(`newPartnerInvestment_${j}`) || '0').replace(/,/g, ''));
+          const pProfit = Number((formData.get(`newPartnerProfitShare_${j}`) || '0').replace(/,/g, ''));
+
+          if (!pAccountId || pInvestment <= 0) continue;
+          
+          await tx.partnership.create({
+              data: {
+                  vehicleId,
+                  partnerAccountId: pAccountId,
+                  investmentAmount: pInvestment,
+                  profitSharePercentage: pProfit,
+                  investmentMode: 'PENDING',
+                  isInvestmentPaid: existing.isLegacy ? true : false,
+                  paidAmount: existing.isLegacy ? pInvestment : 0
+              }
+          });
+      }
+
+      await syncVehicleState(tx, vehicleId);
+
       await tx.vehicle.update({
         where: { id: vehicleId },
         data: dataToUpdate

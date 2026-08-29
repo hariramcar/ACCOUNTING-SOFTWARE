@@ -22,6 +22,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
   const router = useRouter();
   const [isPaying, setIsPaying] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [newPartnershipCount, setNewPartnershipCount] = useState(0);
   const [editError, setEditError] = useState(null);
   const [payingPartnerId, setPayingPartnerId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -294,37 +295,73 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                 </div>
               )}
               
-              {car.partnerships && car.partnerships.length > 0 && (
-                <div className="mt-2 border-t border-slate-200 pt-4">
-                  <h3 className="text-[11px] uppercase font-black text-purple-700 mb-3 tracking-widest">Edit Partnerships</h3>
-                  {car.partnerships.map((p, idx) => (
-                    <div key={p.id} className="flex flex-col gap-3 bg-purple-50/50 p-3 rounded-lg border border-purple-100 mb-3">
-                      <input type="hidden" name={`partnerId_${idx}`} value={p.id} />
-                      
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Partner</label>
-                        <select name={`partnerAccountId_${idx}`} defaultValue={p.partnerAccountId} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold">
-                           {accounts.filter(a => a.type === 'PARTNER').map(acc => (
-                             <option key={acc.id} value={acc.id}>{acc.name}</option>
-                           ))}
-                        </select>
-                      </div>
-
-                      <div className="flex gap-3">
-                        <div className="flex flex-col gap-1.5 flex-1">
-                           <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Investment (₹)</label>
-                           <input type="text" name={`partnerInvestment_${idx}`} defaultValue={p.investmentAmount} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
-                        </div>
-                        <div className="flex flex-col gap-1.5 flex-[0.7]">
-                           <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Profit (%)</label>
-                           <input type="text" name={`partnerProfitShare_${idx}`} defaultValue={p.profitSharePercentage} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  <input type="hidden" name="partnershipCount" value={car.partnerships.length} />
+              <div className="mt-2 border-t border-slate-200 pt-4 flex justify-between items-center mb-3">
+                  <h3 className="text-[11px] uppercase font-black text-purple-700 tracking-widest">Partnerships</h3>
+                  <button type="button" onClick={() => setNewPartnershipCount(prev => prev + 1)} className="text-[10px] bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold px-2 py-1 rounded transition-colors uppercase tracking-widest">
+                    + Add Partner
+                  </button>
                 </div>
-              )}
+
+                {((car.partnerships && car.partnerships.length > 0) || newPartnershipCount > 0) && (
+                  <div>
+                    {(car.partnerships || []).map((p, idx) => (
+                      <div key={p.id} className="flex flex-col gap-3 bg-purple-50/50 p-3 rounded-lg border border-purple-100 mb-3">
+                        <input type="hidden" name={`partnerId_${idx}`} value={p.id} />
+                        
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Partner</label>
+                          <select name={`partnerAccountId_${idx}`} defaultValue={p.partnerAccountId} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold">
+                             {accounts.filter(a => a.type === 'PARTNER').map(acc => (
+                               <option key={acc.id} value={acc.id}>{acc.name}</option>
+                             ))}
+                          </select>
+                        </div>
+
+                        <div className="flex gap-3">
+                          <div className="flex flex-col gap-1.5 flex-1">
+                             <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Investment (₹)</label>
+                             <input type="text" name={`partnerInvestment_${idx}`} defaultValue={p.investmentAmount} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
+                          </div>
+                          <div className="flex flex-col gap-1.5 flex-[0.7]">
+                             <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Profit (%)</label>
+                             <input type="text" name={`partnerProfitShare_${idx}`} defaultValue={p.profitSharePercentage} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {Array.from({ length: newPartnershipCount }).map((_, idx) => (
+                      <div key={`new_${idx}`} className="flex flex-col gap-3 bg-indigo-50/50 p-3 rounded-lg border border-indigo-100 mb-3 relative">
+                        <button type="button" onClick={() => setNewPartnershipCount(prev => Math.max(0, prev - 1))} className="absolute top-2 right-2 text-indigo-400 hover:text-indigo-600 bg-indigo-100/50 hover:bg-indigo-200 rounded p-1">
+                          <X size={14} />
+                        </button>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">New Partner</label>
+                          <select name={`newPartnerAccountId_${idx}`} className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold">
+                             <option value="">Select Partner</option>
+                             {accounts.filter(a => a.type === 'PARTNER').map(acc => (
+                               <option key={acc.id} value={acc.id}>{acc.name}</option>
+                             ))}
+                          </select>
+                        </div>
+
+                        <div className="flex gap-3">
+                          <div className="flex flex-col gap-1.5 flex-1">
+                             <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Investment (₹)</label>
+                             <input type="text" name={`newPartnerInvestment_${idx}`} placeholder="e.g. 50,000" className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
+                          </div>
+                          <div className="flex flex-col gap-1.5 flex-[0.7]">
+                             <label className="text-[9px] uppercase tracking-widest font-bold text-slate-500">Profit (%)</label>
+                             <input type="text" name={`newPartnerProfitShare_${idx}`} placeholder="e.g. 50" className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-sm font-bold" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <input type="hidden" name="partnershipCount" value={(car.partnerships || []).length} />
+                    <input type="hidden" name="newPartnershipCount" value={newPartnershipCount} />
+                  </div>
+                )}
               
               {!car.isLegacy && (
                 <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-lg flex gap-2 items-start text-indigo-700">
@@ -339,7 +376,7 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                 <button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">
                   {isSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
-                <button type="button" onClick={() => setIsEditMode(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-lg transition-colors">
+                <button type="button" onClick={() => { setIsEditMode(false); setNewPartnershipCount(0); }} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
               </div>
