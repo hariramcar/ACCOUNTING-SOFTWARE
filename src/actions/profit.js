@@ -80,7 +80,8 @@ export async function getMonthlyProfitData(year, monthIndex) {
       const legacyExp = Number(v.legacyExpenses || 0);
       const totalCost = Number(v.purchasePrice || 0) + totalExpenses + legacyExp;
       const partnerInvestment = v.partnerships?.reduce((pSum, p) => pSum + Number(p.investmentAmount || 0), 0) || 0;
-      return sum + Math.max(0, totalCost - partnerInvestment);
+      const firmPending = Number(v.purchasePendingBalance || 0);
+      return sum + Math.max(0, totalCost - partnerInvestment - firmPending);
     }, 0);
 
     // 5. Process calculations

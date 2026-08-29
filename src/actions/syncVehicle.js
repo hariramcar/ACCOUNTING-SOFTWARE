@@ -157,14 +157,21 @@ export async function syncVehicleState(tx, vehicleId) {
   }
 
   // 6. Save the perfectly synchronized state
+  let dataToUpdate = {
+    salePrice: salePrice > 0 ? salePrice : (vehicle.status === 'SOLD' ? 0 : null),
+    salePendingBalance: salePendingBalance >= 0 ? salePendingBalance : 0,
+    profit: profit
+  };
+
+  // Only sync purchase data from transactions if it's NOT a legacy vehicle
+  // Legacy vehicles hold their purchase values statically since their past transactions aren't logged
+  if (!vehicle.isLegacy) {
+    dataToUpdate.purchasePrice = purchasePrice > 0 ? purchasePrice : vehicle.purchasePrice;
+    dataToUpdate.purchasePendingBalance = purchasePendingBalance >= 0 ? purchasePendingBalance : 0;
+  }
+
   await tx.vehicle.update({
     where: { id: vehicleId },
-    data: {
-      purchasePrice: purchasePrice > 0 ? purchasePrice : vehicle.purchasePrice,
-      purchasePendingBalance: purchasePendingBalance >= 0 ? purchasePendingBalance : 0,
-      salePrice: salePrice > 0 ? salePrice : (vehicle.status === 'SOLD' ? 0 : null),
-      salePendingBalance: salePendingBalance >= 0 ? salePendingBalance : 0,
-      profit: profit
-    }
+    data: dataToUpdate
   });
 }

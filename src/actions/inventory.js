@@ -269,10 +269,22 @@ export async function addVehicle(formData) {
     if (totalPaidOrInvested > purchasePrice) {
       return { success: false, error: 'Your payment amount cannot be greater than your expense amount (purchase price).' };
     }
-    const legacyPendingRaw = formData.get('legacyPendingAmount');
-    const pendingAmount = isLegacy 
-      ? (legacyPendingRaw ? Number(legacyPendingRaw.replace(/,/g, '')) : 0)
-      : math.sub(purchasePrice, totalPaidOrInvested);
+    const legacyPaidRaw = formData.get('legacyPaidAmount');
+    let pendingAmount = 0;
+    
+    if (isLegacy) {
+      const legacyPaidStr = (legacyPaidRaw || '').trim();
+      if (legacyPaidStr === '') {
+        // If left empty, assume fully paid (pending = 0)
+        pendingAmount = 0;
+      } else {
+        const legacyPaidNum = Number(legacyPaidStr.replace(/,/g, ''));
+        pendingAmount = math.sub(purchasePrice, legacyPaidNum);
+        if (pendingAmount < 0) pendingAmount = 0;
+      }
+    } else {
+      pendingAmount = math.sub(purchasePrice, totalPaidOrInvested);
+    }
 
     // Strict validation for missing accounts and agent balances
     for (const p of firmPayments) {
