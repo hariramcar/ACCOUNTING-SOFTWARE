@@ -142,9 +142,9 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
                             </span>
                             {(() => {
                               const docs = Array.isArray(car.receivedDocs) ? car.receivedDocs : [];
-                              const total = 6;
+                              const total = 7;
                               if (docs.length === 0) {
-                                return <span className="text-[8px] bg-rose-50 text-rose-600 border border-rose-200 px-1 py-0.5 rounded font-bold uppercase tracking-wider shadow-sm">0/6 Docs</span>;
+                                return <span className="text-[8px] bg-rose-50 text-rose-600 border border-rose-200 px-1 py-0.5 rounded font-bold uppercase tracking-wider shadow-sm">0/7 Docs</span>;
                               }
                               if (docs.length === total) {
                                 return <span className="text-[8px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-1 py-0.5 rounded font-bold uppercase tracking-wider shadow-sm">{total}/{total} Docs</span>;
@@ -308,7 +308,7 @@ export default function InventoryClientList({ inStock, sold, accounts = [] }) {
                           <td className="py-4 px-6 text-right whitespace-nowrap">
                             {(() => {
                               const docs = Array.isArray(car.receivedDocs) ? car.receivedDocs : [];
-                              const total = 6;
+                              const total = 7;
                               if (docs.length === 0) {
                                 return <span className="text-[10px] bg-rose-50 text-rose-600 border border-rose-200 px-2 py-1 rounded font-bold shadow-sm">{docs.length} / {total} Received</span>;
                               }

@@ -333,12 +333,12 @@ export default function AddVehicleModal({ accounts, vehicleModels, addVehicleAct
                   />
                 </div>
                 {!isLegacy ? (
-                  <div className="flex flex-col gap-2">
+                  <div key="purchaseDateBlock" className="flex flex-col gap-2">
                     <label className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Purchase Date</label>
                     <input type="date" name="purchaseDate" required defaultValue={getLocalDateString()} className="w-full p-4 rounded-xl border border-transparent bg-slate-100 shadow-inner text-slate-700 text-[15px] outline-none focus:ring-4 focus:ring-indigo-500/15 focus:border-indigo-500 focus:bg-white font-bold transition-all" />
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-2">
+                  <div key="legacyPendingBlock" className="flex flex-col gap-2">
                     <label className="text-[11px] uppercase tracking-wider font-bold text-amber-600">Pending to pay (₹)</label>
                     <input type="text" name="legacyPendingAmount" placeholder="e.g. 2,00,000" className="w-full p-4 rounded-xl border border-transparent bg-amber-50 shadow-inner text-amber-900 text-[15px] outline-none focus:ring-4 focus:ring-amber-500/15 focus:border-amber-500 focus:bg-white font-bold transition-all placeholder:text-amber-300" />
                   </div>
