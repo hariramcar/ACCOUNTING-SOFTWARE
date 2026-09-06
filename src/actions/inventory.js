@@ -1377,10 +1377,14 @@ export async function editVehicleAdvanced(formData) {
 }
 
 
-export async function deleteVehicleAction(vehicleId) {
+export async function deleteVehicleAction(input) {
   try {
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+
+    const vehicleId = typeof input === 'string'
+      ? input
+      : (typeof input?.get === 'function' ? input.get('vehicleId') : input?.vehicleId);
 
     if (!vehicleId) return { success: false, error: 'Vehicle ID is required' };
 
@@ -1391,13 +1395,17 @@ export async function deleteVehicleAction(vehicleId) {
       });
       const expenseIds = expenses.map(e => e.id);
 
+      // Find all linked tokens to delete their specific transactions
+      const tokens = await tx.vehicleToken.findMany({
+        where: { vehicleId }
+      });
+      const tokenIds = tokens.map(t => t.id);
+
       // Delete all linked transactions (purchase, sale, tokens, partnerships, AND expenses)
+      const refIds = [vehicleId, ...expenseIds, ...tokenIds];
       await tx.transaction.deleteMany({
         where: { 
-          OR: [
-            { referenceId: vehicleId },
-            ...(expenseIds.length > 0 ? [{ referenceId: { in: expenseIds } }] : [])
-          ]
+          referenceId: { in: refIds }
         }
       });
 
