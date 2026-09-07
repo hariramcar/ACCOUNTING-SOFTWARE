@@ -782,6 +782,75 @@ export async function sellVehicle(formData) {
   }
 }
 
+export async function updateVehicleSaleAction(formData) {
+  try {
+    const session = await getSession();
+    if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+
+    const vehicleId = formData.get('vehicleId');
+    const newSaleDateStr = formData.get('saleDate');
+    const customerName = formData.get('customerName');
+    const customerMobile = formData.get('customerMobile');
+
+    if (!vehicleId || !newSaleDateStr) {
+      return { success: false, error: 'Vehicle ID and Sale Date are required' };
+    }
+
+    const newSaleDate = new Date(newSaleDateStr + 'T00:00:00.000Z');
+
+    await prisma.$transaction(async (tx) => {
+      const vehicle = await tx.vehicle.findUnique({ where: { id: vehicleId } });
+      if (!vehicle || vehicle.status !== 'SOLD') {
+        throw new Error('Sold vehicle not found');
+      }
+
+      // Update vehicle sale metadata
+      await tx.vehicle.update({
+        where: { id: vehicleId },
+        data: {
+          saleDate: newSaleDate,
+          ...(customerName !== undefined ? { customerName } : {}),
+          ...(customerMobile !== undefined ? { customerMobile } : {})
+        }
+      });
+
+      // Synchronize all sale transactions to the new sale date
+      await tx.transaction.updateMany({
+        where: {
+          referenceId: vehicleId,
+          category: 'VEHICLE_SALE'
+        },
+        data: { date: newSaleDate }
+      });
+
+      // Synchronize partner share transactions if any
+      await tx.transaction.updateMany({
+        where: {
+          referenceId: vehicleId,
+          category: 'GENERAL',
+          OR: [
+            { description: { startsWith: 'Auto-Entry: Profit Share' } },
+            { description: { startsWith: 'Auto-Entry: Loss Share' } }
+          ]
+        },
+        data: { date: newSaleDate }
+      });
+
+      await syncVehicleState(tx, vehicleId);
+    });
+
+    revalidatePath('/inventory');
+    revalidatePath('/history');
+    revalidatePath('/profit');
+    revalidatePath('/expenses');
+    revalidatePath('/');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update vehicle sale:', error);
+    return { success: false, error: error.message || 'Failed to update sale details' };
+  }
+}
+
 export async function addRepairExpense(formData) {
   try {
     const vehicleId = formData.get('vehicleId');

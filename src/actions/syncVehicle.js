@@ -1,12 +1,13 @@
 import prisma from '@/lib/prisma';
 
 export async function syncVehicleState(tx, vehicleId) {
-  // 1. Fetch vehicle with expenses and partnerships
+  // 1. Fetch vehicle with expenses, partnerships, and tokens
   const vehicle = await tx.vehicle.findUnique({
     where: { id: vehicleId },
     include: {
       expenses: { where: { status: 'APPROVED' } },
-      partnerships: true
+      partnerships: true,
+      tokens: true
     }
   });
 
@@ -81,16 +82,29 @@ export async function syncVehicleState(tx, vehicleId) {
     }
   }
 
+  // Count APPLIED tokens towards the vehicle's total sale price
+  const appliedTokensTotal = (vehicle.tokens || [])
+    .filter(t => t.status === 'APPLIED')
+    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+  if (salePrice > 0 || vehicle.status === 'SOLD') {
+    salePrice += appliedTokensTotal;
+  }
+
   // 4. Calculate Profit
+  // Legacy vehicles and vehicles without explicit purchase transactions hold their purchase price statically on the vehicle record
+  const effectivePurchasePrice = (vehicle.isLegacy || purchasePrice === 0)
+    ? Number(vehicle.purchasePrice || 0)
+    : purchasePrice;
+
   const totalExpenses = vehicle.expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
   const legacyExp = Number(vehicle.legacyExpenses || 0);
-  const totalCost = purchasePrice + totalExpenses + legacyExp;
+  const totalCost = effectivePurchasePrice + totalExpenses + legacyExp;
   
   let profit = null;
-  if (vehicle.status === 'SOLD' && salePrice > 0) {
-    profit = salePrice - totalCost;
-  } else if (vehicle.status === 'SOLD' && Number(vehicle.salePrice) > 0) {
-    profit = Number(vehicle.salePrice) - totalCost;
+  const finalSalePrice = salePrice > 0 ? salePrice : Number(vehicle.salePrice || 0);
+  if (vehicle.status === 'SOLD' && finalSalePrice > 0) {
+    profit = finalSalePrice - totalCost;
   } else if (vehicle.status === 'SOLD') {
     profit = 0 - totalCost;
   }
@@ -158,7 +172,7 @@ export async function syncVehicleState(tx, vehicleId) {
 
   // 6. Save the perfectly synchronized state
   let dataToUpdate = {
-    salePrice: salePrice > 0 ? salePrice : (vehicle.status === 'SOLD' ? 0 : null),
+    salePrice: finalSalePrice > 0 ? finalSalePrice : (vehicle.status === 'SOLD' ? 0 : null),
     salePendingBalance: salePendingBalance >= 0 ? salePendingBalance : 0,
     profit: profit
   };

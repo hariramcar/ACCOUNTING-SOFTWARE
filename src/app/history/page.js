@@ -99,6 +99,19 @@ export default async function HistoryPage() {
 
   const totalIncome = rawOperatingIncome + firmCarProfitThisMonth;
 
+  const soldVehicles = soldVehiclesRaw.map(v => ({
+    id: v.id,
+    make: v.make,
+    model: v.model,
+    registration: v.registration,
+    salePrice: Number(v.salePrice || 0),
+    purchasePrice: Number(v.purchasePrice || 0),
+    profit: Number(v.profit || 0),
+    saleDate: v.saleDate,
+    customerName: v.customerName,
+    grossProfit: Number(v.salePrice || 0) - Number(v.purchasePrice || 0)
+  }));
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 pt-1 md:p-8 flex flex-col gap-4 md:gap-8 text-slate-900 pb-24 md:pb-8">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-3 md:gap-4 border-b border-slate-200 pb-3 md:pb-5 mb-1 md:mb-6 sticky top-0 bg-slate-50/90 backdrop-blur-xl z-30 pt-1 md:pt-0 -mx-4 px-4 md:mx-0 md:px-0">
@@ -121,6 +134,7 @@ export default async function HistoryPage() {
         totalExpenses={totalExpenses}
         accounts={accounts}
         vehicles={vehicles}
+        soldVehicles={soldVehicles}
       />
     </div>
   );

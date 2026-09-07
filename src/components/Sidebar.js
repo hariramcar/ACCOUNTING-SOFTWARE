@@ -21,22 +21,20 @@ import {
   X
 } from 'lucide-react';
 
-export default function Sidebar({ session }) {
+export default function Sidebar({ session, initialMonth }) {
   const pathname = usePathname();
   const [isExpanded, setIsExpanded] = useState(false);
   const sidebarRef = useRef(null);
   const mobileSheetRef = useRef(null);
 
   const [globalMonth, setGlobalMonth] = useState(() => {
-    if (typeof document !== 'undefined') {
-      const match = document.cookie.match(/(^| )global_month=([^;]+)/);
-      if (match) {
-        const [yearStr, monthStr] = match[2].split('-');
-        const year = Number(yearStr);
-        const month = Number(monthStr);
-        if (!isNaN(year) && !isNaN(month)) {
-          return new Date(year, month, 1);
-        }
+    const rawMonth = initialMonth || (typeof document !== 'undefined' ? document.cookie.match(/(^| )global_month=([^;]+)/)?.[2] : null);
+    if (rawMonth) {
+      const [yearStr, monthStr] = rawMonth.split('-');
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      if (!isNaN(year) && !isNaN(month)) {
+        return new Date(year, month, 1);
       }
     }
     return new Date();

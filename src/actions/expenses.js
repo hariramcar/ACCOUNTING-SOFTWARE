@@ -930,32 +930,82 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
               }
             }
             
-            // If it's a direct firm vehicle purchase, sync the difference to the vehicle's purchase price
+            // If it's a direct firm vehicle purchase, sync the difference to the vehicle's purchase price and date
             if (txToUpdate.category === 'VEHICLE_PURCHASE' && txToUpdate.referenceId && !txToUpdate.description.includes('Partner')) {
                const diff = updateData.amount - txToUpdate.amount;
-               if (diff !== 0) {
-                 const vehicle = await tx.vehicle.findUnique({ where: { id: txToUpdate.referenceId }});
-                 if (vehicle) {
+               const oldDate = new Date(txToUpdate.date);
+               const newDate = updateData.date;
+               const dateChanged = oldDate.toISOString().slice(0, 10) !== newDate.toISOString().slice(0, 10);
+
+               const vehicle = await tx.vehicle.findUnique({ where: { id: txToUpdate.referenceId }});
+               if (vehicle) {
+                 const vehicleUpdateData = {};
+                 if (diff !== 0) {
+                   vehicleUpdateData.purchasePrice = Number(vehicle.purchasePrice) + diff;
+                 }
+                 // Only update vehicle purchaseDate if it's the primary purchase entry (not an udhari settlement)
+                 if (dateChanged && !txToUpdate.description.includes('Paid Pending Udhari')) {
+                   vehicleUpdateData.purchaseDate = newDate;
+                 }
+                 if (Object.keys(vehicleUpdateData).length > 0) {
                    await tx.vehicle.update({
                      where: { id: vehicle.id },
-                     data: { purchasePrice: vehicle.purchasePrice + diff }
+                     data: vehicleUpdateData
                    });
                  }
                }
             }
             
-            // If it's a vehicle sale payment, sync the difference to the vehicle's salePrice and profit
-            if (txToUpdate.category === 'VEHICLE_SALE' && txToUpdate.referenceId && txToUpdate.description.includes('Auto-Entry: Sold')) {
+            // If it's a vehicle sale transaction (payment or pending receivable), sync date and cascade to siblings!
+            if (txToUpdate.category === 'VEHICLE_SALE' && txToUpdate.referenceId) {
                const diff = updateData.amount - txToUpdate.amount;
-               if (diff !== 0) {
-                 const vehicle = await tx.vehicle.findUnique({ where: { id: txToUpdate.referenceId }});
-                 if (vehicle) {
+               const oldDate = new Date(txToUpdate.date);
+               const newDate = updateData.date;
+               const dateChanged = oldDate.toISOString().slice(0, 10) !== newDate.toISOString().slice(0, 10);
+
+               const vehicle = await tx.vehicle.findUnique({ where: { id: txToUpdate.referenceId }});
+               if (vehicle) {
+                 const vehicleUpdateData = {};
+                 const vehicleSaleDateStr = vehicle.saleDate ? new Date(vehicle.saleDate).toISOString().slice(0, 10) : '';
+                 const newDateStr = newDate.toISOString().slice(0, 10);
+                 const shouldSyncSaleDate = dateChanged || (vehicleSaleDateStr !== newDateStr);
+
+                 if (shouldSyncSaleDate) {
+                   vehicleUpdateData.saleDate = newDate;
+                 }
+                 if (diff !== 0 && txToUpdate.description.includes('Auto-Entry: Sold')) {
+                   vehicleUpdateData.salePrice = (Number(vehicle.salePrice) || 0) + diff;
+                   vehicleUpdateData.profit = (Number(vehicle.profit) || 0) + diff;
+                 }
+
+                 if (Object.keys(vehicleUpdateData).length > 0) {
                    await tx.vehicle.update({
                      where: { id: vehicle.id },
-                     data: { 
-                       salePrice: (vehicle.salePrice || 0) + diff,
-                       profit: (vehicle.profit || 0) + diff
-                     }
+                     data: vehicleUpdateData
+                   });
+                 }
+
+                 // Automatically cascade date change to all sibling sale transactions and partner shares
+                 if (shouldSyncSaleDate) {
+                   await tx.transaction.updateMany({
+                     where: {
+                       referenceId: vehicle.id,
+                       category: 'VEHICLE_SALE',
+                       id: { not: txToUpdate.id }
+                     },
+                     data: { date: newDate }
+                   });
+
+                   await tx.transaction.updateMany({
+                     where: {
+                       referenceId: vehicle.id,
+                       category: 'GENERAL',
+                       OR: [
+                         { description: { startsWith: 'Auto-Entry: Profit Share' } },
+                         { description: { startsWith: 'Auto-Entry: Loss Share' } }
+                       ]
+                     },
+                     data: { date: newDate }
                    });
                  }
                }

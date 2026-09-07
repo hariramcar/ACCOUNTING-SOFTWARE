@@ -65,10 +65,11 @@ const PaymentSource = ({ source, accounts, inline = false }) => {
 
 
 
-export default function LedgerTabs({ income, expenses, totalIncome, totalExpenses, accounts = [], vehicles = [] }) {
+export default function LedgerTabs({ income, expenses, totalIncome, totalExpenses, accounts = [], vehicles = [], soldVehicles = [] }) {
   const [activeTab, setActiveTab] = useState('INCOME');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
+  const [showCarMarginBreakdown, setShowCarMarginBreakdown] = useState(false);
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
@@ -178,6 +179,11 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
           <div className="relative z-10 w-full text-center md:text-left">
             <p className={`text-[10px] md:text-[11px] font-bold uppercase tracking-widest mb-0.5 md:mb-1 ${activeTab === 'INCOME' ? 'text-emerald-600/90' : 'text-slate-500'}`}>Total Income</p>
             <h2 className={`text-[17px] sm:text-xl md:text-3xl font-black tracking-tight m-0 ${activeTab === 'INCOME' ? 'text-emerald-600' : 'text-slate-700'}`}>₹{Number(totalIncome).toLocaleString('en-IN')}</h2>
+            {soldVehicles && soldVehicles.length > 0 && (
+              <span className="text-[10px] font-semibold text-emerald-600/80 mt-1 block">
+                {soldVehicles.length} {soldVehicles.length === 1 ? 'car' : 'cars'} sold • Margin: ₹{soldVehicles.reduce((s, c) => s + c.grossProfit, 0).toLocaleString('en-IN')}
+              </span>
+            )}
           </div>
           <div className={`hidden md:flex w-12 h-12 rounded-full items-center justify-center relative z-10 transition-colors flex-shrink-0 ${
             activeTab === 'INCOME' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'
@@ -214,7 +220,7 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
           className="hidden md:flex rounded-xl p-3 md:p-6 flex-col md:flex-row items-start md:items-center justify-between relative overflow-hidden bg-white border border-slate-200 shadow-sm opacity-90 scale-100 cursor-default"
         >
           <div className="relative z-10 w-full text-center md:text-left">
-            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest mb-0.5 md:mb-1 text-slate-500">Net Profit (expenses-income)</p>
+            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest mb-0.5 md:mb-1 text-slate-500">Net Profit (Income - Expenses)</p>
             <h2 className={`text-[17px] sm:text-xl md:text-3xl font-black tracking-tight m-0 ${netProfit >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
               {netProfit < 0 ? '-' : ''}₹{Math.abs(netProfit).toLocaleString('en-IN')}
             </h2>
@@ -291,7 +297,80 @@ export default function LedgerTabs({ income, expenses, totalIncome, totalExpense
       {/* Content Area - Full Width */}
       <div className="w-full">
         {activeTab === 'INCOME' && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
+            {/* Car Sales Profit Margin Breakdown Banner (Click to toggle) */}
+            {soldVehicles && soldVehicles.length > 0 && (
+              <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 rounded-2xl shadow-sm overflow-hidden transition-all duration-300">
+                <button
+                  type="button"
+                  onClick={() => setShowCarMarginBreakdown(prev => !prev)}
+                  className="w-full p-3.5 md:p-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left hover:bg-emerald-100/40 transition-colors cursor-pointer outline-none group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-sm group-hover:scale-105 transition-transform">
+                      <Car size={18} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm md:text-base font-bold text-slate-900 m-0">
+                          Car Sales Trading Margin ({soldVehicles.length} {soldVehicles.length === 1 ? 'Car' : 'Cars'} Sold)
+                        </h3>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                          {showCarMarginBreakdown ? 'Hide details' : 'Click to show'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                        Primary source of monthly Total Income (Sale Price minus Purchase Cost)
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                    <div className="text-left sm:text-right">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Total Trading Margin</div>
+                      <div className="text-xl md:text-2xl font-black text-emerald-700 leading-tight">
+                        ₹{soldVehicles.reduce((s, c) => s + c.grossProfit, 0).toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                    <div className={`w-8 h-8 rounded-full bg-white/80 border border-emerald-200 flex items-center justify-center text-emerald-700 transition-transform duration-300 ${showCarMarginBreakdown ? 'rotate-180' : ''}`}>
+                      <ChevronDown size={16} />
+                    </div>
+                  </div>
+                </button>
+
+                {showCarMarginBreakdown && (
+                  <div className="p-4 md:p-5 pt-0 border-t border-emerald-200/60 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                      {soldVehicles.map(car => (
+                        <div key={car.id} className="bg-white/95 backdrop-blur-sm border border-emerald-100 rounded-xl p-3 flex items-center justify-between shadow-xs hover:border-emerald-300 transition-all">
+                          <div>
+                            <div className="text-xs font-bold text-slate-900">
+                              {car.make} {car.model}
+                            </div>
+                            <div className="text-[11px] font-semibold text-slate-500">
+                              {car.registration || 'Unregistered'} • Sold on {new Date(car.saleDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              Sold: ₹{car.salePrice.toLocaleString('en-IN')} − Bought: ₹{car.purchasePrice.toLocaleString('en-IN')}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">Margin</span>
+                            <span className="text-sm md:text-base font-black text-emerald-600">+₹{car.grossProfit.toLocaleString('en-IN')}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-emerald-200/50 flex items-start gap-2 text-[11px] text-slate-600">
+                      <span className="text-emerald-600 font-bold shrink-0">ℹ️ Accounting Note:</span>
+                      <span>
+                        The transaction rows below record daily cash & bank movements (customer down-payments, loan agent receipts, and booking tokens). In standard business accounting, counting cash installments on top of the car trading profit would double-count your revenue. Total Income strictly reflects your true trading margins.
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {/* Mobile Card Layout */}
             <div className="flex flex-col gap-3 md:hidden">
               {(() => {

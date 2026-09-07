@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, User, IndianRupee, MapPin, Wrench, Calendar, Banknote, ShieldCheck, PenSquare, Trash2, CheckCircle2, FileText, BadgeCent, Handshake, AlertCircle } from 'lucide-react';
+import { X, User, IndianRupee, MapPin, Wrench, Calendar, Banknote, ShieldCheck, PenSquare, Trash2, CheckCircle2, FileText, BadgeCent, Handshake, AlertCircle, Pencil } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { payVehiclePendingBalance, payPartnerPendingInvestment, payPartnerProfit, updateVehicleDocuments, editVehicleAdvanced, deleteVehicleAction } from '@/actions/inventory';
+import { payVehiclePendingBalance, payPartnerPendingInvestment, payPartnerProfit, updateVehicleDocuments, editVehicleAdvanced, deleteVehicleAction, updateVehicleSaleAction } from '@/actions/inventory';
 import { forfeitToken } from '@/actions/tokens';
 import { FolderCheck } from 'lucide-react';
 
@@ -31,6 +31,57 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteError, setDeleteError] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Edit Sale Information State
+  const [isEditingSale, setIsEditingSale] = useState(false);
+  const [editSaleDate, setEditSaleDate] = useState('');
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editCustomerMobile, setEditCustomerMobile] = useState('');
+  const [isSubmittingSaleEdit, setIsSubmittingSaleEdit] = useState(false);
+  const [saleEditError, setSaleEditError] = useState(null);
+
+  useEffect(() => {
+    if (car && car.status === 'SOLD') {
+      if (car.saleDate) {
+        const d = new Date(car.saleDate);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        setEditSaleDate(`${y}-${m}-${day}`);
+      } else {
+        setEditSaleDate('');
+      }
+      setEditCustomerName(car.customerName || '');
+      setEditCustomerMobile(car.customerMobile || '');
+    }
+  }, [car]);
+
+  const handleSaleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (isSubmittingSaleEdit) return;
+    setIsSubmittingSaleEdit(true);
+    setSaleEditError(null);
+
+    const formData = new FormData();
+    formData.append('vehicleId', car.id);
+    formData.append('saleDate', editSaleDate);
+    formData.append('customerName', editCustomerName);
+    formData.append('customerMobile', editCustomerMobile);
+
+    try {
+      const res = await updateVehicleSaleAction(formData);
+      if (res && res.success) {
+        setIsEditingSale(false);
+        router.refresh();
+      } else {
+        setSaleEditError(res?.error || 'Failed to update sale details');
+      }
+    } catch (err) {
+      setSaleEditError(err.message || 'An error occurred while updating sale details');
+    } finally {
+      setIsSubmittingSaleEdit(false);
+    }
+  };
 
   const getPurchasePrice = () => {
     const priceInput = document.querySelector('input[name="purchasePrice"]');
@@ -500,17 +551,120 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                   <div>
                     <div className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider">Vehicle Sold For</div>
                     <div className="text-2xl font-black text-white">₹{Number(car.salePrice).toLocaleString('en-IN')}</div>
+                    {car.saleDate && (
+                      <div className="text-xs text-indigo-200 mt-0.5 flex items-center gap-1.5">
+                        <Calendar size={12} className="text-indigo-300 shrink-0" />
+                        <span>Sold on: <strong className="text-white">{new Date(car.saleDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 
-                {(car.customerName || car.customerMobile) && (
-                  <div className="text-right">
-                    <div className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider">Sold To</div>
-                    {car.customerName && <div className="text-sm font-bold text-white capitalize">{car.customerName}</div>}
-                    {car.customerMobile && <div className="text-xs text-indigo-200">{car.customerMobile}</div>}
-                  </div>
-                )}
+                <div className="flex items-center gap-3">
+                  {(car.customerName || car.customerMobile) && (
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider">Sold To</div>
+                      {car.customerName && <div className="text-sm font-bold text-white capitalize">{car.customerName}</div>}
+                      {car.customerMobile && <div className="text-xs text-indigo-200">{car.customerMobile}</div>}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingSale(!isEditingSale);
+                      setSaleEditError(null);
+                    }}
+                    className="p-2 bg-indigo-800 hover:bg-indigo-700 text-indigo-200 hover:text-white rounded-lg transition-colors border border-indigo-700 shrink-0 shadow-sm"
+                    title="Edit Sale Details (Sale Date, Customer Info)"
+                  >
+                    <Pencil size={15} />
+                  </button>
+                </div>
               </div>
+
+              {/* Inline Edit Sale Details Form */}
+              {isEditingSale && (
+                <div className="bg-indigo-950 p-4 border-b border-indigo-800 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-indigo-200 flex items-center gap-1.5">
+                      <PenSquare size={13} className="text-indigo-400" />
+                      Edit Sale Date & Customer Info
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingSale(false)}
+                      className="text-indigo-400 hover:text-white transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  {saleEditError && (
+                    <div className="mb-3 p-2 bg-red-900/50 border border-red-500/50 text-red-200 text-xs rounded-lg flex items-center gap-1.5">
+                      <AlertCircle size={14} className="shrink-0" />
+                      <span>{saleEditError}</span>
+                    </div>
+                  )}
+                  <form onSubmit={handleSaleEditSubmit} className="space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-indigo-300 uppercase tracking-wider mb-1">
+                        Sale Date *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={editSaleDate}
+                        onChange={(e) => setEditSaleDate(e.target.value)}
+                        className="w-full bg-indigo-900/80 border border-indigo-700 rounded-lg px-3 py-1.5 text-sm text-white font-medium focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                      />
+                      <p className="text-[10px] text-indigo-300/80 mt-1">
+                        Updating the sale date will automatically sync all sale transactions, profit reports, and ledger history across the software.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-indigo-300 uppercase tracking-wider mb-1">
+                          Customer Name
+                        </label>
+                        <input
+                          type="text"
+                          value={editCustomerName}
+                          onChange={(e) => setEditCustomerName(e.target.value)}
+                          placeholder="e.g. PATEL MILANBHAI"
+                          className="w-full bg-indigo-900/80 border border-indigo-700 rounded-lg px-3 py-1.5 text-sm text-white font-medium focus:ring-2 focus:ring-indigo-400 focus:outline-none capitalize"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-indigo-300 uppercase tracking-wider mb-1">
+                          Customer Mobile
+                        </label>
+                        <input
+                          type="tel"
+                          value={editCustomerMobile}
+                          onChange={(e) => setEditCustomerMobile(e.target.value)}
+                          placeholder="e.g. 9106057308"
+                          className="w-full bg-indigo-900/80 border border-indigo-700 rounded-lg px-3 py-1.5 text-sm text-white font-medium focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingSale(false)}
+                        className="px-3 py-1.5 bg-indigo-900 hover:bg-indigo-800 text-indigo-300 text-xs font-bold rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmittingSaleEdit}
+                        className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors shadow flex items-center gap-1.5"
+                      >
+                        {isSubmittingSaleEdit ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
               
               <div className="bg-indigo-950 p-4 border-b border-indigo-800/50 grid grid-cols-2 gap-4">
                 <div>
@@ -529,11 +683,20 @@ export default function VehicleDetailsModal({ car, isOpen, onClose, accounts = [
                   </div>
                 )}
                 
-                {car.saleTransactions && car.saleTransactions.filter(tx => tx.type === 'CREDIT').length > 0 && (
+                {((car.saleTransactions && car.saleTransactions.filter(tx => tx.type === 'CREDIT').length > 0) || (car.tokens && car.tokens.some(t => t.status === 'APPLIED'))) && (
                   <div className="col-span-2 mt-1 pt-3 border-t border-indigo-800/50">
                     <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider mb-2">Payment Breakdown</div>
                     <div className="flex flex-col gap-1.5">
-                      {car.saleTransactions.filter(tx => tx.type === 'CREDIT').map((tx, idx) => (
+                      {car.tokens && car.tokens.filter(t => t.status === 'APPLIED').map((tok, idx) => (
+                        <div key={`tok-${idx}`} className="flex justify-between items-center text-xs">
+                          <span className="text-indigo-200 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                            Token Applied ({tok.paymentMode || 'Advance'})
+                          </span>
+                          <span className="font-medium text-blue-300 font-mono">₹{Number(tok.amount).toLocaleString('en-IN')}</span>
+                        </div>
+                      ))}
+                      {car.saleTransactions && car.saleTransactions.filter(tx => tx.type === 'CREDIT').map((tx, idx) => (
                         <div key={idx} className="flex justify-between items-center text-xs">
                           <span className="text-indigo-200 flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/50"></span>

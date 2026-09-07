@@ -3,6 +3,7 @@ import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import { getSession } from "@/lib/session";
 import ToastProvider from "@/components/ToastProvider";
+import { cookies } from "next/headers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,12 +42,14 @@ export const metadata = {
 
 export default async function RootLayout({ children }) {
   const session = await getSession();
+  const cookieStore = await cookies();
+  const initialMonth = cookieStore.get('global_month')?.value;
 
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full bg-slate-50`}>
       <body className="flex flex-col md:flex-row h-[100dvh] md:h-screen w-full overflow-hidden text-slate-900 m-0 relative bg-slate-50">
         <ToastProvider />
-        <Sidebar session={session} />
+        <Sidebar session={session} initialMonth={initialMonth} />
         <div className="flex-1 overflow-y-auto bg-slate-50 pb-28 pb-safe md:pb-0 relative scroll-smooth">
           {children}
         </div>
