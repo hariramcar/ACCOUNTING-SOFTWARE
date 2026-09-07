@@ -18,6 +18,7 @@ import {
   Menu,
   ChevronRight,
   BookOpen,
+  Download,
   X
 } from 'lucide-react';
 
@@ -54,6 +55,7 @@ export default function Sidebar({ session, initialMonth }) {
     { name: 'Master Capital', path: '/accounts', icon: <Landmark size={20} />, role: 'ADMIN' },
     { name: 'Profit Dashboard', path: '/profit', icon: <LayoutDashboard size={20} />, role: 'ADMIN' },
     { name: 'Users & Staff', path: '/users', icon: <ShieldCheck size={20} />, role: 'ADMIN' },
+    { name: 'Export & Inspect', path: '/export', icon: <Download size={20} />, role: 'ADMIN' },
   ];
 
   useEffect(() => {
