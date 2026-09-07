@@ -12,23 +12,22 @@ export async function getExportData(startDateStr, endDateStr) {
   try {
     const dateFilter = {};
     if (startDateStr && endDateStr) {
-      dateFilter.gte = new Date(startDateStr).toISOString();
-      const lteDate = new Date(endDateStr);
-      lteDate.setHours(23, 59, 59, 999);
-      dateFilter.lte = lteDate.toISOString();
+      dateFilter.gte = new Date(`${startDateStr}T00:00:00.000Z`);
+      dateFilter.lte = new Date(`${endDateStr}T23:59:59.999Z`);
     }
 
     const transactions = await prisma.transaction.findMany({
-      where: startDateStr ? { date: dateFilter } : undefined,
+      where: (startDateStr && endDateStr) ? { date: dateFilter } : undefined,
       include: { account: true },
-      orderBy: { createdAt: 'desc' }
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }]
     });
 
     const vehicles = await prisma.vehicle.findMany({
-      where: startDateStr ? { 
+      where: (startDateStr && endDateStr) ? { 
         OR: [
           { purchaseDate: dateFilter },
-          { saleDate: dateFilter }
+          { saleDate: dateFilter },
+          { createdAt: dateFilter }
         ]
       } : undefined,
       include: { expenses: true, partnerships: { include: { partnerAccount: true } } },
@@ -40,9 +39,9 @@ export async function getExportData(startDateStr, endDateStr) {
     });
     
     const expenses = await prisma.expense.findMany({
-        where: startDateStr ? { date: dateFilter } : undefined,
-        include: { vehicle: true },
-        orderBy: { date: 'desc' }
+      where: (startDateStr && endDateStr) ? { date: dateFilter } : undefined,
+      include: { vehicle: true },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }]
     });
 
     const rawData = {
