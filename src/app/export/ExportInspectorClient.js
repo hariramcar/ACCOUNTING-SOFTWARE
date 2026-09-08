@@ -2,15 +2,16 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { 
-  ArrowLeft, Calendar, Search, FileSpreadsheet, FileText, FileDown, 
-  RefreshCw, Loader2, ArrowDownRight, ArrowUpRight, Car, 
+import {
+  ArrowLeft, Calendar, Search, FileSpreadsheet, FileText, FileDown,
+  RefreshCw, Loader2, ArrowDownRight, ArrowUpRight, Car,
   Landmark, Receipt, Eye, Filter, CheckCircle2,
   Wallet, Layers, Download, Printer, X, ExternalLink,
   ChevronDown, ArrowUpDown, Clock, Building2, User, Phone, Check
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getExportData } from '@/actions/export';
+import { attachVehicleToExpense } from '@/actions/expenses';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -41,8 +42,17 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
   const [expenseSearch, setExpenseSearch] = useState('');
   const [expenseTypeFilter, setExpenseTypeFilter] = useState('ALL');
 
-  // Inspection Modal
+  // Inspection Modal & Vehicle Attachment
   const [inspectingTx, setInspectingTx] = useState(null);
+  const [isEditingVehicle, setIsEditingVehicle] = useState(false);
+  const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [isAttachingVehicle, setIsAttachingVehicle] = useState(false);
+
+  const handleOpenDossier = (tx) => {
+    setSelectedVehicleId(tx?.vehicle?.id || '');
+    setIsEditingVehicle(false);
+    setInspectingTx(tx);
+  };
 
   const loadData = async (start, end) => {
     if (!start || !end) return;
@@ -133,20 +143,20 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
   // High-Level Summary Calculations
   const metrics = useMemo(() => {
     if (!data) {
-      return { 
-        totalTx: 0, 
-        totalCredit: 0, 
-        totalDebit: 0, 
-        netFlow: 0, 
-        cashCredit: 0, 
-        cashDebit: 0, 
-        bankCredit: 0, 
-        bankDebit: 0, 
-        totalVehicles: 0, 
+      return {
+        totalTx: 0,
+        totalCredit: 0,
+        totalDebit: 0,
+        netFlow: 0,
+        cashCredit: 0,
+        cashDebit: 0,
+        bankCredit: 0,
+        bankDebit: 0,
+        totalVehicles: 0,
         soldVehiclesCount: 0,
-        totalTradingProfit: 0, 
+        totalTradingProfit: 0,
         totalExpenses: 0,
-        expensesSum: 0 
+        expensesSum: 0
       };
     }
     const txs = data.transactions || [];
@@ -319,9 +329,9 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
 
       const result = await getExportData(startDate, endDate);
       if (!result.success) throw new Error(result.error);
-      
+
       const { transactions, vehicles, accounts, expenses } = result.data;
-      
+
       const txData = transactions.map((t, idx) => ({
         'Sr. No': idx + 1,
         'Date': new Date(t.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
@@ -342,7 +352,7 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
         const totalRepairCost = standardRepairCost + legacyCost;
         const purchasePrice = Number(v.purchasePrice || 0);
         const totalCost = purchasePrice + totalRepairCost;
-        
+
         return {
           'Sr. No': idx + 1,
           'Vehicle': `${v.make} ${v.model}`,
@@ -406,7 +416,7 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(expData), "Expense Vouchers");
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accData), "Accounts Summary");
         XLSX.writeFile(wb, `${fileName}.xlsx`);
-        
+
       } else if (format === 'csv') {
         const txSheet = XLSX.utils.json_to_sheet(txData);
         const csvString = XLSX.utils.sheet_to_csv(txSheet);
@@ -416,19 +426,19 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
         link.href = url;
         link.download = `${fileName}_transactions.csv`;
         link.click();
-        
+
       } else if (format === 'pdf') {
         const doc = new jsPDF('landscape');
-        
+
         // Brand Header
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
         doc.text("HARIRAM CARS - FINANCIAL AUDIT STATEMENT", 14, 16);
-        
+
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
         doc.text(`Statement Period: ${startDate} to ${endDate} | Generated: ${new Date().toLocaleDateString('en-GB')}`, 14, 22);
-        
+
         // KPI Summary Box
         doc.setFillColor(248, 250, 252);
         doc.roundedRect(14, 25, 269, 14, 2, 2, 'F');
@@ -444,17 +454,17 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
         doc.text("1. Transactions Register", 14, 45);
-        
+
         autoTable(doc, {
           startY: 48,
           head: [['#', 'Date', 'Flow', 'Mode', 'Amount (Rs)', 'Account', 'Category', 'Description', 'Linked Car']],
           body: txData.map(t => [
             t['Sr. No'],
             t['Date'],
-            t['Flow'].includes('IN') ? 'IN' : 'OUT', 
+            t['Flow'].includes('IN') ? 'IN' : 'OUT',
             t['Mode'],
-            t['Amount (₹)'].toLocaleString('en-IN'), 
-            t['Account'], 
+            t['Amount (₹)'].toLocaleString('en-IN'),
+            t['Account'],
             t['Category'],
             t['Description'],
             t['Linked Vehicle']
@@ -464,25 +474,25 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
           alternateRowStyles: { fillColor: [248, 250, 252] },
           styles: { fontSize: 7, cellPadding: 2 }
         });
-        
+
         // Section 2: Vehicles Khata (if any)
         if (vData.length > 0) {
           doc.addPage();
           doc.setFontSize(14);
           doc.setFont('helvetica', 'bold');
           doc.text("2. Vehicle Khata & Margins", 14, 18);
-          
+
           autoTable(doc, {
             startY: 23,
             head: [['#', 'Vehicle', 'Reg Plate', 'Status', 'Cost (Rs)', 'Sale Price (Rs)', 'Profit Margin (Rs)', 'Sale Date', 'Customer']],
             body: vData.map(v => [
               v['Sr. No'],
-              v['Vehicle'], 
-              v['Registration'], 
-              v['Status'], 
-              typeof v['Total Investment (₹)'] === 'number' ? v['Total Investment (₹)'].toLocaleString('en-IN') : v['Total Investment (₹)'], 
-              typeof v['Sale Price (₹)'] === 'number' ? v['Sale Price (₹)'].toLocaleString('en-IN') : v['Sale Price (₹)'], 
-              typeof v['Trading Margin / Profit (₹)'] === 'number' ? v['Trading Margin / Profit (₹)'].toLocaleString('en-IN') : v['Trading Margin / Profit (₹)'], 
+              v['Vehicle'],
+              v['Registration'],
+              v['Status'],
+              typeof v['Total Investment (₹)'] === 'number' ? v['Total Investment (₹)'].toLocaleString('en-IN') : v['Total Investment (₹)'],
+              typeof v['Sale Price (₹)'] === 'number' ? v['Sale Price (₹)'].toLocaleString('en-IN') : v['Sale Price (₹)'],
+              typeof v['Trading Margin / Profit (₹)'] === 'number' ? v['Trading Margin / Profit (₹)'].toLocaleString('en-IN') : v['Trading Margin / Profit (₹)'],
               v['Sale Date'],
               v['Customer Name']
             ]),
@@ -510,7 +520,7 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 pt-2 sm:p-6 md:p-8 flex flex-col gap-6 text-slate-900 pb-32">
-      
+
       {/* 1. TOP BREADCRUMB & EXECUTIVE HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
         <div>
@@ -519,7 +529,7 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
               <ArrowLeft size={13} /> Back to Users & Staff
             </Link>
             <span>/</span>
-            <span className="text-slate-800 font-extrabold">Transaction Inspector</span>
+            <span className="text-slate-800 font-bold">Transaction Inspector</span>
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               Live Database
@@ -568,26 +578,26 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
       {/* 2. DATE FILTER & QUICK PRESETS BAR */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-end">
-          
+
           {/* Start & End Date Pickers */}
           <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs uppercase tracking-wider font-extrabold text-slate-500 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-xs uppercase tracking-wider font-bold text-slate-500 mb-1.5 flex items-center gap-1.5">
                 <Calendar size={14} className="text-indigo-600" /> Start Date
               </label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={startDate}
                 onChange={(e) => handleDateChange('start', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-2xs"
               />
             </div>
             <div>
-              <label className="block text-xs uppercase tracking-wider font-extrabold text-slate-500 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-xs uppercase tracking-wider font-bold text-slate-500 mb-1.5 flex items-center gap-1.5">
                 <Calendar size={14} className="text-indigo-600" /> End Date
               </label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={endDate}
                 onChange={(e) => handleDateChange('end', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-2xs"
@@ -634,7 +644,7 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
 
       {/* 3. EXECUTIVE FINANCIAL DASHBOARD CARDS (5 METRICS) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
-        
+
         {/* Metric 1: Total Volume */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
@@ -691,24 +701,21 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
         </div>
 
         {/* Metric 4: Net Cash Flow */}
-        <div className={`bg-white border rounded-2xl p-4 shadow-sm relative overflow-hidden ${
-          metrics.netFlow >= 0 ? 'border-emerald-200 bg-emerald-50/20' : 'border-rose-200 bg-rose-50/20'
-        }`}>
+        <div className={`bg-white border rounded-2xl p-4 shadow-sm relative overflow-hidden ${metrics.netFlow >= 0 ? 'border-emerald-200 bg-emerald-50/20' : 'border-rose-200 bg-rose-50/20'
+          }`}>
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
               Net Cash Flow
             </span>
-            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${
-              metrics.netFlow >= 0 
-                ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${metrics.netFlow >= 0
+                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                 : 'bg-rose-100 text-rose-800 border-rose-200'
-            }`}>
+              }`}>
               {metrics.netFlow >= 0 ? 'Surplus' : 'Deficit'}
             </span>
           </div>
-          <div className={`text-2xl sm:text-3xl font-black tracking-tight ${
-            metrics.netFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'
-          }`}>
+          <div className={`text-2xl sm:text-3xl font-black tracking-tight ${metrics.netFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'
+            }`}>
             {metrics.netFlow >= 0 ? '+' : ''}₹{metrics.netFlow.toLocaleString('en-IN')}
           </div>
           <div className="text-[11px] font-medium text-slate-500 mt-1 truncate">
@@ -738,7 +745,7 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
 
       {/* 4. TABS NAVIGATION & MULTI-DIMENSIONAL FILTERS */}
       <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-sm flex flex-col gap-3">
-        
+
         {/* Tabs */}
         <div className="flex items-center justify-between gap-2 flex-wrap border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
@@ -755,17 +762,15 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all shrink-0 flex items-center gap-2 ${
-                    isActive 
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' 
+                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 flex items-center gap-2 ${isActive
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
+                    }`}
                 >
                   <Icon size={15} />
                   <span>{tab.label}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                    isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                  }`}>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
                     {tab.count}
                   </span>
                 </button>
@@ -781,7 +786,7 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
         {/* Filter controls row (Depends on active tab) */}
         {activeTab === 'TRANSACTIONS' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 pt-1">
-            
+
             {/* Search Input */}
             <div className="lg:col-span-4 relative">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -793,8 +798,8 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                 className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
               />
               {txSearch && (
-                <button 
-                  onClick={() => setTxSearch('')} 
+                <button
+                  onClick={() => setTxSearch('')}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
                   <X size={14} />
@@ -938,21 +943,21 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                 <table className="w-full text-left border-collapse text-xs sm:text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Date</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Flow / Mode</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Description</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Master Account</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Linked Vehicle</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px] text-right">Amount</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px] text-center w-16">Action</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Date</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Flow / Mode</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Description</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Master Account</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Linked Vehicle</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px] text-right">Amount</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px] text-center w-16">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredTransactions.length > 0 ? (
                       filteredTransactions.map((t) => (
-                        <tr 
-                          key={t.id} 
-                          onClick={() => setInspectingTx(t)}
+                        <tr
+                          key={t.id}
+                          onClick={() => handleOpenDossier(t)}
                           className="hover:bg-indigo-50/40 transition-colors group cursor-pointer"
                         >
                           <td className="py-3 px-4 font-bold text-slate-800 whitespace-nowrap">
@@ -960,11 +965,10 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                           </td>
                           <td className="py-3 px-4 whitespace-nowrap">
                             <span className="flex items-center gap-1.5">
-                              <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
-                                t.type === 'CREDIT' 
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                              <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${t.type === 'CREDIT'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                   : 'bg-rose-50 text-rose-700 border border-rose-200'
-                              }`}>
+                                }`}>
                                 {t.type}
                               </span>
                               <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 uppercase">
@@ -994,13 +998,25 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                                 <Car size={12} />
                                 {t.vehicle.make} {t.vehicle.model} ({t.vehicle.registration})
                               </span>
+                            ) : (!t.isOfficeExpense && !t.description?.toLowerCase().includes('(office)') && (t.isCarRepairExpense || t.expenseType === 'CAR_EXPENSE' || (t.expenseId && t.description?.toLowerCase().includes('car repair')))) ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenDossier(t);
+                                  setIsEditingVehicle(true);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 transition-all shadow-2xs"
+                                title="Attach this repair expense to a specific car"
+                              >
+                                <Car size={11} /> + Attach Car
+                              </button>
                             ) : (
                               <span className="text-slate-400 font-medium">-</span>
                             )}
                           </td>
-                          <td className={`py-3 px-4 text-right font-black whitespace-nowrap text-sm sm:text-base ${
-                            t.type === 'CREDIT' ? 'text-emerald-600' : 'text-rose-600'
-                          }`}>
+                          <td className={`py-3 px-4 text-right font-black whitespace-nowrap text-sm sm:text-base ${t.type === 'CREDIT' ? 'text-emerald-600' : 'text-rose-600'
+                            }`}>
                             {t.type === 'CREDIT' ? '+' : '-'}₹{Number(t.amount).toLocaleString('en-IN')}
                           </td>
                           <td className="py-3 px-4 text-center">
@@ -1008,7 +1024,7 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setInspectingTx(t);
+                                handleOpenDossier(t);
                               }}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
                               title="Inspect full details"
@@ -1040,12 +1056,12 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                 <table className="w-full text-left border-collapse text-xs sm:text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Vehicle Details</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Status</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Purchase & Repairs</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Total Investment</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Sale Details</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px] text-right">Net Margin</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Vehicle Details</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Status</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Purchase & Repairs</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Total Investment</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Sale Details</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px] text-right">Net Margin</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1069,11 +1085,10 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                               </div>
                             </td>
                             <td className="py-3.5 px-4">
-                              <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider ${
-                                v.status === 'SOLD' 
-                                  ? 'bg-amber-50 text-amber-700 border border-amber-200' 
+                              <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider ${v.status === 'SOLD'
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                   : 'bg-blue-50 text-blue-700 border border-blue-200'
-                              }`}>
+                                }`}>
                                 {v.status === 'SOLD' ? 'SOLD' : 'IN STOCK'}
                               </span>
                             </td>
@@ -1144,12 +1159,12 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                 <table className="w-full text-left border-collapse text-xs sm:text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Date</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Type</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Description</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Linked Car</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Status</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px] text-right">Amount</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Date</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Type</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Description</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Linked Car</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Status</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px] text-right">Amount</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1176,9 +1191,8 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                             )}
                           </td>
                           <td className="py-3 px-4">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                              e.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'
-                            }`}>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black ${e.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'
+                              }`}>
                               {e.status}
                             </span>
                           </td>
@@ -1209,13 +1223,13 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                 <table className="w-full text-left border-collapse text-xs sm:text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Account Name</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Type</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Opening Balance</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Period Inflow (+)</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Period Outflow (-)</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px]">Net Movement</th>
-                      <th className="py-3.5 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-[11px] text-right">Profit Share (%)</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Account Name</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Type</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Opening Balance</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Period Inflow (+)</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Period Outflow (-)</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Net Movement</th>
+                      <th className="py-3.5 px-4 font-bold text-slate-500 uppercase tracking-wider text-[11px] text-right">Profit Share (%)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1269,7 +1283,7 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
       {inspectingTx && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 relative overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-            
+
             {/* Modal Header */}
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
@@ -1278,14 +1292,13 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                 </span>
                 <h3 className="text-xl font-black text-slate-900 mt-2 m-0 flex items-center gap-2">
                   <span>₹{Number(inspectingTx.amount).toLocaleString('en-IN')}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-black ${
-                    inspectingTx.type === 'CREDIT' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                  }`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-black ${inspectingTx.type === 'CREDIT' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                    }`}>
                     {inspectingTx.type === 'CREDIT' ? 'MONEY IN (CREDIT)' : 'MONEY OUT (DEBIT)'}
                   </span>
                 </h3>
               </div>
-              <button 
+              <button
                 onClick={() => setInspectingTx(null)}
                 className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
               >
@@ -1295,18 +1308,18 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
 
             {/* Modal Body */}
             <div className="overflow-y-auto py-4 space-y-4 text-xs sm:text-sm">
-              
+
               {/* Date & Mode Grid */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                   <div className="text-[10px] uppercase font-bold text-slate-400">Transaction Date</div>
-                  <div className="font-extrabold text-slate-800 mt-0.5">
+                  <div className="font-bold text-slate-800 mt-0.5">
                     {new Date(inspectingTx.date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
                   </div>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                   <div className="text-[10px] uppercase font-bold text-slate-400">Payment Mode</div>
-                  <div className="font-extrabold text-slate-800 mt-0.5">
+                  <div className="font-bold text-slate-800 mt-0.5">
                     {inspectingTx.transactionMode || 'CASH'}
                   </div>
                 </div>
@@ -1338,69 +1351,207 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                 </div>
                 {inspectingTx.category && (
                   <div className="mt-2">
-                    <span className="text-[10px] font-extrabold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 uppercase">
+                    <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 uppercase">
                       Category: {inspectingTx.category.replace(/_/g, ' ')}
                     </span>
                   </div>
                 )}
               </div>
 
-              {/* Linked Vehicle (if any) */}
-              {inspectingTx.vehicle && (
-                <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-2">
+              {/* Linked Vehicle / Expense Vehicle Linker */}
+              {(!inspectingTx.isOfficeExpense && !inspectingTx.description?.toLowerCase().includes('(office)') && (inspectingTx.isCarRepairExpense || inspectingTx.expenseType === 'CAR_EXPENSE' || (inspectingTx.expenseId && inspectingTx.description?.toLowerCase().includes('car repair')))) ? (
+                <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
-                      <Car size={14} /> Linked Vehicle
+                      <Car size={14} /> Car Expense Link
                     </span>
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 uppercase">
-                      {inspectingTx.vehicle.status}
-                    </span>
+                    {!isEditingVehicle && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedVehicleId(inspectingTx.vehicle?.id || '');
+                          setIsEditingVehicle(true);
+                        }}
+                        className="text-xs font-bold text-indigo-700 hover:text-indigo-800 bg-white hover:bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg transition-all shadow-2xs"
+                      >
+                        {inspectingTx.vehicle ? 'Change Attached Car' : '+ Attach Car'}
+                      </button>
+                    )}
                   </div>
 
-                  <div className="text-base font-black text-slate-900">
-                    {inspectingTx.vehicle.make} {inspectingTx.vehicle.model}
-                  </div>
-                  <div className="text-xs font-bold text-slate-600">
-                    Registration: <strong className="text-indigo-900">{inspectingTx.vehicle.registration || 'Unregistered'}</strong>
-                  </div>
+                  {isEditingVehicle ? (
+                    <div className="bg-white p-3.5 rounded-xl border border-indigo-200 space-y-3">
+                      <div className="text-xs font-bold text-slate-700">
+                        Select vehicle to link with this expense transaction:
+                      </div>
+                      <select
+                        value={selectedVehicleId}
+                        onChange={(e) => setSelectedVehicleId(e.target.value)}
+                        className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                      >
+                        <option value="">-- No Vehicle (General Office Expense) --</option>
+                        {(data.allVehicles || []).map(v => (
+                          <option key={v.id} value={v.id}>
+                            {v.make} {v.model} ({v.registration || 'No Reg'}) [{v.status}]
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          disabled={isAttachingVehicle}
+                          onClick={() => setIsEditingVehicle(false)}
+                          className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 rounded-lg"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isAttachingVehicle}
+                          onClick={async () => {
+                            setIsAttachingVehicle(true);
+                            try {
+                              const res = await attachVehicleToExpense(inspectingTx.expenseId, selectedVehicleId || null);
+                              if (res.success) {
+                                toast.success(selectedVehicleId ? 'Vehicle linked to expense successfully!' : 'Vehicle unlinked');
+                                const newVehicle = (data.allVehicles || []).find(v => v.id === selectedVehicleId) || null;
+                                const cleanBase = (inspectingTx.description || '').replace(/^Auto-Entry\s*(\([^)]*\))?:\s*/, '').replace(/\s*-\s*[A-Z0-9\s]+(\([A-Z0-9\s]+\))?$/, '');
+                                const carPrefix = selectedVehicleId ? 'Car Repair' : (inspectingTx.category === 'EXPENSE' ? 'Car Repair' : 'Office');
+                                const vehicleSuffix = newVehicle ? ` - ${newVehicle.make} ${newVehicle.model} (${newVehicle.registration || 'Unregistered'})` : '';
+                                const newDesc = `Auto-Entry (${carPrefix}): ${cleanBase}${vehicleSuffix}`;
 
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-indigo-100/80 text-xs">
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">Purchase Cost:</span>
-                      <strong className="text-slate-800">₹{Number(inspectingTx.vehicle.purchasePrice || 0).toLocaleString('en-IN')}</strong>
+                                setInspectingTx(prev => ({
+                                  ...prev,
+                                  vehicle: newVehicle,
+                                  description: newDesc
+                                }));
+
+                                setData(prev => ({
+                                  ...prev,
+                                  transactions: (prev.transactions || []).map(t =>
+                                    t.id === inspectingTx.id
+                                      ? { ...t, vehicle: newVehicle, description: newDesc }
+                                      : t
+                                  )
+                                }));
+                                setIsEditingVehicle(false);
+                              } else {
+                                toast.error(res.error || 'Failed to attach vehicle');
+                              }
+                            } catch (err) {
+                              console.error(err);
+                              toast.error('Error attaching vehicle');
+                            } finally {
+                              setIsAttachingVehicle(false);
+                            }
+                          }}
+                          className="px-4 py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                        >
+                          {isAttachingVehicle ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                          <span>Save Link</span>
+                        </button>
+                      </div>
                     </div>
+                  ) : (
                     <div>
-                      <span className="text-slate-400 block text-[10px]">Sale Price:</span>
-                      <strong className="text-slate-800">
-                        {inspectingTx.vehicle.salePrice ? `₹${Number(inspectingTx.vehicle.salePrice).toLocaleString('en-IN')}` : 'In Stock'}
-                      </strong>
+                      {inspectingTx.vehicle ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="text-base font-black text-slate-900">
+                              {inspectingTx.vehicle.make} {inspectingTx.vehicle.model}
+                            </div>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 uppercase">
+                              {inspectingTx.vehicle.status}
+                            </span>
+                          </div>
+                          <div className="text-xs font-bold text-slate-600">
+                            Registration: <strong className="text-indigo-900">{inspectingTx.vehicle.registration || 'Unregistered'}</strong>
+                          </div>
+                          <div className="pt-2 border-t border-indigo-100/80 flex items-center justify-between text-xs">
+                            <span className="text-slate-500 text-[11px]">Vehicle Khata Link:</span>
+                            <Link
+                              href="/inventory"
+                              className="font-bold text-indigo-700 hover:text-indigo-800 inline-flex items-center gap-1"
+                            >
+                              Open Vehicle Khata <ExternalLink size={12} />
+                            </Link>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between text-xs text-slate-500 py-1">
+                          <span>No vehicle attached to this expense yet.</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedVehicleId('');
+                              setIsEditingVehicle(true);
+                            }}
+                            className="text-indigo-600 font-bold hover:underline"
+                          >
+                            + Link to a car
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-
-                  {inspectingTx.vehicle.profit !== null && inspectingTx.vehicle.profit !== undefined && (
-                    <div className="pt-2 border-t border-indigo-100/80 flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-600">Realized Trading Margin:</span>
-                      <span className={`font-black ${Number(inspectingTx.vehicle.profit) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {Number(inspectingTx.vehicle.profit) >= 0 ? '+' : ''}₹{Number(inspectingTx.vehicle.profit).toLocaleString('en-IN')}
+                  )}
+                </div>
+              ) : (
+                inspectingTx.vehicle && (
+                  <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
+                        <Car size={14} /> Linked Vehicle
+                      </span>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 uppercase">
+                        {inspectingTx.vehicle.status}
                       </span>
                     </div>
-                  )}
 
-                  {inspectingTx.vehicle.customerName && (
-                    <div className="text-[11px] text-slate-600 pt-1">
-                      Buyer: <strong className="text-slate-800">{inspectingTx.vehicle.customerName}</strong> {inspectingTx.vehicle.customerMobile ? `(${inspectingTx.vehicle.customerMobile})` : ''}
+                    <div className="text-base font-black text-slate-900">
+                      {inspectingTx.vehicle.make} {inspectingTx.vehicle.model}
                     </div>
-                  )}
+                    <div className="text-xs font-bold text-slate-600">
+                      Registration: <strong className="text-indigo-900">{inspectingTx.vehicle.registration || 'Unregistered'}</strong>
+                    </div>
 
-                  <div className="pt-2">
-                    <Link
-                      href="/inventory"
-                      className="text-xs font-bold text-indigo-700 hover:text-indigo-800 inline-flex items-center gap-1"
-                    >
-                      Open Vehicle Khata <ExternalLink size={12} />
-                    </Link>
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-indigo-100/80 text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Purchase Cost:</span>
+                        <strong className="text-slate-800">₹{Number(inspectingTx.vehicle.purchasePrice || 0).toLocaleString('en-IN')}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Sale Price:</span>
+                        <strong className="text-slate-800">
+                          {inspectingTx.vehicle.salePrice ? `₹${Number(inspectingTx.vehicle.salePrice).toLocaleString('en-IN')}` : 'In Stock'}
+                        </strong>
+                      </div>
+                    </div>
+
+                    {inspectingTx.vehicle.profit !== null && inspectingTx.vehicle.profit !== undefined && (
+                      <div className="pt-2 border-t border-indigo-100/80 flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-600">Realized Trading Margin:</span>
+                        <span className={`font-black ${Number(inspectingTx.vehicle.profit) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {Number(inspectingTx.vehicle.profit) >= 0 ? '+' : ''}₹{Number(inspectingTx.vehicle.profit).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    )}
+
+                    {inspectingTx.vehicle.customerName && (
+                      <div className="text-[11px] text-slate-600 pt-1">
+                        Buyer: <strong className="text-slate-800">{inspectingTx.vehicle.customerName}</strong> {inspectingTx.vehicle.customerMobile ? `(${inspectingTx.vehicle.customerMobile})` : ''}
+                      </div>
+                    )}
+
+                    <div className="pt-2">
+                      <Link
+                        href="/inventory"
+                        className="text-xs font-bold text-indigo-700 hover:text-indigo-800 inline-flex items-center gap-1"
+                      >
+                        Open Vehicle Khata <ExternalLink size={12} />
+                      </Link>
+                    </div>
                   </div>
-                </div>
+                )
               )}
 
               {/* Audit Meta */}
@@ -1432,7 +1583,7 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
       {/* 7. FLOATING BOTTOM EXPORT CONTROL BAR */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-8px_30px_rgb(0,0,0,0.08)] py-3 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          
+
           {/* Format selector */}
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 hidden sm:inline-block">Format:</span>
@@ -1449,11 +1600,10 @@ export default function ExportInspectorClient({ initialData, initialStartDate, i
                     key={f.id}
                     type="button"
                     onClick={() => setFormat(f.id)}
-                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                      isSelected 
-                        ? `${f.active} shadow-xs ring-2 ring-indigo-500/20` 
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${isSelected
+                        ? `${f.active} shadow-xs ring-2 ring-indigo-500/20`
                         : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     <Icon size={14} />
                     <span>{f.label}</span>

@@ -359,12 +359,12 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
                 </div>
               </div>
               
-              {(isIncome || themeName === 'indigo') && vehicles.length > 0 && (
+              {!isTransfer && !isOffice && vehicles.length > 0 && (
                 <div className="flex flex-col md:flex-row gap-4 items-start mb-2">
                   <div className="flex-1 w-full">
-                    <label className={`text-xs uppercase font-bold ${theme.text} mb-1.5 block tracking-wider`}>Select Vehicle</label>
+                    <label className={`text-xs uppercase font-bold ${theme.text} mb-1.5 block tracking-wider`}>Attached Vehicle (Optional)</label>
                     <VehicleSearchSelect
-                      vehicles={vehicles.filter(v => v.status !== 'SOLD')}
+                      vehicles={vehicles}
                       value={editData.vehicleId}
                       onChange={id => setEditData({...editData, vehicleId: id})}
                       placeholder="-- No Specific Vehicle --"

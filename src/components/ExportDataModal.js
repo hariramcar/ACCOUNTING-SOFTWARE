@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { 
-  X, FileSpreadsheet, FileText, FileDown, Calendar, Check, Loader2, 
-  Search, ArrowDownRight, ArrowUpRight, Filter, Eye, RefreshCw, 
+import {
+  X, FileSpreadsheet, FileText, FileDown, Calendar, Check, Loader2,
+  Search, ArrowDownRight, ArrowUpRight, Filter, Eye, RefreshCw,
   Car, Landmark, Receipt, AlertCircle, CheckCircle2, ChevronRight,
   TrendingUp, TrendingDown, Layers
 } from 'lucide-react';
@@ -31,7 +31,7 @@ export default function ExportDataModal({ isOpen, onClose }) {
       const y = now.getFullYear();
       const m = String(now.getMonth() + 1).padStart(2, '0');
       const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
-      
+
       const start = `${y}-${m}-01`;
       const end = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
       setStartDate(start);
@@ -171,9 +171,9 @@ export default function ExportDataModal({ isOpen, onClose }) {
 
       const result = await getExportData(startDate, endDate);
       if (!result.success) throw new Error(result.error);
-      
+
       const { transactions, vehicles, accounts, expenses } = result.data;
-      
+
       // Formatting Data for Excel/PDF
       const txData = transactions.map(t => {
         const v = t.referenceId ? vehicles.find(veh => veh.id === t.referenceId) : null;
@@ -197,7 +197,7 @@ export default function ExportDataModal({ isOpen, onClose }) {
         const totalRepairCost = standardRepairCost + legacyCost;
         const purchasePrice = Number(v.purchasePrice || 0);
         const totalCost = purchasePrice + totalRepairCost;
-        
+
         return {
           'Vehicle ID': v.id,
           'Make': v.make,
@@ -243,7 +243,7 @@ export default function ExportDataModal({ isOpen, onClose }) {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(expData), "Expenses");
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accData), "Accounts");
         XLSX.writeFile(wb, `${fileName}.xlsx`);
-        
+
       } else if (format === 'csv') {
         const txSheet = XLSX.utils.json_to_sheet(txData);
         const csvString = XLSX.utils.sheet_to_csv(txSheet);
@@ -253,51 +253,51 @@ export default function ExportDataModal({ isOpen, onClose }) {
         link.href = url;
         link.download = `${fileName}_transactions.csv`;
         link.click();
-        
+
       } else if (format === 'pdf') {
         const doc = new jsPDF('landscape');
-        
+
         doc.setFontSize(18);
         doc.text("Hariram Cars - Verified Transaction Report", 14, 18);
-        
+
         doc.setFontSize(10);
         doc.text(`Period: ${startDate} to ${endDate} | Total Transactions: ${transactions.length} | Inflow: Rs ${metrics.totalCredit.toLocaleString('en-IN')} | Outflow: Rs ${metrics.totalDebit.toLocaleString('en-IN')}`, 14, 25);
-        
+
         doc.setFontSize(12);
         doc.text("1. Transactions Register", 14, 34);
-        
+
         autoTable(doc, {
           startY: 38,
           head: [['Date', 'Type', 'Mode', 'Amount (Rs)', 'Account', 'Description']],
           body: txData.map(t => [
             t['Date'],
-            t['Type'], 
+            t['Type'],
             t['Mode'],
-            t['Amount (₹)'].toLocaleString('en-IN'), 
-            t['Account Name'], 
+            t['Amount (₹)'].toLocaleString('en-IN'),
+            t['Account Name'],
             t['Description']
           ]),
           theme: 'grid',
           headStyles: { fillColor: [79, 70, 229] },
           styles: { fontSize: 8 }
         });
-        
+
         if (vData.length > 0) {
           doc.addPage();
           doc.setFontSize(14);
           doc.text("2. Vehicle Inventory & Sales", 14, 20);
-          
+
           autoTable(doc, {
             startY: 25,
             head: [['Make', 'Model', 'Reg', 'Status', 'Cost (Rs)', 'Sale Price (Rs)', 'Profit (Rs)', 'Sale Date']],
             body: vData.map(v => [
-              v['Make'], 
-              v['Model'], 
-              v['Registration'], 
-              v['Status'], 
-              v['Total Investment Cost (₹)'].toLocaleString('en-IN'), 
-              v['Sale Price (₹)'].toLocaleString('en-IN'), 
-              v['Net Profit (₹)'].toLocaleString('en-IN'), 
+              v['Make'],
+              v['Model'],
+              v['Registration'],
+              v['Status'],
+              v['Total Investment Cost (₹)'].toLocaleString('en-IN'),
+              v['Sale Price (₹)'].toLocaleString('en-IN'),
+              v['Net Profit (₹)'].toLocaleString('en-IN'),
               v['Sale Date']
             ]),
             theme: 'grid',
@@ -323,9 +323,9 @@ export default function ExportDataModal({ isOpen, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md transition-opacity" onClick={onClose} />
-      
+
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl relative z-10 overflow-hidden flex flex-col border border-slate-200 max-h-[92vh] my-auto">
-        
+
         {/* MODAL HEADER */}
         <div className="p-4 sm:p-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -337,7 +337,7 @@ export default function ExportDataModal({ isOpen, onClose }) {
                 <h2 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 m-0">
                   Transaction Inspector & Data Exporter
                 </h2>
-                <span className="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200">
+                <span className="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200">
                   Verify Before Download
                 </span>
               </div>
@@ -346,8 +346,8 @@ export default function ExportDataModal({ isOpen, onClose }) {
               </p>
             </div>
           </div>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="p-2 bg-white border border-slate-200 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors shadow-sm shrink-0"
           >
             <X size={20} />
@@ -357,26 +357,26 @@ export default function ExportDataModal({ isOpen, onClose }) {
         {/* CONTROLS SECTION: DATE RANGE & PRESETS */}
         <div className="p-4 sm:p-6 bg-white border-b border-slate-100 shrink-0">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
-            
+
             {/* Date Pickers */}
             <div className="lg:col-span-6 grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] sm:text-[11px] uppercase tracking-wider font-extrabold text-slate-500 mb-1.5 flex items-center gap-1.5">
+                <label className="block text-[10px] sm:text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 flex items-center gap-1.5">
                   <Calendar size={13} className="text-indigo-600" /> Start Date
                 </label>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   value={startDate}
                   onChange={(e) => handleDateChange('start', e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-semibold text-xs sm:text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-xs"
                 />
               </div>
               <div>
-                <label className="block text-[10px] sm:text-[11px] uppercase tracking-wider font-extrabold text-slate-500 mb-1.5 flex items-center gap-1.5">
+                <label className="block text-[10px] sm:text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1.5 flex items-center gap-1.5">
                   <Calendar size={13} className="text-indigo-600" /> End Date
                 </label>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   value={endDate}
                   onChange={(e) => handleDateChange('end', e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-semibold text-xs sm:text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-xs"
@@ -421,7 +421,7 @@ export default function ExportDataModal({ isOpen, onClose }) {
 
         {/* LIVE PREVIEW CONTENT (SCROLLABLE) */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 flex flex-col gap-4 min-h-[300px]">
-          
+
           {/* TOP KPI SUMMARY BAR */}
           {previewData && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -465,11 +465,10 @@ export default function ExportDataModal({ isOpen, onClose }) {
               <button
                 type="button"
                 onClick={() => setPreviewTab('TRANSACTIONS')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                  previewTab === 'TRANSACTIONS' 
-                    ? 'bg-indigo-600 text-white shadow-sm' 
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${previewTab === 'TRANSACTIONS'
+                    ? 'bg-indigo-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                  }`}
               >
                 <FileText size={14} />
                 <span>Transactions ({metrics.totalTx})</span>
@@ -478,11 +477,10 @@ export default function ExportDataModal({ isOpen, onClose }) {
               <button
                 type="button"
                 onClick={() => setPreviewTab('VEHICLES')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                  previewTab === 'VEHICLES' 
-                    ? 'bg-indigo-600 text-white shadow-sm' 
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${previewTab === 'VEHICLES'
+                    ? 'bg-indigo-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                  }`}
               >
                 <Car size={14} />
                 <span>Vehicles ({metrics.totalVehicles})</span>
@@ -491,11 +489,10 @@ export default function ExportDataModal({ isOpen, onClose }) {
               <button
                 type="button"
                 onClick={() => setPreviewTab('EXPENSES')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                  previewTab === 'EXPENSES' 
-                    ? 'bg-indigo-600 text-white shadow-sm' 
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${previewTab === 'EXPENSES'
+                    ? 'bg-indigo-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                  }`}
               >
                 <Receipt size={14} />
                 <span>Vouchers ({metrics.totalExpenses})</span>
@@ -546,11 +543,11 @@ export default function ExportDataModal({ isOpen, onClose }) {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Date</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Type / Mode</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Description</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Account</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-right">Amount (₹)</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Type / Mode</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Description</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Account</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider text-right">Amount (₹)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -562,11 +559,10 @@ export default function ExportDataModal({ isOpen, onClose }) {
                           </td>
                           <td className="py-2.5 px-4 whitespace-nowrap">
                             <span className="flex items-center gap-1.5">
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${
-                                t.type === 'CREDIT' 
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${t.type === 'CREDIT'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                   : 'bg-rose-50 text-rose-700 border border-rose-200'
-                              }`}>
+                                }`}>
                                 {t.type}
                               </span>
                               <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
@@ -580,9 +576,8 @@ export default function ExportDataModal({ isOpen, onClose }) {
                           <td className="py-2.5 px-4 font-bold text-slate-600 whitespace-nowrap">
                             {t.account?.name || '-'}
                           </td>
-                          <td className={`py-2.5 px-4 text-right font-black whitespace-nowrap text-sm ${
-                            t.type === 'CREDIT' ? 'text-emerald-600' : 'text-rose-600'
-                          }`}>
+                          <td className={`py-2.5 px-4 text-right font-black whitespace-nowrap text-sm ${t.type === 'CREDIT' ? 'text-emerald-600' : 'text-rose-600'
+                            }`}>
                             {t.type === 'CREDIT' ? '+' : '-'}₹{Number(t.amount).toLocaleString('en-IN')}
                           </td>
                         </tr>
@@ -607,11 +602,11 @@ export default function ExportDataModal({ isOpen, onClose }) {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Vehicle</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Status</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Cost Details</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Sale Details</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-right">Profit</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Vehicle</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Cost Details</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Sale Details</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider text-right">Profit</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -623,11 +618,10 @@ export default function ExportDataModal({ isOpen, onClose }) {
                             <div className="text-[10px] font-semibold text-slate-500">{v.registration || 'Unregistered'}</div>
                           </td>
                           <td className="py-3 px-4">
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${
-                              v.status === 'SOLD' 
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200' 
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${v.status === 'SOLD'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                 : 'bg-blue-50 text-blue-700 border border-blue-200'
-                            }`}>
+                              }`}>
                               {v.status}
                             </span>
                           </td>
@@ -674,11 +668,11 @@ export default function ExportDataModal({ isOpen, onClose }) {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Date</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Type</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Description</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider">Linked Car</th>
-                      <th className="py-3 px-4 font-extrabold text-slate-500 uppercase tracking-wider text-right">Amount (₹)</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Type</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Description</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider">Linked Car</th>
+                      <th className="py-3 px-4 font-bold text-slate-500 uppercase tracking-wider text-right">Amount (₹)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -719,7 +713,7 @@ export default function ExportDataModal({ isOpen, onClose }) {
 
         {/* BOTTOM ACTION BAR: FORMAT SELECTOR & GENERATE BUTTON */}
         <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-200 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4">
-          
+
           {/* Format Selector */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 shrink-0">Export Format:</span>
@@ -736,11 +730,10 @@ export default function ExportDataModal({ isOpen, onClose }) {
                     key={fmt.id}
                     type="button"
                     onClick={() => setFormat(fmt.id)}
-                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                      isSelected 
-                        ? `${fmt.color} shadow-xs ring-2 ring-indigo-500/20` 
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${isSelected
+                        ? `${fmt.color} shadow-xs ring-2 ring-indigo-500/20`
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     <Icon size={14} />
                     <span>{fmt.label}</span>

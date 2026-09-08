@@ -48,15 +48,86 @@ export async function getExportData(startDateStr, endDateStr) {
       })
     ]);
 
-    // Map vehicle details directly to each transaction (matching referenceId or registration in description)
+    // Fetch linked expenses and tokens for all transaction references
+    const refIds = transactionsRaw.map(t => t.referenceId).filter(Boolean);
+    const [linkedExpenses, linkedTokens] = await Promise.all([
+      prisma.expense.findMany({
+        where: { id: { in: refIds } },
+        include: { vehicle: true }
+      }),
+      prisma.vehicleToken.findMany({
+        where: { id: { in: refIds } },
+        include: { vehicle: true }
+      })
+    ]);
+
+    const expenseMap = new Map();
+    linkedExpenses.forEach(exp => {
+      expenseMap.set(exp.id, exp);
+    });
+
+    const tokenMap = new Map();
+    linkedTokens.forEach(tok => {
+      tokenMap.set(tok.id, tok);
+    });
+
+    // Map vehicle details directly to each transaction (matching vehicleId, expenseId, tokenId, or registration in description)
     const transactions = transactionsRaw.map(t => {
-      let v = t.referenceId ? allVehicles.find(veh => veh.id === t.referenceId) : null;
-      if (!v && t.description) {
-        v = allVehicles.find(veh => veh.registration && veh.registration.length > 4 && t.description.includes(veh.registration));
+      let v = null;
+      let linkedExpenseId = null;
+      let linkedExpenseType = null;
+
+      // 1. Direct match with a vehicle ID
+      if (t.referenceId) {
+        v = allVehicles.find(veh => veh.id === t.referenceId);
       }
+
+      // 2. Match with an Expense ID (for all auto-entry car repair and office expenses)
+      if (t.referenceId && expenseMap.has(t.referenceId)) {
+        const exp = expenseMap.get(t.referenceId);
+        linkedExpenseId = exp.id;
+        linkedExpenseType = exp.expenseType;
+        if (!v) {
+          if (exp.vehicle) {
+            v = exp.vehicle;
+          } else if (exp.vehicleId) {
+            v = allVehicles.find(veh => veh.id === exp.vehicleId);
+          }
+        }
+      }
+
+      // 3. Match with a Token ID
+      if (!v && t.referenceId && tokenMap.has(t.referenceId)) {
+        const tok = tokenMap.get(t.referenceId);
+        if (tok.vehicle) {
+          v = tok.vehicle;
+        } else if (tok.vehicleId) {
+          v = allVehicles.find(veh => veh.id === tok.vehicleId);
+        }
+      }
+
+      // 4. Match with registration or car name in transaction description ONLY IF it's not an office transaction
+      const isOfficeDesc = Boolean(t.description && (t.description.toLowerCase().includes('(office)') || t.description.toLowerCase().includes('office')));
+      if (!v && t.description && !isOfficeDesc && linkedExpenseType !== 'OFFICE_EXPENSE') {
+        const descLower = t.description.toLowerCase();
+        v = allVehicles.find(veh => {
+          if (!veh.registration) return false;
+          const regLower = veh.registration.toLowerCase();
+          const regClean = regLower.replace(/[^a-z0-9]/g, '');
+          return descLower.includes(regLower) || (regClean.length > 4 && descLower.includes(regClean));
+        });
+      }
+
+      const isCarRepair = Boolean(linkedExpenseType === 'CAR_EXPENSE' || (t.description && t.description.toLowerCase().includes('car repair')));
+      const isOffice = Boolean(linkedExpenseType === 'OFFICE_EXPENSE' || isOfficeDesc);
+
       return {
         ...t,
-        vehicle: v ? {
+        expenseId: linkedExpenseId,
+        expenseType: linkedExpenseType,
+        isCarRepairExpense: isCarRepair,
+        isOfficeExpense: isOffice,
+        vehicle: isOffice ? null : (v ? {
           id: v.id,
           make: v.make,
           model: v.model,
@@ -67,18 +138,22 @@ export async function getExportData(startDateStr, endDateStr) {
           profit: v.profit ? Number(v.profit) : null,
           customerName: v.customerName || null,
           customerMobile: v.customerMobile || null
-        } : null
+        } : null)
       };
     });
 
-    // Vehicles active or sold in this date range
+    // Vehicles active, sold, or involved in transactions in this date range
     const vehiclesInRange = allVehicles.filter(v => {
       if (!startDateStr || !endDateStr) return true;
       const pDate = v.purchaseDate ? new Date(v.purchaseDate) : null;
       const sDate = v.saleDate ? new Date(v.saleDate) : null;
       const hasPurchaseInRange = pDate && pDate >= dateFilter.gte && pDate <= dateFilter.lte;
       const hasSaleInRange = sDate && sDate >= dateFilter.gte && sDate <= dateFilter.lte;
-      const hasTxInRange = transactions.some(t => t.referenceId === v.id || (v.registration && t.description?.includes(v.registration)));
+      const hasTxInRange = transactions.some(t => 
+        t.referenceId === v.id || 
+        t.vehicle?.id === v.id || 
+        (v.registration && t.description?.toLowerCase().includes(v.registration.toLowerCase()))
+      );
       return hasPurchaseInRange || hasSaleInRange || hasTxInRange;
     });
 

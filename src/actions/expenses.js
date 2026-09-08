@@ -378,6 +378,13 @@ export async function addExpense(formData) {
             }
           } else {
             // EXPENSE Mode processing
+            let vehicleSuffix = '';
+            if (vehicleId) {
+              const v = await tx.vehicle.findUnique({ where: { id: vehicleId } });
+              if (v) {
+                vehicleSuffix = ` - ${v.make} ${v.model} (${v.registration || 'Unregistered'})`;
+              }
+            }
             for (const p of data.payments) {
               if (p.mode !== 'UGHRANI') {
                 await checkSufficientBalance(tx, p.accountId, p.amount);
@@ -391,13 +398,13 @@ export async function addExpense(formData) {
                   accountId: p.accountId,
                   category: 'EXPENSE',
                   referenceId: expense.id,
-                  description: `Auto-Entry (${expenseType === 'CAR_EXPENSE' ? 'Car Repair' : 'Office'}): ${description}`
+                  description: `Auto-Entry (${expenseType === 'CAR_EXPENSE' ? 'Car Repair' : 'Office'}): ${description}${vehicleSuffix}`
                 }
               });
             }
           }
         }
-    }, { maxWait: 15000, timeout: 30000 }, { maxWait: 15000, timeout: 30000 });
+    }, { maxWait: 15000, timeout: 30000 });
 
     revalidatePath('/expenses');
     revalidatePath('/history');
@@ -442,8 +449,13 @@ export async function approveExpense(formData) {
     const expenseId = formData.get('expenseId');
     
     await prisma.$transaction(async (tx) => {
-      const expense = await tx.expense.findUnique({ where: { id: expenseId } });
+      const expense = await tx.expense.findUnique({ 
+        where: { id: expenseId },
+        include: { vehicle: true }
+      });
       if (!expense || expense.status !== 'PENDING') throw new Error('Invalid expense or already processed.');
+
+      const vehicleSuffix = expense.vehicle ? ` - ${expense.vehicle.make} ${expense.vehicle.model} (${expense.vehicle.registration || 'Unregistered'})` : '';
 
       await tx.expense.update({
         where: { id: expenseId },
@@ -464,7 +476,7 @@ export async function approveExpense(formData) {
                 accountId: p.accountId,
                 category: 'GENERAL',
                 referenceId: expense.id,
-                description: `Income Received: ${expense.description}`
+                description: `Income Received: ${expense.description}${vehicleSuffix}`
               }
             });
           }
@@ -478,7 +490,7 @@ export async function approveExpense(formData) {
                 accountId: data.receivableAccountId,
                 category: 'GENERAL',
                 referenceId: expense.id,
-                description: `Pending Income Baki: ${expense.description}`
+                description: `Pending Income Baki: ${expense.description}${vehicleSuffix}`
               }
             });
           }
@@ -509,7 +521,7 @@ export async function approveExpense(formData) {
                 accountId: p.accountId,
                 category: 'EXPENSE',
                 referenceId: expense.id,
-                description: `Auto-Entry (${expense.expenseType === 'CAR_EXPENSE' ? 'Car Repair' : 'Office'}): ${expense.description}`
+                description: `Auto-Entry (${expense.expenseType === 'CAR_EXPENSE' ? 'Car Repair' : 'Office'}): ${expense.description}${vehicleSuffix}`
               }
             });
           }
@@ -528,7 +540,7 @@ export async function approveExpense(formData) {
             accountId: expense.requestedAccountId,
             category: 'EXPENSE',
             referenceId: expense.id,
-            description: `Auto-Entry (${expense.expenseType === 'CAR_EXPENSE' ? 'Car Repair' : 'Office'}): ${expense.description}`
+            description: `Auto-Entry (${expense.expenseType === 'CAR_EXPENSE' ? 'Car Repair' : 'Office'}): ${expense.description}${vehicleSuffix}`
           }
         });
       }
@@ -1256,6 +1268,9 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
         if (expToUpdate.vehicleId) {
           await syncVehicleState(tx, expToUpdate.vehicleId);
         }
+        if (updateData.vehicleId && updateData.vehicleId !== expToUpdate.vehicleId) {
+          await syncVehicleState(tx, updateData.vehicleId);
+        }
         
         // Sync VehicleToken if this is a forfeited token income
         if (expToUpdate.description && expToUpdate.description.startsWith('Auto-Forfeited Token Income:')) {
@@ -1280,11 +1295,17 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
         }
         
         const txs = await tx.transaction.findMany({ where: { referenceId: expenseId } });
+        const updatedVehicle = updateData.vehicleId ? await tx.vehicle.findUnique({ where: { id: updateData.vehicleId } }) : null;
+        const vehicleSuffix = updatedVehicle ? ` - ${updatedVehicle.make} ${updatedVehicle.model} (${updatedVehicle.registration || 'Unregistered'})` : '';
+        const carPrefix = expToUpdate.expenseType === 'CAR_EXPENSE' ? 'Car Repair' : 'Office';
+        const cleanBaseDesc = (data.description || '').replace(/^Auto-Entry\s*(\([^)]*\))?:\s*/, '').replace(/\s*-\s*[A-Z0-9\s]+(\([A-Z0-9\s]+\))?$/, '');
+        const newTxDesc = `Auto-Entry (${carPrefix}): ${cleanBaseDesc}${vehicleSuffix}`;
+
         if (txs.length === 1) {
           const txUpdateData = {
             amount: Math.round(parseFloat(String(data.amount || '0').replace(/,/g, '')) * 100) / 100,
             date: new Date(data.date),
-            description: `Auto-Entry: ${data.description}`
+            description: newTxDesc
           };
           if (updateData.requestedMode && !updateData.requestedMode.startsWith('{')) {
             txUpdateData.accountId = updateData.requestedAccountId;
@@ -1310,7 +1331,10 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
           for (const t of txs) {
             await tx.transaction.update({
               where: { id: t.id },
-              data: { date: new Date(data.date) }
+              data: { 
+                date: new Date(data.date),
+                description: newTxDesc
+              }
             });
           }
         }
@@ -1324,10 +1348,65 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
     revalidatePath('/dashboard');
     revalidatePath('/rojmel');
     revalidatePath('/inventory');
+    revalidatePath('/export');
     return { success: true };
   } catch (error) {
     console.error('Failed to update expense:', error);
     return { success: false, error: 'Failed to update expense.' };
+  }
+}
+
+export async function attachVehicleToExpense(expenseId, vehicleId) {
+  try {
+    const session = await getSession();
+    if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+
+    await prisma.$transaction(async (tx) => {
+      const exp = await tx.expense.findUnique({ where: { id: expenseId } });
+      if (!exp) throw new Error('Expense record not found');
+
+      const oldVehicleId = exp.vehicleId;
+      const targetVehicleId = vehicleId || null;
+
+      const vehicle = targetVehicleId ? await tx.vehicle.findUnique({ where: { id: targetVehicleId } }) : null;
+      const vehicleSuffix = vehicle ? ` - ${vehicle.make} ${vehicle.model} (${vehicle.registration || 'Unregistered'})` : '';
+
+      // Update Expense
+      await tx.expense.update({
+        where: { id: expenseId },
+        data: { 
+          vehicleId: targetVehicleId,
+          expenseType: targetVehicleId ? 'CAR_EXPENSE' : exp.expenseType
+        }
+      });
+
+      // Sync vehicle Khata repair totals
+      if (oldVehicleId) await syncVehicleState(tx, oldVehicleId);
+      if (targetVehicleId && targetVehicleId !== oldVehicleId) await syncVehicleState(tx, targetVehicleId);
+
+      // Update linked Transaction(s)
+      const txs = await tx.transaction.findMany({ where: { referenceId: expenseId } });
+      const carPrefix = targetVehicleId ? 'Car Repair' : (exp.expenseType === 'CAR_EXPENSE' ? 'Car Repair' : 'Office');
+      const cleanBaseDesc = (exp.description || '').replace(/^Auto-Entry\s*(\([^)]*\))?:\s*/, '').replace(/\s*-\s*[A-Z0-9\s]+(\([A-Z0-9\s]+\))?$/, '');
+      const newTxDesc = `Auto-Entry (${carPrefix}): ${cleanBaseDesc}${vehicleSuffix}`;
+
+      for (const t of txs) {
+        await tx.transaction.update({
+          where: { id: t.id },
+          data: { description: newTxDesc }
+        });
+      }
+    }, { maxWait: 15000, timeout: 30000 });
+
+    revalidatePath('/expenses');
+    revalidatePath('/export');
+    revalidatePath('/history');
+    revalidatePath('/inventory');
+    revalidatePath('/profit');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to attach vehicle to expense:', error);
+    return { success: false, error: error.message || 'Failed to attach vehicle' };
   }
 }
 
