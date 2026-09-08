@@ -33,13 +33,21 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior-y: none; /* Prevent pull-to-refresh rubber-banding */
-  
-  /* Make text unselectable like a native app */
+}
+
+/* Allow effortless text selection on data, tables, descriptions, headings, and numbers */
+table, td, th, p, span, h1, h2, h3, h4, h5, h6, code, pre, .selectable, [data-selectable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Keep interactive controls, navigation chrome, and buttons native without accidental tap highlights */
+button, nav, .btn, .no-select {
   user-select: none;
   -webkit-user-select: none;
 }
 
-/* Re-enable text selection ONLY for inputs and textareas */
+/* Re-enable text selection for inputs and textareas */
 input, textarea, select {
   user-select: auto;
   -webkit-user-select: auto;
@@ -112,12 +120,6 @@ input, textarea, select {
 
 /* Desktop Styling */
 @media (min-width: 769px) {
-  /* Re-enable text selection for desktop web users */
-  body, * {
-    user-select: auto !important;
-    -webkit-user-select: auto !important;
-  }
-
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;

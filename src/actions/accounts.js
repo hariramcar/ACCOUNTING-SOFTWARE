@@ -2,9 +2,11 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { requireAuth, requireAdmin } from '@/lib/authGuard';
 
 export async function getAccountsList() {
   try {
+    await requireAuth();
     const accounts = await prisma.account.findMany({
       orderBy: { createdAt: 'asc' },
     });
@@ -18,12 +20,13 @@ export async function getAccountsList() {
     return { success: true, accounts: processedAccounts };
   } catch (error) {
     console.error('Failed to load accounts:', error);
-    return { success: false, error: 'Failed to load accounts.' };
+    return { success: false, error: error.message || 'Failed to load accounts.' };
   }
 }
 
 export async function updatePartners(partnersData) {
   try {
+    await requireAdmin();
     await prisma.$transaction(async (tx) => {
       for (const partner of partnersData) {
         await tx.account.update({
@@ -47,6 +50,7 @@ export async function updatePartners(partnersData) {
 
 export async function getAccountBalances(year, month) {
   try {
+    await requireAdmin();
     const now = new Date();
     const startOfMonth = (year !== undefined && month !== undefined) 
       ? new Date(year, month, 1) 
@@ -59,7 +63,19 @@ export async function getAccountBalances(year, month) {
     const accounts = await prisma.account.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
-        transactions: true,
+        transactions: {
+          where: {
+            date: { lte: endOfMonth }
+          },
+          select: {
+            amount: true,
+            type: true,
+            category: true,
+            description: true,
+            date: true,
+            transactionMode: true
+          }
+        },
         partnerships: {
           where: { 
             OR: [
@@ -178,6 +194,7 @@ export async function getAccountBalances(year, month) {
 
 export async function createAccount(formData) {
   try {
+    await requireAdmin();
     const name = formData.get('name');
     const type = formData.get('type');
     const openingBalance = parseFloat(formData.get('openingBalance') || '0');
@@ -234,6 +251,7 @@ export async function createAccount(formData) {
 
 export async function editProfitShare(accountId, newProfitShare) {
   try {
+    await requireAdmin();
     const account = await prisma.account.findUnique({ where: { id: accountId } });
     if (!account) throw new Error('Account not found');
 
@@ -262,6 +280,7 @@ export async function editProfitShare(accountId, newProfitShare) {
 
 export async function injectCapital(formData) {
   try {
+    await requireAdmin();
     const accountId = formData.get('accountId');
     const amount = parseFloat(formData.get('amount') || '0');
     const date = new Date(formData.get('date') || Date.now());
@@ -288,12 +307,13 @@ export async function injectCapital(formData) {
     return { success: true };
   } catch (error) {
     console.error('Failed to inject capital:', error);
-    return { success: false, error: 'Failed to inject capital.' };
+    return { success: false, error: error.message || 'Failed to inject capital.' };
   }
 }
 
 export async function deleteAccount(formData) {
   try {
+    await requireAdmin();
     const id = formData.get('id');
     
     // Check if account has transactions
@@ -333,12 +353,13 @@ export async function deleteAccount(formData) {
     return { success: true };
   } catch (error) {
     console.error('Failed to delete account:', error);
-    return { success: false, error: 'Failed to delete account.' };
+    return { success: false, error: error.message || 'Failed to delete account.' };
   }
 }
 
 export async function getAccountTransactions(accountId) {
   try {
+    await requireAdmin();
     const transactions = await prisma.transaction.findMany({
       where: { accountId },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }]
@@ -352,6 +373,6 @@ export async function getAccountTransactions(accountId) {
     return { success: true, transactions: processed };
   } catch (error) {
     console.error('Failed to load transactions:', error);
-    return { success: false, error: 'Failed to load transactions.' };
+    return { success: false, error: error.message || 'Failed to load transactions.' };
   }
 }

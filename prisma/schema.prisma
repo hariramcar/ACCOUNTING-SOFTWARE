@@ -51,6 +51,9 @@ model Vehicle {
   receivableAccount      Account?      @relation("VehicleReceivableAccount", fields: [receivableAccountId], references: [id])
 
   @@index([status])
+  @@index([purchaseDate])
+  @@index([saleDate])
+  @@index([status, saleDate])
 }
 
 model Expense {
@@ -74,6 +77,8 @@ model Expense {
   @@index([date])
   @@index([status])
   @@index([vehicleId])
+  @@index([expenseType, date])
+  @@index([submittedById])
 }
 
 model Partnership {
@@ -89,6 +94,9 @@ model Partnership {
   updatedAt             DateTime @updatedAt
   partnerAccount        Account  @relation(fields: [partnerAccountId], references: [id])
   vehicle               Vehicle  @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId])
+  @@index([partnerAccountId])
 }
 
 model Transaction {
@@ -108,6 +116,9 @@ model Transaction {
   @@index([date])
   @@index([accountId])
   @@index([type])
+  @@index([referenceId])
+  @@index([category])
+  @@index([accountId, date])
 }
 
 model User {
@@ -193,6 +204,9 @@ model VehicleToken {
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
   vehicle          Vehicle     @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId])
+  @@index([status])
 }
 
 enum TokenStatus {

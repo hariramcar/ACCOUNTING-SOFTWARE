@@ -3,10 +3,11 @@
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { checkSufficientBalance } from '@/lib/balanceCheck';
-import { getSession } from '@/lib/session';
+import { requireAdmin } from '@/lib/authGuard';
 
 export async function giveAdvance(formData) {
   try {
+    await requireAdmin();
     const accountId = formData.get('accountId');
     const amount = parseFloat((formData.get('amount') || '0').replace(/,/g, ''));
     const dateStr = formData.get('date');
@@ -70,12 +71,13 @@ export async function giveAdvance(formData) {
     return { success: true };
   } catch (error) {
     console.error('Failed to give advance:', error);
-    return { success: false, error: 'Failed to give advance.' };
+    return { success: false, error: error.message || 'Failed to give advance.' };
   }
 }
 
 export async function settleBill(formData) {
   try {
+    await requireAdmin();
     const accountId = formData.get('accountId');
     const amount = parseFloat((formData.get('amount') || '0').replace(/,/g, ''));
     const dateStr = formData.get('date');
@@ -135,14 +137,13 @@ export async function settleBill(formData) {
     return { success: true };
   } catch (error) {
     console.error('Failed to settle bill:', error);
-    return { success: false, error: 'Failed to settle bill.' };
+    return { success: false, error: error.message || 'Failed to settle bill.' };
   }
 }
 
 export async function receiveAgentCarPayment(formData) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+    await requireAdmin();
 
     const vehicleId = formData.get('vehicleId');
     const agentAccountId = formData.get('agentAccountId');
@@ -234,8 +235,7 @@ export async function receiveAgentCarPayment(formData) {
 
 export async function receiveAdvancePayment(formData) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+    await requireAdmin();
 
     const accountId = formData.get('accountId');
     const destinationAccountId = formData.get('destinationAccountId');

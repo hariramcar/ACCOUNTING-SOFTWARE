@@ -2,9 +2,11 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { requireAuth, requireAdmin } from '@/lib/authGuard';
 
 export async function getVehicleModels() {
   try {
+    await requireAuth();
     const models = await prisma.vehicleModel.findMany({
       orderBy: [
         { make: 'asc' },
@@ -14,12 +16,13 @@ export async function getVehicleModels() {
     return { success: true, data: models };
   } catch (error) {
     console.error('Failed to load vehicle models:', error);
-    return { success: false, error: 'Failed to load vehicle models' };
+    return { success: false, error: error.message || 'Failed to load vehicle models' };
   }
 }
 
 export async function addBrandModels(formData) {
   try {
+    await requireAdmin();
     const make = formData.get('make')?.toString().trim();
     const modelsString = formData.get('models')?.toString().trim();
 
@@ -48,12 +51,13 @@ export async function addBrandModels(formData) {
     return { success: true };
   } catch (error) {
     console.error('Failed to add brand models:', error);
-    return { success: false, error: 'Failed to save brand' };
+    return { success: false, error: error.message || 'Failed to save brand' };
   }
 }
 
 export async function updateBrandModels(formData) {
   try {
+    await requireAdmin();
     const oldMake = formData.get('oldMake')?.toString().trim();
     const make = formData.get('make')?.toString().trim();
     const modelsString = formData.get('models')?.toString().trim();
@@ -86,12 +90,13 @@ export async function updateBrandModels(formData) {
     return { success: true };
   } catch (error) {
     console.error('Failed to update brand models:', error);
-    return { success: false, error: 'Failed to update brand' };
+    return { success: false, error: error.message || 'Failed to update brand' };
   }
 }
 
 export async function deleteBrand(formData) {
   try {
+    await requireAdmin();
     const make = formData.get('make');
     if (!make) return { success: false, error: 'Brand name is required' };
 
@@ -104,6 +109,6 @@ export async function deleteBrand(formData) {
     return { success: true };
   } catch (error) {
     console.error('Failed to delete brand:', error);
-    return { success: false, error: 'Failed to delete brand' };
+    return { success: false, error: error.message || 'Failed to delete brand' };
   }
 }

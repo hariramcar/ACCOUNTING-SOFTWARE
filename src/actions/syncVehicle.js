@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { calculateVehicleFinancials } from '@/lib/vehicleAccounting';
 
 export async function syncVehicleState(tx, vehicleId) {
   // 1. Fetch vehicle with expenses, partnerships, and tokens
@@ -29,7 +30,8 @@ export async function syncVehicleState(tx, vehicleId) {
   });
 
   for (const orphan of orphanTxs) {
-    if (orphan.description.startsWith('Auto-Entry: Profit Share') || orphan.description.startsWith('Auto-Entry: Loss Share')) {
+    const isShare = orphan.description.startsWith('Auto-Entry: Profit Share') || orphan.description.startsWith('Auto-Entry: Loss Share');
+    if (isShare) {
       // Fix the orphan transaction by adding referenceId for the future
       await tx.transaction.update({
         where: { id: orphan.id },
@@ -39,75 +41,9 @@ export async function syncVehicleState(tx, vehicleId) {
     }
   }
 
-  // 3. Recalculate Balances from scratch
-  let purchasePrice = 0;
-  let purchasePendingBalance = 0;
-  let salePrice = 0;
-  let salePendingBalance = 0;
-
-  for (const t of txs) {
-    if (t.category === 'VEHICLE_PURCHASE') {
-      if (t.transactionMode === 'PENDING' && t.type === 'CREDIT') {
-        purchasePrice += Number(t.amount);
-        purchasePendingBalance += Number(t.amount);
-      } else if (t.type === 'CREDIT' && t.description.includes('Pending Udhari')) {
-        purchasePrice += Number(t.amount);
-        purchasePendingBalance += Number(t.amount);
-      } else if (t.type === 'DEBIT' && (t.description.includes('Paid Pending Udhari') || t.description.includes('from Partner Capital'))) {
-        purchasePendingBalance -= Number(t.amount);
-      } else if (t.type === 'DEBIT') {
-        purchasePrice += Number(t.amount);
-      }
-    } else if (t.category === 'VEHICLE_SALE') {
-      if (t.transactionMode === 'PENDING') {
-        if (t.type === 'DEBIT') {
-          salePrice += Number(t.amount);
-          salePendingBalance += Number(t.amount);
-        } else if (t.type === 'CREDIT') {
-          salePrice -= Number(t.amount);
-          salePendingBalance -= Number(t.amount);
-        }
-      } else if (t.type === 'CREDIT' && t.description.includes('Received Pending Payment')) {
-        salePendingBalance -= Number(t.amount);
-      } else if (t.type === 'CREDIT' && t.description.includes('Advance Received')) {
-        salePrice += Number(t.amount);
-      } else if (t.type === 'CREDIT') {
-        salePrice += Number(t.amount);
-      } else if (t.type === 'DEBIT' && t.description.includes('Pending Receivable')) {
-        salePrice += Number(t.amount);
-        salePendingBalance += Number(t.amount);
-      } else if (t.type === 'DEBIT' && t.description.includes('Refund')) {
-        salePrice -= Number(t.amount);
-      }
-    }
-  }
-
-  // Count APPLIED tokens towards the vehicle's total sale price
-  const appliedTokensTotal = (vehicle.tokens || [])
-    .filter(t => t.status === 'APPLIED')
-    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-
-  if (salePrice > 0 || vehicle.status === 'SOLD') {
-    salePrice += appliedTokensTotal;
-  }
-
-  // 4. Calculate Profit
-  // Legacy vehicles and vehicles without explicit purchase transactions hold their purchase price statically on the vehicle record
-  const effectivePurchasePrice = (vehicle.isLegacy || purchasePrice === 0)
-    ? Number(vehicle.purchasePrice || 0)
-    : purchasePrice;
-
-  const totalExpenses = vehicle.expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
-  const legacyExp = Number(vehicle.legacyExpenses || 0);
-  const totalCost = effectivePurchasePrice + totalExpenses + legacyExp;
-  
-  let profit = null;
-  const finalSalePrice = salePrice > 0 ? salePrice : Number(vehicle.salePrice || 0);
-  if (vehicle.status === 'SOLD' && finalSalePrice > 0) {
-    profit = finalSalePrice - totalCost;
-  } else if (vehicle.status === 'SOLD') {
-    profit = 0 - totalCost;
-  }
+  // 3. Recalculate Balances and Profit using vehicleAccounting domain service
+  const financials = calculateVehicleFinancials(vehicle, txs);
+  const { purchasePrice, purchasePendingBalance, salePrice, salePendingBalance, profit } = financials;
 
   // 5. Update Partner Profit Shares dynamically!
   if (profit !== null && vehicle.partnerships && vehicle.partnerships.length > 0) {

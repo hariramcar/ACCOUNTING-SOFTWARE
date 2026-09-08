@@ -3,15 +3,17 @@
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { checkSufficientBalance } from '@/lib/balanceCheck';
+import { requireAdmin, requireAuth } from '@/lib/authGuard';
 
 export async function getDailyTransactions(dateString) {
-  // Parse date to start and end of day
-  const date = new Date(dateString || new Date());
-  date.setHours(0, 0, 0, 0);
-  const nextDay = new Date(date);
-  nextDay.setDate(nextDay.getDate() + 1);
-
   try {
+    await requireAdmin();
+    // Parse date to start and end of day
+    const date = new Date(dateString || new Date());
+    date.setHours(0, 0, 0, 0);
+    const nextDay = new Date(date);
+    nextDay.setDate(nextDay.getDate() + 1);
+
     const transactions = await prisma.transaction.findMany({
       where: {
         date: {
@@ -48,12 +50,15 @@ export async function getDailyTransactions(dateString) {
     };
   } catch (error) {
     console.error('Failed to fetch transactions:', error);
-    return { success: false, error: 'Failed to load Rojmel data.' };
+    return { success: false, error: error.message || 'Failed to load Rojmel data.' };
   }
 }
 
 export async function getAccounts() {
   try {
+    const session = await requireAuth();
+    const isAdmin = session.role === 'ADMIN';
+
     const rawAccounts = await prisma.account.findMany({
       orderBy: { name: 'asc' }
     });
@@ -62,19 +67,20 @@ export async function getAccounts() {
       id: acc.id,
       name: acc.name,
       type: acc.type,
-      openingBalance: Number(acc.openingBalance || 0),
-      currentAdvance: Number(acc.currentAdvance || 0),
-      profitShare: Number(acc.profitShare || 0)
+      openingBalance: isAdmin ? Number(acc.openingBalance || 0) : 0,
+      currentAdvance: isAdmin ? Number(acc.currentAdvance || 0) : 0,
+      profitShare: isAdmin ? Number(acc.profitShare || 0) : 0
     }));
 
     return { success: true, accounts };
   } catch (error) {
-    return { success: false, error: 'Failed to load accounts.' };
+    return { success: false, error: error.message || 'Failed to load accounts.' };
   }
 }
 
 export async function addTransaction(formData) {
   try {
+    await requireAdmin();
     const amount = parseFloat((formData.get('amount') || '0').replace(/,/g, ''));
     const type = formData.get('type');
     const transactionMode = formData.get('mode');
@@ -111,36 +117,41 @@ export async function addTransaction(formData) {
 
 export async function getHistoricalCashBalances(targetDateString) {
   try {
+    await requireAdmin();
     const targetDate = new Date(targetDateString || new Date());
     targetDate.setHours(0, 0, 0, 0);
     const nextDay = new Date(targetDate);
     nextDay.setDate(nextDay.getDate() + 1);
 
-    const cashAccounts = await prisma.account.findMany({
-      where: { type: 'CASH' }
-    });
+    let totalOpening = 0; // Opening balance injected via credit transaction
 
-    let totalOpening = 0; // We do not add acc.openingBalance here because createAccount already injects a CREDIT transaction for it.
-
-    // Sum all transactions BEFORE targetDate
-    const priorTransactions = await prisma.transaction.findMany({
+    // Sum all transactions BEFORE targetDate using fast database-level aggregation
+    const priorAggregates = await prisma.transaction.groupBy({
+      by: ['type'],
       where: {
         account: { type: 'CASH' },
-        date: { lt: targetDate.toISOString() }
-      }
+        date: { lt: targetDate }
+      },
+      _sum: { amount: true }
     });
 
-    priorTransactions.forEach(t => {
-      const amt = Number(t.amount);
-      if (t.type === 'CREDIT') totalOpening += amt;
-      else totalOpening -= amt;
+    priorAggregates.forEach(agg => {
+      const amt = Number(agg._sum.amount || 0);
+      if (agg.type === 'CREDIT') totalOpening += amt;
+      else if (agg.type === 'DEBIT') totalOpening -= amt;
     });
 
-    // Sum all transactions ON targetDate
+    // Sum all transactions ON targetDate with selective column projection
     const dayTransactions = await prisma.transaction.findMany({
       where: {
         account: { type: 'CASH' },
-        date: { gte: targetDate.toISOString(), lt: nextDay.toISOString() }
+        date: { gte: targetDate, lt: nextDay }
+      },
+      select: {
+        amount: true,
+        type: true,
+        category: true,
+        description: true
       }
     });
 
@@ -166,6 +177,6 @@ export async function getHistoricalCashBalances(targetDateString) {
     };
   } catch (error) {
     console.error('Failed to calculate historical cash:', error);
-    return { success: false, openingCash: 0, closingCash: 0 };
+    return { success: false, openingCash: 0, closingCash: 0, error: error.message };
   }
 }

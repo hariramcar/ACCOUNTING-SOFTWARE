@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { BookOpen, Wallet, Clock, Car, Building2 } from 'lucide-react';
 import { getAccountBalances } from '@/actions/accounts';
+import { parseRequestedMode } from '@/lib/paymentParser';
 
 export const metadata = {
   title: 'My Monthly Ledger | Hariram Accounting',
@@ -90,19 +91,10 @@ export default async function StaffLedgerPage() {
     const baseTransactions = [
       ...expensesRaw.map(exp => {
         let splits = [];
-        try {
-          if (exp.requestedMode) {
-            const parsed = JSON.parse(exp.requestedMode);
-            if (parsed.payments && parsed.payments.length > 0) {
-              splits = parsed.payments.map(p => ({ mode: p.mode, amount: Number(p.amount), accountId: p.accountId }));
-            }
-          } else if (exp.paymentSource && exp.paymentSource.startsWith('{')) {
-            const parsed = JSON.parse(exp.paymentSource);
-            if (parsed.payments && parsed.payments.length > 0) {
-              splits = parsed.payments.map(p => ({ mode: p.mode, amount: Number(p.amount), accountId: p.accountId }));
-            }
-          }
-        } catch(e) {}
+        const parsed = parseRequestedMode(exp.requestedMode || exp.paymentSource);
+        if (parsed.isSplit) {
+          splits = parsed.payments.map(p => ({ mode: p.mode, amount: Number(p.amount), accountId: p.accountId }));
+        }
         
         let expMode = splits.length > 0 ? splits[0].mode : 'CASH';
         if (splits.length === 0) splits = [{ mode: expMode, amount: Number(exp.amount) }];

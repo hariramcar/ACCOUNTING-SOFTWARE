@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, CheckCircle, XCircle, X, Building2, Car } from 'lucide-react';
 import { approveExpense, rejectExpense } from '@/actions/expenses';
+import { parseRequestedMode } from '@/lib/paymentParser';
 
 export default function PendingApprovalsModal({ pendingExpenses, accounts }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -36,26 +37,22 @@ export default function PendingApprovalsModal({ pendingExpenses, accounts }) {
     
     if (!exp.requestedMode) return 'No auto-entry requested';
 
-    if (exp.requestedMode.startsWith('{')) {
-      try {
-        const parsed = JSON.parse(exp.requestedMode);
-        if (parsed.payments && Array.isArray(parsed.payments)) {
-          return (
-            <div className="flex flex-col gap-1 mt-1">
-              {parsed.payments.map((p, i) => {
-                const accName = accounts?.find(a => a.id === p.accountId)?.name || p.mode;
-                const displayName = accName === 'UGHRANI' ? 'MARKET PLACE' : accName;
-                return (
-                  <span key={i} className="bg-white border border-slate-200 text-slate-700 px-2 py-1 rounded font-bold uppercase tracking-wider text-[10px] flex justify-between items-center w-full">
-                    <span>{p.mode === 'UGHRANI' ? 'Market' : p.mode === 'BANK' ? 'Bank' : 'Cash'} • {displayName}</span>
-                    <span className="text-emerald-600">₹{Number(p.amount || 0).toLocaleString('en-IN')}</span>
-                  </span>
-                );
-              })}
-            </div>
-          );
-        }
-      } catch(e) {}
+    const parsed = parseRequestedMode(exp.requestedMode);
+    if (parsed.isSplit) {
+      return (
+        <div className="flex flex-col gap-1 mt-1">
+          {parsed.payments.map((p, i) => {
+            const accName = accounts?.find(a => a.id === p.accountId)?.name || p.mode;
+            const displayName = accName === 'UGHRANI' ? 'MARKET PLACE' : accName;
+            return (
+              <span key={i} className="bg-white border border-slate-200 text-slate-700 px-2 py-1 rounded font-bold uppercase tracking-wider text-[10px] flex justify-between items-center w-full">
+                <span>{p.mode === 'UGHRANI' ? 'Market' : p.mode === 'BANK' ? 'Bank' : 'Cash'} • {displayName}</span>
+                <span className="text-emerald-600">₹{Number(p.amount || 0).toLocaleString('en-IN')}</span>
+              </span>
+            );
+          })}
+        </div>
+      );
     }
 
     return exp.requestedMode;

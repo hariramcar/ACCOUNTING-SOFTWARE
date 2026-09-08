@@ -8,27 +8,82 @@ export default async function Home() {
   if (!session) {
     redirect('/login');
   }
-  // Fetch sold vehicles with their expenses and partnerships to calculate accurate profit
-  const soldVehicles = await prisma.vehicle.findMany({
-    where: { status: 'SOLD' },
-    orderBy: { saleDate: 'desc' },
-    include: {
-      expenses: true,
-      partnerships: {
-        include: { partnerAccount: true }
-      }
-    }
-  });
+  if (session.role !== 'ADMIN') {
+    redirect('/expenses');
+  }
+  // Database-level aggregations and bounded recent sales query via Promise.all
+  const [
+    carProfitAgg,
+    officeExpensesAgg,
+    carExpensesAgg,
+    soldVehiclesWithPartners,
+    recentSoldVehicles,
+  ] = await Promise.all([
+    prisma.vehicle.aggregate({
+      where: { status: 'SOLD' },
+      _sum: { profit: true },
+    }),
+    prisma.expense.aggregate({
+      where: { expenseType: 'OFFICE_EXPENSE' },
+      _sum: { amount: true },
+    }),
+    prisma.expense.aggregate({
+      where: { expenseType: 'CAR_EXPENSE' },
+      _sum: { amount: true },
+    }),
+    prisma.vehicle.findMany({
+      where: {
+        status: 'SOLD',
+        partnerships: { some: {} },
+      },
+      select: {
+        profit: true,
+        partnerships: {
+          select: { profitSharePercentage: true },
+        },
+      },
+    }),
+    prisma.vehicle.findMany({
+      where: { status: 'SOLD' },
+      orderBy: { saleDate: 'desc' },
+      take: 15,
+      select: {
+        id: true,
+        make: true,
+        model: true,
+        registration: true,
+        saleDate: true,
+        purchasePrice: true,
+        salePrice: true,
+        profit: true,
+        expenses: {
+          select: { amount: true },
+        },
+        partnerships: {
+          select: {
+            id: true,
+            profitSharePercentage: true,
+            partnerAccount: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    }),
+  ]);
 
-  // Calculate Total Car Gross Profit
-  const totalCarProfit = soldVehicles.reduce((sum, v) => sum + Number(v.profit || 0), 0);
+  // Aggregate calculations computed at database level
+  const totalCarProfit = Number(carProfitAgg._sum.profit || 0);
+  const totalOfficeExpenses = Number(officeExpensesAgg._sum.amount || 0);
+  const totalCarExpenses = Number(carExpensesAgg._sum.amount || 0);
 
-  // Calculate Partner Payouts (Money we owed/gave to partners from the profit)
+  // Compute partner share deduction strictly from vehicles with partnerships
   let totalPartnerPayouts = 0;
-  soldVehicles.forEach(v => {
+  soldVehiclesWithPartners.forEach(v => {
     if (v.partnerships && v.partnerships.length > 0) {
+      const pft = Number(v.profit || 0);
       v.partnerships.forEach(p => {
-        const payout = Number(v.profit || 0) * (Number(p.profitSharePercentage) / 100);
+        const payout = pft * (Number(p.profitSharePercentage) / 100);
         if (payout > 0) totalPartnerPayouts += payout;
       });
     }
@@ -36,18 +91,6 @@ export default async function Home() {
 
   // Our Net Car Profit (After paying partners)
   const ourCarProfit = totalCarProfit - totalPartnerPayouts;
-
-  // Fetch Total Office Expenses
-  const officeExpenses = await prisma.expense.findMany({
-    where: { expenseType: 'OFFICE_EXPENSE' }
-  });
-  const totalOfficeExpenses = officeExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-
-  // Fetch Total Car Expenses
-  const carExpenses = await prisma.expense.findMany({
-    where: { expenseType: 'CAR_EXPENSE' }
-  });
-  const totalCarExpenses = carExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
   // TRUE NET PROFIT
   const trueNetProfit = ourCarProfit - totalOfficeExpenses;
@@ -90,14 +133,20 @@ export default async function Home() {
 
       {/* Sold Vehicles Breakdown */}
       <div className="glass-card rounded-2xl shadow-sm overflow-hidden flex flex-col mt-4">
-        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
-          <h2 className="text-lg font-bold text-slate-900 m-0">Recent Sales Breakdown</h2>
+        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 m-0">Recent Sales Breakdown</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Showing latest 15 sales • View complete history in Profit Engine</p>
+          </div>
+          <Link href="/profit" className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 self-start sm:self-auto">
+            Full Profit Ledger →
+          </Link>
         </div>
 
         <div className="w-full">
           {/* Mobile Card Layout */}
           <div className="flex flex-col gap-4 p-4 md:hidden bg-slate-50/30">
-            {soldVehicles.map(car => {
+            {recentSoldVehicles.map(car => {
               const totalExp = car.expenses.reduce((sum, e) => sum + Number(e.amount), 0);
               const cost = Number(car.purchasePrice) + totalExp;
               const hasPartner = car.partnerships && car.partnerships.length > 0;
@@ -152,7 +201,7 @@ export default async function Home() {
                 </div>
               );
             })}
-            {soldVehicles.length === 0 && (
+            {recentSoldVehicles.length === 0 && (
               <div className="py-8 text-center text-slate-500 font-medium text-sm">
                 No vehicles sold yet.
               </div>
@@ -173,7 +222,7 @@ export default async function Home() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {soldVehicles.map(car => {
+                {recentSoldVehicles.map(car => {
                   const totalExp = car.expenses.reduce((sum, e) => sum + Number(e.amount), 0);
                   const cost = Number(car.purchasePrice) + totalExp;
                   const hasPartner = car.partnerships && car.partnerships.length > 0;
@@ -220,7 +269,7 @@ export default async function Home() {
                     </tr>
                   );
                 })}
-                {soldVehicles.length === 0 && (
+                {recentSoldVehicles.length === 0 && (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-500 font-medium text-sm">
                       No vehicles sold yet. Start selling to see profits!

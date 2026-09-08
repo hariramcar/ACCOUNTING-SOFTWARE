@@ -3,6 +3,7 @@ import { getAccountBalances } from '@/actions/accounts';
 import { getHistoricalCashBalances } from '@/actions/rojmel';
 import { sellVehicle } from '@/actions/inventory';
 import prisma from '@/lib/prisma';
+import { parseRequestedMode } from '@/lib/paymentParser';
 import ExpenseForm from './ExpenseForm';
 import PendingApprovalsModal from './PendingApprovalsModal';
 import MobileExpenseModal from './MobileExpenseModal';
@@ -32,18 +33,32 @@ export default async function ExpensesPage({ searchParams }) {
   const targetDate = awaitedParams?.date || defaultDateStr;
 
   const { expenses } = await getRecentExpenses(targetDate);
-  const { accounts } = await getAccountBalances();
-
-  // Calculate exact historical Opening/Closing Cash for the selected date
-  const { openingCash, closingCash } = await getHistoricalCashBalances(targetDate);
-
+  
+  let accounts = [];
+  let openingCash = 0;
+  let closingCash = 0;
   let pendingExpenses = [];
   let staffWallet = null;
 
   if (isAdmin) {
-    const res = await getPendingExpenses();
-    if (res.success) pendingExpenses = res.expenses;
+    const [accRes, cashRes, pendRes] = await Promise.all([
+      getAccountBalances(),
+      getHistoricalCashBalances(targetDate),
+      getPendingExpenses()
+    ]);
+    if (accRes.success) accounts = accRes.accounts;
+    if (cashRes.success) {
+      openingCash = cashRes.openingCash;
+      closingCash = cashRes.closingCash;
+    }
+    if (pendRes.success) pendingExpenses = pendRes.expenses;
   } else {
+    // For STAFF: fetch only sanitized accounts without balances for select dropdowns
+    accounts = await prisma.account.findMany({
+      select: { id: true, name: true, type: true },
+      orderBy: { name: 'asc' }
+    });
+
     // STAFF logic: get their specific account balance and diary note
     const dbUser = await prisma.user.findUnique({ 
       where: { id: session?.userId }, 
@@ -51,25 +66,22 @@ export default async function ExpensesPage({ searchParams }) {
     });
     staffWallet = { balance: 0, spent: 0, diaryNote: dbUser?.diaryNote || '' };
     if (dbUser?.accountId) {
-      const acc = accounts.find(a => a.id === dbUser.accountId);
-      if (acc) {
+      const staffAccount = await prisma.account.findUnique({
+        where: { id: dbUser.accountId }
+      });
+      if (staffAccount) {
         // Calculate total spent by staff (approved + pending expenses submitted by them)
         const totalSpent = expenses.reduce((sum, exp) => {
-          let staffSplitsSum = 0;
-          try {
-            if (exp.requestedMode && exp.requestedMode.startsWith('{')) {
-              const parsed = JSON.parse(exp.requestedMode);
-              if (parsed.payments && parsed.payments.length > 0) {
-                staffSplitsSum = parsed.payments
-                  .filter(p => p.mode === 'CASH' || p.mode === 'BANK')
-                  .reduce((acc, p) => acc + Number(p.amount || 0), 0);
-                return sum + staffSplitsSum;
-              }
-            } else if (exp.requestedMode === 'CASH' || exp.requestedMode === 'BANK') {
-               return sum + Number(exp.amount);
-            }
-          } catch(e) {}
-          return sum + Number(exp.amount);
+          const parsed = parseRequestedMode(exp.requestedMode);
+          if (parsed.isSplit) {
+            const staffSplitsSum = parsed.payments
+              .filter(p => p.mode === 'CASH' || p.mode === 'BANK')
+              .reduce((acc, p) => acc + Number(p.amount || 0), 0);
+            return sum + staffSplitsSum;
+          } else if (parsed.singleMode === 'CASH' || parsed.singleMode === 'BANK') {
+            return sum + Number(exp.amount || 0);
+          }
+          return sum + Number(exp.amount || 0);
         }, 0);
         
         // Calculate breakdown of Cash vs Bank Upad
@@ -77,26 +89,31 @@ export default async function ExpensesPage({ searchParams }) {
           where: { accountId: dbUser.accountId }
         });
         
-        let cashBalance = Number(acc.openingBalance || 0) * -1;
+        let cashBalance = Number(staffAccount.openingBalance || 0) * -1;
         let bankBalance = 0;
+        let totalCurrentBalance = Number(staffAccount.openingBalance || 0);
         
         staffTxs.forEach(t => {
+          const amt = Number(t.amount);
+          if (t.type === 'CREDIT') totalCurrentBalance += amt;
+          else totalCurrentBalance -= amt;
+
           if (t.category !== 'SALARY') {
             const isDebtIncrease = t.type === 'DEBIT'; // advance received
             const isDebtDecrease = t.type === 'CREDIT'; // expense spent
             
             if (t.transactionMode === 'CASH') {
-              if (isDebtIncrease) cashBalance += Number(t.amount);
-              else if (isDebtDecrease) cashBalance -= Number(t.amount);
+              if (isDebtIncrease) cashBalance += amt;
+              else if (isDebtDecrease) cashBalance -= amt;
             } else if (t.transactionMode === 'BANK') {
-              if (isDebtIncrease) bankBalance += Number(t.amount);
-              else if (isDebtDecrease) bankBalance -= Number(t.amount);
+              if (isDebtIncrease) bankBalance += amt;
+              else if (isDebtDecrease) bankBalance -= amt;
             }
           }
         });
         
         staffWallet = {
-          balance: Number(acc.currentBalance || 0) * -1,
+          balance: totalCurrentBalance * -1,
           cashBalance: Math.max(0, cashBalance),
           bankBalance: Math.max(0, bankBalance),
           spent: totalSpent,

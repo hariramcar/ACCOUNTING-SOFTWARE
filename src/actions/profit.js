@@ -3,10 +3,11 @@
 import prisma from '@/lib/prisma';
 import { getAllExpenses, getAllIncome } from './history';
 import { checkSufficientBalance } from '@/lib/balanceCheck';
-import { getSession } from '@/lib/session';
+import { requireAdmin } from '@/lib/authGuard';
 
 export async function getMonthlyProfitData(year, monthIndex) {
   try {
+    await requireAdmin();
     // Generate start and end dates for the selected month
     let startDate = new Date(year, monthIndex, 1);
     let endDate = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
@@ -223,6 +224,7 @@ export async function getMonthlyProfitData(year, monthIndex) {
 
 export async function getPendingPayables() {
   try {
+    await requireAdmin();
     const pendingVehicles = await prisma.vehicle.findMany({
       where: {
         purchasePendingBalance: { gt: 0 },
@@ -306,6 +308,7 @@ export async function getPendingPayables() {
 
 export async function payPendingBalance(formData) {
   try {
+    await requireAdmin();
     const vehicleId = formData.get('vehicleId');
     const amount = parseFloat((formData.get('amount') || '0').toString().replace(/,/g, ''));
     const mode = formData.get('mode'); // 'CASH' or 'BANK'
@@ -394,10 +397,8 @@ export async function payPendingBalance(formData) {
 }
 
 export async function getFoundersData(year, monthIndex) {
-  const session = await getSession();
-  if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
-
   try {
+    await requireAdmin();
     const founders = await prisma.account.findMany({
       where: { type: 'PARTNER' }
     });

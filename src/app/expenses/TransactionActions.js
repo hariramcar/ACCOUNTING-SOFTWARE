@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Pencil, Trash2, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import VehicleSearchSelect from '@/components/VehicleSearchSelect';
+import { parseRequestedMode } from '@/lib/paymentParser';
 
 export default function TransactionActions({ expense, deleteExpenseAction, updateExpenseAction, isRawTx, hideDelete = false, accounts = [], vehicles = [] }) {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -36,17 +37,15 @@ export default function TransactionActions({ expense, deleteExpenseAction, updat
   let initialAccountId = expense.accountId || '';
   let isSplitPayment = false;
   
-  if (!isRawTx && expense.requestedMode && typeof expense.requestedMode === 'string' && expense.requestedMode.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(expense.requestedMode);
-      if (parsed.payments && Array.isArray(parsed.payments)) {
-        if (parsed.payments.length > 1) {
-          isSplitPayment = true;
-        } else if (parsed.payments.length === 1) {
-          initialAccountId = parsed.payments[0].accountId || '';
-        }
+  if (!isRawTx && expense.requestedMode) {
+    const parsed = parseRequestedMode(expense.requestedMode);
+    if (parsed.isSplit) {
+      if (parsed.payments.length > 1) {
+        isSplitPayment = true;
+      } else if (parsed.payments.length === 1) {
+        initialAccountId = parsed.payments[0].accountId || '';
       }
-    } catch(e) {}
+    }
   }
 
   const [editData, setEditData] = useState({

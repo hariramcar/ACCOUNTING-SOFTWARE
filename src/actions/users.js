@@ -3,14 +3,10 @@
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
-import { getSession } from '@/lib/session';
-import { redirect } from 'next/navigation';
+import { requireAdmin } from '@/lib/authGuard';
 
 export async function createUser(formData) {
-  const session = await getSession();
-  if (!session || session.role !== 'ADMIN') {
-    throw new Error('Unauthorized');
-  }
+  await requireAdmin();
 
   const name = formData.get('name');
   const username = formData.get('username');
@@ -54,14 +50,10 @@ export async function createUser(formData) {
 }
 
 export async function deleteUser(formData) {
-  const session = await getSession();
-  if (!session || session.role !== 'ADMIN') {
-    throw new Error('Unauthorized');
-  }
-
+  const session = await requireAdmin();
   const id = formData.get('id');
 
-  if (id === session.userId) {
+  if (id === session.userId || id === session.id) {
     throw new Error('Cannot delete yourself');
   }
 
@@ -100,10 +92,7 @@ export async function deleteUser(formData) {
 }
 
 export async function updateUser(formData) {
-  const session = await getSession();
-  if (!session || session.role !== 'ADMIN') {
-    throw new Error('Unauthorized');
-  }
+  await requireAdmin();
 
   const id = formData.get('id');
   const name = formData.get('name');
@@ -118,7 +107,7 @@ export async function updateUser(formData) {
   };
 
   if (password && password.trim() !== '') {
-    updateData.password = await bcrypt.hash(password, 10); // Before 25,000 and now 15,000 both have something wrong. I'll tell you what exactly happened: 25,000 paint V expense is of in V 5,000. 
+    updateData.password = await bcrypt.hash(password, 10);
   }
 
   await prisma.user.update({
@@ -128,3 +117,4 @@ export async function updateUser(formData) {
 
   revalidatePath('/users');
 }
+

@@ -1,7 +1,7 @@
 'use server'
 
 import prisma from '@/lib/prisma';
-import { getSession } from '@/lib/session';
+import { requireAdmin } from '@/lib/authGuard';
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -9,8 +9,7 @@ import { revalidatePath } from 'next/cache';
  */
 export async function addToken(formData) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+    await requireAdmin();
 
     const vehicleId = formData.get('vehicleId');
     const customerName = formData.get('customerName');
@@ -83,8 +82,7 @@ export async function addToken(formData) {
  */
 export async function forfeitToken(tokenId) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') return { success: false, error: 'Unauthorized' };
+    const session = await requireAdmin();
 
     const token = await prisma.vehicleToken.findUnique({ 
       where: { id: tokenId },

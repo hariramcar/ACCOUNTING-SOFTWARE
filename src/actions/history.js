@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
+import { parseRequestedMode } from '@/lib/paymentParser';
 
 export async function getAllExpenses(year, month) {
   try {
@@ -46,23 +47,19 @@ export async function getAllExpenses(year, month) {
       let accountType = paymentAccount ? paymentAccount.type : null;
 
       // Handle JSON requestedMode (split payments or single JSON payments)
-      if (exp.requestedMode && exp.requestedMode.startsWith('{') && exp.requestedMode.includes('"payments"')) {
-        try {
-          const parsed = JSON.parse(exp.requestedMode);
-          if (parsed.payments && parsed.payments.length > 0) {
-            // Check if ALL payments in the split are non-CASH and non-BANK
-            // We consider the overall expense to be 'UGHRANI' (liability) if NONE of the payments hit cash/bank.
-            const allAccountsForTx = parsed.payments.map(p => allAccounts.find(a => a.id === p.accountId));
-            const hasCashOrBank = allAccountsForTx.some(a => a && (a.type === 'CASH' || a.type === 'BANK'));
-            
-            // If it doesn't touch Cash/Bank, it's essentially an Ughrani/Liability booking
-            if (!hasCashOrBank) {
-               accountType = 'VENDOR'; // Force to a liability type so it gets excluded
-            } else {
-               accountType = 'CASH'; // Force to CASH so it gets included
-            }
-          }
-        } catch (e) {}
+      const parsedMode = parseRequestedMode(exp.requestedMode);
+      if (parsedMode.isSplit) {
+        // Check if ALL payments in the split are non-CASH and non-BANK
+        // We consider the overall expense to be 'UGHRANI' (liability) if NONE of the payments hit cash/bank.
+        const allAccountsForTx = parsedMode.payments.map(p => allAccounts.find(a => a.id === p.accountId));
+        const hasCashOrBank = allAccountsForTx.some(a => a && (a.type === 'CASH' || a.type === 'BANK'));
+        
+        // If it doesn't touch Cash/Bank, it's essentially an Ughrani/Liability booking
+        if (!hasCashOrBank) {
+           accountType = 'VENDOR'; // Force to a liability type so it gets excluded
+        } else {
+           accountType = 'CASH'; // Force to CASH so it gets included
+        }
       }
 
       if (paymentAccount) {

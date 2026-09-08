@@ -5,6 +5,7 @@ import { syncVehicleState } from './syncVehicle';
 import { revalidatePath } from 'next/cache';
 import { checkSufficientBalance } from '@/lib/balanceCheck';
 import { getSession } from '@/lib/session';
+import { parseRequestedMode } from '@/lib/paymentParser';
 
 function processExpense(exp) {
   const processed = {
@@ -345,7 +346,7 @@ export async function addExpense(formData) {
 
       // 2. Auto-Deduct/Add from Rojmel (ONLY if Admin directly adds it, or if no approval needed)
       if (paymentDataStr && !isStaff) {
-        const data = JSON.parse(paymentDataStr);
+        const data = parseRequestedMode(paymentDataStr);
           
           if (expenseType === 'INCOME') {
             for (const p of data.payments) {
@@ -462,8 +463,9 @@ export async function approveExpense(formData) {
         data: { status: 'APPROVED' }
       });
 
-      if (expense.requestedMode && expense.requestedMode.startsWith('{')) {
-        const data = JSON.parse(expense.requestedMode);
+      const parsedMode = parseRequestedMode(expense.requestedMode);
+      if (parsedMode.isSplit) {
+        const data = parsedMode;
         
         if (expense.expenseType === 'INCOME') {
           for (const p of data.payments) {
@@ -1244,17 +1246,19 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
             let modeStr = newAcc.type === 'BANK' ? 'BANK' : newAcc.type === 'UGHRANI' ? 'UGHRANI' : 'CASH';
             
             // Check if existing requestedMode is a JSON string
-            if (expToUpdate.requestedMode && expToUpdate.requestedMode.startsWith('{')) {
-              try {
-                const parsed = JSON.parse(expToUpdate.requestedMode);
-                if (parsed.payments && parsed.payments.length === 1) {
-                  parsed.payments[0].accountId = data.accountId;
-                  parsed.payments[0].mode = modeStr;
-                  parsed.payments[0].amount = updateData.amount;
-                  updateData.requestedMode = JSON.stringify(parsed);
-                }
-              } catch(e) {}
-            } else {
+            const parsedMode = parseRequestedMode(expToUpdate.requestedMode);
+            if (parsedMode.isSplit && parsedMode.payments.length === 1) {
+              const updatedPayments = [{
+                ...parsedMode.payments[0],
+                accountId: data.accountId,
+                mode: modeStr,
+                amount: updateData.amount
+              }];
+              updateData.requestedMode = JSON.stringify({
+                payments: updatedPayments,
+                pendingBalance: parsedMode.pendingBalance
+              });
+            } else if (!parsedMode.isSplit) {
               updateData.requestedAccountId = data.accountId;
               updateData.requestedMode = modeStr;
             }
@@ -1307,16 +1311,16 @@ export async function updateExpense(expenseId, data, isRawTx = false) {
             date: new Date(data.date),
             description: newTxDesc
           };
-          if (updateData.requestedMode && !updateData.requestedMode.startsWith('{')) {
+          const parsedMode = parseRequestedMode(updateData.requestedMode);
+          if (!parsedMode.isSplit && updateData.requestedMode) {
             txUpdateData.accountId = updateData.requestedAccountId;
             txUpdateData.transactionMode = updateData.requestedMode;
-          } else if (updateData.requestedMode && updateData.requestedMode.startsWith('{')) {
-            const parsed = JSON.parse(updateData.requestedMode);
-            if (parsed.payments && parsed.payments.length === 1) {
-              txUpdateData.accountId = parsed.payments[0].accountId;
-              txUpdateData.transactionMode = parsed.payments[0].mode === 'UGHRANI' ? 'CASH' : parsed.payments[0].mode;
+          } else if (parsedMode.isSplit) {
+            if (parsedMode.payments.length === 1) {
+              txUpdateData.accountId = parsedMode.payments[0].accountId;
+              txUpdateData.transactionMode = parsedMode.payments[0].mode === 'UGHRANI' ? 'CASH' : parsedMode.payments[0].mode;
               if (expToUpdate.expenseType !== 'INCOME') {
-                txUpdateData.type = parsed.payments[0].mode === 'UGHRANI' ? 'CREDIT' : 'DEBIT';
+                txUpdateData.type = parsedMode.payments[0].mode === 'UGHRANI' ? 'CREDIT' : 'DEBIT';
               }
             }
           }

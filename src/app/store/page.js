@@ -1,6 +1,8 @@
 import prisma from '@/lib/prisma';
-import { CarFront, Phone, Info } from 'lucide-react';
+import { CarFront, Phone, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Available Cars - Hariram Motor',
@@ -10,6 +12,15 @@ export const metadata = {
 export default async function StorePage() {
   const cars = await prisma.vehicle.findMany({
     where: { status: 'IN_STOCK' },
+    select: {
+      id: true,
+      make: true,
+      model: true,
+      registration: true,
+      salePrice: true,
+      isLegacy: true,
+      createdAt: true,
+    },
     orderBy: { createdAt: 'desc' }
   });
 
@@ -25,9 +36,14 @@ export default async function StorePage() {
             HARIRAM<span className="text-indigo-600">MOTORS</span>
           </div>
           <div className="flex gap-4 items-center">
-            <a href="tel:+919876543210" className="hidden sm:flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors">
-              <Phone size={16} /> 
-              Contact Us
+            <a
+              href="https://wa.me/?text=Hello%20Hariram%20Motors%2C%20I%20would%20like%20to%20inquire%20about%20your%20available%20inventory."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700 transition-colors"
+            >
+              <MessageCircle size={16} /> 
+              WhatsApp Us
             </a>
             <Link href="/login" className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold py-2 px-4 rounded-lg transition-colors">
               Staff Login
@@ -61,7 +77,6 @@ export default async function StorePage() {
             {cars.map(car => (
               <div key={car.id} className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group flex flex-col">
                 <div className="aspect-video bg-slate-100 flex items-center justify-center relative overflow-hidden">
-                  {/* Placeholder for Car Image */}
                   <CarFront size={48} className="text-slate-300 group-hover:scale-110 group-hover:text-indigo-200 transition-all duration-500" />
                   
                   {car.isLegacy && (
@@ -71,18 +86,28 @@ export default async function StorePage() {
                   )}
                 </div>
                 <div className="p-5 flex-1 flex flex-col">
-                  <h3 className="text-xl font-bold text-slate-900 mb-1 line-clamp-1">{car.make} {car.model} ({car.registration})</h3>
+                  <h3 className="text-xl font-bold text-slate-900 mb-1 line-clamp-1">{car.make} {car.model}</h3>
                   <div className="text-sm font-medium text-slate-500 mb-4 bg-slate-100 w-fit px-2 py-0.5 rounded-md border border-slate-200">
                     {car.registration || 'UNREGISTERED'}
                   </div>
                   
-                  <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <div className="font-black text-2xl text-indigo-600">
-                      {car.salePrice ? `₹${Number(car.salePrice).toLocaleString('en-IN')}` : 'Ask for Price'}
+                  <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">Asking Price</span>
+                      <div className="font-black text-2xl text-indigo-600">
+                        {car.salePrice ? `₹${Number(car.salePrice).toLocaleString('en-IN')}` : 'Ask for Price'}
+                      </div>
                     </div>
-                    <button className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-colors">
-                      <Phone size={18} />
-                    </button>
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(`Hello Hariram Motors, I am interested in the ${car.make} ${car.model} (${car.registration || 'In Stock'}). Is it still available?`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="h-10 px-3.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/70 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-sm"
+                      title="Inquire on WhatsApp"
+                    >
+                      <MessageCircle size={15} />
+                      <span>Inquire</span>
+                    </a>
                   </div>
                 </div>
               </div>

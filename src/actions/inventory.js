@@ -5,9 +5,14 @@ import { revalidatePath } from 'next/cache';
 import { checkSufficientBalance } from '@/lib/balanceCheck';
 import { getSession } from '@/lib/session';
 import { syncVehicleState } from './syncVehicle';
+import { requireAdmin, requireAuth } from '@/lib/authGuard';
+import { ZodError } from 'zod';
+import { AddVehicleSchema, SellVehicleSchema } from '@/lib/validations';
+import { toDecimal, math } from '@/lib/math';
 
 export async function getInventory(year, month) {
   try {
+    await requireAdmin();
     let startDate, endDate;
     if (year !== undefined && month !== undefined) {
       startDate = new Date(year, month, 1);
@@ -184,6 +189,7 @@ export async function getInventory(year, month) {
 
 export async function addVehicle(formData) {
   try {
+    await requireAdmin();
     const rawData = {
       make: formData.get('make'),
       model: formData.get('model'),
@@ -193,10 +199,6 @@ export async function addVehicle(formData) {
       isLegacy: formData.get('isLegacy') === 'on',
       legacyExpenses: formData.get('legacyExpenses'),
     };
-
-    const { ZodError } = await import('zod');
-    const { AddVehicleSchema } = await import('@/lib/validations');
-    const { toDecimal, math } = await import('@/lib/math');
 
     let parsed;
     try {
@@ -509,6 +511,7 @@ export async function addVehicle(formData) {
 
 export async function payVehiclePendingBalance(formData) {
   try {
+    await requireAdmin();
     const vehicleId = formData.get('vehicleId');
     const amount = parseFloat((formData.get('amount') || '0').replace(/,/g, ''));
     const sourceAccountId = formData.get('sourceAccountId');
@@ -582,6 +585,7 @@ export async function payVehiclePendingBalance(formData) {
 
 export async function sellVehicle(formData) {
   try {
+    await requireAdmin();
     const rawData = {
       vehicleId: formData.get('vehicleId'),
       salePrice: formData.get('salePrice'),
@@ -591,10 +595,6 @@ export async function sellVehicle(formData) {
       receivableAccountId: formData.get('receivableAccountId') || null,
       appliedTokenId: formData.get('appliedTokenId') || null,
     };
-
-    const { ZodError } = await import('zod');
-    const { SellVehicleSchema } = await import('@/lib/validations');
-    const { toDecimal, math } = await import('@/lib/math');
 
     let parsed;
     try {
@@ -853,6 +853,7 @@ export async function updateVehicleSaleAction(formData) {
 
 export async function addRepairExpense(formData) {
   try {
+    await requireAuth();
     const vehicleId = formData.get('vehicleId');
     const amount = parseFloat((formData.get('amount') || '0').toString().replace(/,/g, ''));
     const description = formData.get('description');
@@ -900,12 +901,13 @@ export async function addRepairExpense(formData) {
     return { success: true };
   } catch (error) {
     console.error('Failed to add expense:', error);
-    return { success: false, error: 'Failed to add repair expense.' };
+    return { success: false, error: error.message || 'Failed to add repair expense.' };
   }
 }
 
 export async function payPartnerPendingInvestment(formData) {
   try {
+    await requireAdmin();
     const partnershipId = formData.get('partnershipId');
     const amount = parseFloat((formData.get('amount') || '0').replace(/,/g, ''));
     const targetAccountId = formData.get('targetAccountId'); // The firm's Cash/Bank receiving the money
@@ -1001,6 +1003,7 @@ export async function payPartnerPendingInvestment(formData) {
 
 export async function payPartnerProfit(formData) {
   try {
+    await requireAdmin();
     const partnershipId = formData.get('partnershipId');
     const amount = parseFloat((formData.get('amount') || '0').replace(/,/g, ''));
     const sourceAccountId = formData.get('sourceAccountId'); // Firm's Cash/Bank
